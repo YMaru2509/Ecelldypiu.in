@@ -34,7 +34,7 @@ const Sponsors = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans overflow-x-hidden">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans overflow-x-hidden">
 
       {/* Hero Section */}
       <section className="min-h-[60vh] md:min-h-screen flex flex-col justify-center pt-32 md:pt-32 pb-12 relative border-b-2 border-white/10">
@@ -55,7 +55,7 @@ const Sponsors = () => {
         </div>
       </section>
 
-      <FunkyMarquee text="SPONSORS" speed={20} className="bg-brand-yellow text-black border-y-4 border-black -rotate-1 scale-105 z-20" />
+      <FunkyMarquee text="SPONSORS" speed={20} className="bg-brand-yellow text-[var(--text-on-brand)] border-y-4 border-black -rotate-1 scale-105 z-20" />
 
       {/* Sponsors Grid */}
       <section className="py-12 md:py-32 px-4 bg-zinc-900 border-t-4 border-white">
@@ -113,7 +113,7 @@ const Sponsors = () => {
           </h2>
           <Link
             to="/contact"
-            className="text-xl md:text-3xl font-black bg-black text-white px-12 py-6 rounded-full border-4 border-transparent hover:bg-brand-yellow hover:text-black hover:border-black transition-all shadow-[8px_8px_0px_#FFB22C] inline-flex items-center gap-4"
+            className="text-xl md:text-3xl font-black bg-black text-white px-12 py-6 rounded-full border-4 border-transparent hover:bg-brand-yellow hover:text-[var(--text-on-brand)] hover:border-black transition-all shadow-[8px_8px_0px_#FFB22C] inline-flex items-center gap-4"
           >
             GET IN TOUCH
             <Star className="w-8 h-8 fill-current" />

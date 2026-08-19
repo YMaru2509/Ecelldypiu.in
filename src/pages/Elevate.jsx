@@ -89,7 +89,7 @@ const Elevate = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans">
       {/* Hero Section */}
       <section className="min-h-[60vh] md:min-h-screen flex flex-col justify-center pt-32 pb-12 relative border-b-4 border-white bg-black">
         <div className="container mx-auto px-4 relative z-10">
@@ -106,7 +106,7 @@ const Elevate = () => {
             transition={{ duration: 0.8 }}
             className="max-w-6xl"
           >
-            <div className="inline-block bg-brand-yellow text-black font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
+            <div className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
               COMPLETED INITIATIVE
             </div>
             <h1 className="text-6xl md:text-8xl lg:text-[10rem] font-black mb-8 uppercase tracking-tighter leading-[0.8] break-words">
@@ -151,7 +151,7 @@ const Elevate = () => {
       </section>
 
       {/* Highlights */}
-      <section className="py-20 border-b-4 border-white bg-brand-yellow text-black">
+      <section className="py-20 border-b-4 border-white bg-brand-yellow text-[var(--text-on-brand)]">
         <div className="container mx-auto px-4">
           <h2 className="text-5xl md:text-8xl font-black mb-16 uppercase tracking-tighter text-center">
             EXCELLENCE

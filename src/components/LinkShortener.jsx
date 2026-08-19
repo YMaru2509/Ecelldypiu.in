@@ -443,7 +443,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                     <button
                         type="button"
                         onClick={() => setShowCustomQrStudio(true)}
-                        className="bg-zinc-800 border-2 border-brand-yellow text-brand-yellow hover:bg-brand-yellow hover:text-black font-black px-4 py-2 rounded-xl uppercase text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[2px_2px_0px_#FFB22C] self-start sm:self-auto"
+                        className="bg-zinc-800 border-2 border-brand-yellow text-brand-yellow hover:bg-brand-yellow hover:text-[var(--text-on-brand)] font-black px-4 py-2 rounded-xl uppercase text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[2px_2px_0px_#FFB22C] self-start sm:self-auto"
                     >
                         <QrCode className="w-4 h-4" />
                         Custom QR Generator Studio
@@ -513,7 +513,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                         <button
                             type="submit"
                             disabled={creating || !longUrl.trim() || !destinationName.trim()}
-                            className="bg-brand-yellow text-black font-black px-6 py-3 rounded-xl uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="bg-brand-yellow text-[var(--text-on-brand)] font-black px-6 py-3 rounded-xl uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                             {creating ? (
                                 <>
@@ -545,7 +545,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                         <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 onClick={() => handleCopy(createdLink.shortUrl)}
-                                className="bg-brand-yellow text-black px-4 py-2 rounded-lg font-bold uppercase text-xs hover:bg-white transition-colors flex items-center justify-center gap-2"
+                                className="bg-brand-yellow text-[var(--text-on-brand)] px-4 py-2 rounded-lg font-bold uppercase text-xs hover:bg-white transition-colors flex items-center justify-center gap-2"
                             >
                                 <Copy className="w-4 h-4" />
                                 Copy Link
@@ -739,21 +739,21 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button
                                                             onClick={() => setStatsModalLink(link)}
-                                                            className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-black rounded-lg text-brand-yellow hover:text-black transition-colors cursor-pointer"
+                                                            className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded-lg text-brand-yellow transition-colors cursor-pointer"
                                                             title="Detailed Link Analytics"
                                                         >
                                                             <BarChart2 className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => setQrModalLink(link)}
-                                                            className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-black rounded-lg text-gray-300 transition-colors cursor-pointer"
+                                                            className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded-lg text-gray-300 transition-colors cursor-pointer"
                                                             title="QR Code"
                                                         >
                                                             <QrCode className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => openEditModal(link)}
-                                                            className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-black rounded-lg text-gray-300 transition-colors cursor-pointer"
+                                                            className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded-lg text-gray-300 transition-colors cursor-pointer"
                                                             title="Edit Shortlink"
                                                         >
                                                             <Edit2 className="w-4 h-4" />
@@ -826,14 +826,14 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => setStatsModalLink(link)}
-                                                    className="p-1.5 bg-zinc-800 hover:bg-brand-yellow hover:text-black rounded text-brand-yellow hover:text-black transition-colors"
+                                                    className="p-1.5 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded text-brand-yellow transition-colors"
                                                     title="Analytics"
                                                 >
                                                     <BarChart2 className="w-4 h-4" />
                                                 </button>
                                                 <button
                                                     onClick={() => setQrModalLink(link)}
-                                                    className="p-1.5 bg-zinc-800 hover:bg-brand-yellow hover:text-black rounded text-gray-300 transition-colors"
+                                                    className="p-1.5 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded text-gray-300 transition-colors"
                                                     title="QR Code"
                                                 >
                                                     <QrCode className="w-4 h-4" />
@@ -970,7 +970,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                 <button
                                     type="submit"
                                     disabled={savingEdit}
-                                    className="px-6 py-2 rounded-xl bg-brand-yellow text-black font-black uppercase text-xs hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-6 py-2 rounded-xl bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase text-xs hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}
                                 </button>
@@ -1289,7 +1289,7 @@ const QrCodeModal = ({ link, onClose, showToast }) => {
                             type="button"
                             onClick={handleDownloadPng}
                             disabled={generating || !qrDataUrl}
-                            className="w-full py-2.5 bg-brand-yellow hover:bg-white text-black rounded-xl font-black uppercase text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                            className="w-full py-2.5 bg-brand-yellow hover:bg-white text-[var(--text-on-brand)] rounded-xl font-black uppercase text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                         >
                             <Download className="w-4 h-4" />
                             Download PNG
@@ -1868,7 +1868,7 @@ const CustomQrStudioModal = ({ onClose, showToast }) => {
                             type="button"
                             onClick={handleDownloadPng}
                             disabled={generating || !qrDataUrl}
-                            className="w-full py-2.5 bg-brand-yellow hover:bg-white text-black rounded-xl font-black uppercase text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                            className="w-full py-2.5 bg-brand-yellow hover:bg-white text-[var(--text-on-brand)] rounded-xl font-black uppercase text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                         >
                             <Download className="w-4 h-4" />
                             Download PNG
@@ -1923,7 +1923,7 @@ const ConfirmationModal = ({ title, message, confirmText, confirmStyle = 'primar
                     className={`px-6 py-2 rounded-xl font-black uppercase text-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2 ${
                         confirmStyle === 'danger'
                             ? 'bg-red-600 hover:bg-red-700 text-white'
-                            : 'bg-brand-yellow hover:bg-white text-black'
+                            : 'bg-brand-yellow hover:bg-white text-[var(--text-on-brand)]'
                     }`}
                 >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : confirmText || 'Confirm Action'}

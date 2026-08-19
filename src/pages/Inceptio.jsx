@@ -69,7 +69,7 @@ const Inceptio = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans">
       {/* Hero Section */}
       <section className="min-h-[60vh] md:min-h-screen flex flex-col justify-center pt-32 pb-12 relative border-b-4 border-white bg-black">
         <div className="container mx-auto px-4 relative z-10">
@@ -86,7 +86,7 @@ const Inceptio = () => {
             transition={{ duration: 0.8 }}
             className="max-w-6xl"
           >
-            <div className="inline-block bg-brand-yellow text-black font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
+            <div className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
               COMPLETED
             </div>
             <h1 className="text-6xl md:text-8xl lg:text-[10rem] font-black mb-8 uppercase tracking-tighter leading-[0.8]">
@@ -177,7 +177,7 @@ const Inceptio = () => {
       </section>
 
       {/* Highlights */}
-      <section className="py-20 border-b-4 border-white bg-brand-yellow text-black">
+      <section className="py-20 border-b-4 border-white bg-brand-yellow text-[var(--text-on-brand)]">
         <div className="container mx-auto px-4">
           <h2 className="text-5xl md:text-8xl font-black mb-16 uppercase tracking-tighter text-center">
             HIGHLIGHTS
@@ -202,7 +202,7 @@ const Inceptio = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {eventDetails.schedule.map((day, i) => (
               <div key={i} className="bg-zinc-900 border-4 border-white rounded-[2rem] overflow-hidden h-full">
-                <div className="bg-brand-yellow text-black p-6 border-b-4 border-white">
+                <div className="bg-brand-yellow text-[var(--text-on-brand)] p-6 border-b-4 border-white">
                   <h3 className="text-3xl font-black uppercase text-center">{day.day.split(' - ')[0]}</h3>
                   <p className="text-black text-center font-mono font-bold">{day.day.split(' - ')[1]}</p>
                 </div>

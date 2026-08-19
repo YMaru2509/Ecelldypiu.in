@@ -29,7 +29,7 @@ const EventCreationLauncher = ({ onClose, onSelectTemplate, onStartAI }) => {
                     <button
                         type="button"
                         onClick={onStartAI}
-                        className="w-full text-left bg-brand-yellow text-black border-2 border-brand-yellow rounded-xl p-5 md:p-6 hover:bg-white hover:border-white transition-colors"
+                        className="w-full text-left bg-brand-yellow text-[var(--text-on-brand)] border-2 border-brand-yellow rounded-xl p-5 md:p-6 hover:bg-white hover:border-white transition-colors"
                     >
                         <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-5">
                             <div className="w-14 h-14 rounded-lg bg-black text-brand-yellow flex items-center justify-center shrink-0">

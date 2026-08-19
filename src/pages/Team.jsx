@@ -509,10 +509,10 @@ const MemberCard = ({ member, index }) => {
       className="group relative"
     >
       {/* Card Box with Neo-brutalist Shadow and Border */}
-      <div className="bg-zinc-900 border-2 md:border-4 border-white rounded-2xl md:rounded-[2rem] overflow-hidden relative shadow-[4px_4px_0px_rgba(255,255,255,0.15)] md:shadow-[6px_6px_0px_rgba(255,255,255,0.15)] hover:shadow-[6px_6px_0px_#FFB22C] md:hover:shadow-[10px_10px_0px_#FFB22C] hover:border-brand-yellow transition-all duration-300 flex flex-col h-full">
+      <div className="bg-[var(--bg-card)] border-2 md:border-4 border-[var(--border-color)] rounded-2xl md:rounded-[2rem] overflow-hidden relative shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-lg)] hover:border-brand-yellow transition-all duration-300 flex flex-col h-full">
         
         {/* Image / Avatar Container */}
-        <div className="flex-1 aspect-[4/5] relative overflow-hidden bg-zinc-950 flex items-center justify-center">
+        <div className="flex-1 aspect-[4/5] relative overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center">
           {member.image && !imgError ? (
             <>
               <img
@@ -522,12 +522,12 @@ const MemberCard = ({ member, index }) => {
                 loading="lazy"
                 className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105 filter group-hover:contrast-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-70 group-hover:opacity-50 transition-opacity duration-300 z-10" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-inverse)] via-[color-mix(in_srgb,var(--bg-inverse)_30%,transparent)] to-transparent opacity-70 group-hover:opacity-50 transition-opacity duration-300 z-10" />
             </>
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
-              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#FFB22C_1px,transparent_1px)] [background-size:16px_16px]" />
-              <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-brand-yellow text-black flex items-center justify-center text-xl md:text-3xl font-black font-mono border-2 md:border-4 border-black shadow-[3px_3px_0px_white] md:shadow-[4px_4px_0px_white] mb-2 md:mb-4 group-hover:scale-110 transition-transform duration-300">
+            <div className="w-full h-full bg-gradient-to-br from-[var(--bg-hover)] via-[var(--bg-card)] to-[var(--bg-primary)] flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(var(--primary-color)_1px,transparent_1px)] [background-size:16px_16px]" />
+              <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-brand-yellow text-[var(--text-on-brand)] flex items-center justify-center text-xl md:text-3xl font-black font-mono border-2 md:border-4 border-[var(--bg-inverse)] shadow-[var(--shadow-sm)] mb-2 md:mb-4 group-hover:scale-110 transition-transform duration-300">
                 {getInitials(member.name)}
               </div>
               <Users className="w-5 h-5 text-brand-yellow opacity-40" />
@@ -536,8 +536,8 @@ const MemberCard = ({ member, index }) => {
         </div>
 
         {/* Info Banner at Bottom */}
-        <div className="p-2.5 sm:p-4 md:p-5 z-20 bg-black/90 backdrop-blur-md border-t-2 md:border-t-4 border-white group-hover:border-brand-yellow transition-colors duration-300 flex flex-col justify-center">
-          <h3 className="text-xs sm:text-lg md:text-2xl font-black uppercase italic tracking-tight text-white mb-0.5 md:mb-1 group-hover:text-brand-yellow transition-colors duration-300 line-clamp-2 leading-tight sm:leading-snug">
+        <div className="p-2.5 sm:p-4 md:p-5 z-20 bg-[color-mix(in_srgb,var(--bg-card)_90%,transparent)] backdrop-blur-md border-t-2 md:border-t-4 border-[var(--border-color)] group-hover:border-brand-yellow transition-colors duration-300 flex flex-col justify-center">
+          <h3 className="text-xs sm:text-lg md:text-2xl font-black uppercase italic tracking-tight text-[var(--text-primary)] mb-0.5 md:mb-1 group-hover:text-brand-yellow transition-colors duration-300 line-clamp-2 leading-tight sm:leading-snug">
             {member.name}
           </h3>
           <p className="text-brand-yellow font-mono font-bold tracking-tight sm:tracking-wider text-[9px] sm:text-xs md:text-sm uppercase flex items-start gap-1 leading-tight">
@@ -571,10 +571,10 @@ const Team = () => {
   }, [selectedDept, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black overflow-x-hidden" ref={containerRef}>
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-brand-yellow selection:text-[var(--text-on-brand)] overflow-x-hidden" ref={containerRef}>
 
       {/* 1. HERO SECTION */}
-      <section className="min-h-[50vh] md:min-h-[65vh] flex flex-col justify-center pt-32 pb-12 relative border-b-2 border-white/10">
+      <section className="min-h-[50vh] md:min-h-[65vh] flex flex-col justify-center pt-32 pb-12 relative border-b-2 border-[var(--border-subtle)]">
         <div className="container mx-auto px-4 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 80 }}
@@ -582,7 +582,7 @@ const Team = () => {
             transition={{ duration: 0.7, ease: "circOut" }}
           >
             <h1 className="text-7xl md:text-[11vw] leading-[0.85] font-black tracking-tighter text-transparent stroke-text hover:text-brand-yellow transition-colors duration-500 cursor-default">
-              THE<br /><span className="text-white">SQUAD</span>
+              THE<br /><span className="text-[var(--text-primary)]">SQUAD</span>
             </h1>
 
             <div className="mt-8 md:mt-12">
@@ -595,42 +595,42 @@ const Team = () => {
       </section>
 
       {/* 2. MARQUEE SEPARATOR */}
-      <section className="bg-brand-yellow text-black border-y-4 border-black -rotate-1 scale-105 z-20 relative shadow-2xl">
+      <section className="theme-marquee bg-brand-yellow text-[var(--text-on-brand)] border-y-4 border-[var(--bg-inverse)] -rotate-1 scale-105 z-20 relative shadow-[var(--shadow-lg)]">
         <Marquee text="LEADERS • INNOVATORS • BUILDERS • VISIONARIES" speed={50} />
       </section>
 
       {/* 3. MENTOR SECTION */}
       <section className="py-8 md:py-28 px-4 relative">
         <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row items-stretch border-2 md:border-4 border-white rounded-2xl md:rounded-[2.5rem] overflow-hidden shadow-[6px_6px_0px_#FFB22C] md:shadow-[12px_12px_0px_#FFB22C]">
+          <div className="flex flex-col md:flex-row items-stretch border-2 md:border-4 border-[var(--border-color)] rounded-2xl md:rounded-[2.5rem] overflow-hidden shadow-[var(--shadow-lg)]">
             {/* Image Side */}
-            <div className="md:w-1/2 relative h-64 sm:h-80 md:h-auto md:min-h-[500px] border-b-2 md:border-b-0 md:border-r-4 border-white overflow-hidden group bg-zinc-900">
+            <div className="md:w-1/2 relative h-64 sm:h-80 md:h-auto md:min-h-[500px] border-b-2 md:border-b-0 md:border-r-4 border-[var(--border-color)] overflow-hidden group bg-[var(--bg-card)]">
               <img
                 src={mentor.image}
                 alt={mentor.name}
                 className="w-full h-full object-cover object-top transition-all duration-500 scale-100 group-hover:scale-105"
               />
               <div className="absolute top-3 left-3 md:top-auto md:bottom-6 md:left-6 z-20">
-                <span className="inline-block bg-brand-yellow text-black px-3.5 py-1.5 md:px-8 md:py-4 text-xs md:text-3xl font-black font-mono uppercase rounded-xl md:rounded-2xl border-2 md:border-4 border-black shadow-[3px_3px_0px_#000] md:shadow-[6px_6px_0px_#000]">
+                <span className="inline-block bg-brand-yellow text-[var(--text-on-brand)] px-3.5 py-1.5 md:px-8 md:py-4 text-xs md:text-3xl font-black font-mono uppercase rounded-xl md:rounded-2xl border-2 md:border-4 border-[var(--bg-inverse)] shadow-[var(--shadow-md)]">
                   THE MENTOR
                 </span>
               </div>
             </div>
 
             {/* Content Side */}
-            <div className="md:w-1/2 p-5 sm:p-8 md:p-12 lg:p-16 flex flex-col justify-center bg-zinc-900 overflow-hidden">
+            <div className="md:w-1/2 p-5 sm:p-8 md:p-12 lg:p-16 flex flex-col justify-center bg-[var(--bg-card)] overflow-hidden">
               <h2 className="text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-black mb-3 sm:mb-6 tracking-tighter leading-tight md:leading-[0.9]">
                 DR. SANDHYA <span className="text-stroke-yellow text-transparent">INGALE</span>
               </h2>
-              <p className="text-xs sm:text-base md:text-2xl font-bold text-gray-300 mb-4 sm:mb-8 border-l-3 sm:border-l-4 border-brand-yellow pl-3 sm:pl-6 leading-relaxed">
+              <p className="text-xs sm:text-base md:text-2xl font-bold text-[var(--text-secondary)] mb-4 sm:mb-8 border-l-3 sm:border-l-4 border-brand-yellow pl-3 sm:pl-6 leading-relaxed">
                 {mentor.bio}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
                 {mentor.achievements.map((tag, i) => (
-                  <div key={i} className="flex items-center gap-2.5 sm:gap-3 group cursor-pointer bg-black/50 border border-zinc-800 p-2.5 sm:p-3 rounded-lg sm:rounded-xl hover:border-brand-yellow transition-all">
+                  <div key={i} className="flex items-center gap-2.5 sm:gap-3 group cursor-pointer bg-[color-mix(in_srgb,var(--bg-secondary)_50%,transparent)] border border-[var(--border-color)] p-2.5 sm:p-3 rounded-lg sm:rounded-xl hover:border-brand-yellow transition-all">
                     <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-brand-yellow rotate-45 group-hover:scale-125 transition-transform flex-shrink-0" />
-                    <span className="text-xs sm:text-sm md:text-base font-mono uppercase tracking-wide font-bold text-gray-200 group-hover:text-brand-yellow transition-colors">{tag}</span>
+                    <span className="text-xs sm:text-sm md:text-base font-mono uppercase tracking-wide font-bold text-[var(--text-secondary)] group-hover:text-brand-yellow transition-colors">{tag}</span>
                   </div>
                 ))}
               </div>
@@ -650,10 +650,10 @@ const Team = () => {
             viewport={{ once: true }}
             className="flex flex-col items-center justify-center text-center mb-12"
           >
-            <h2 className="bg-brand-yellow text-black px-8 md:px-14 py-4 md:py-6 text-3xl md:text-6xl font-black tracking-tighter uppercase rounded-2xl border-4 border-black shadow-[8px_8px_0px_#fff] mb-6">
+            <h2 className="bg-brand-yellow text-[var(--text-on-brand)] px-8 md:px-14 py-4 md:py-6 text-3xl md:text-6xl font-black tracking-tighter uppercase rounded-2xl border-4 border-[var(--bg-inverse)] shadow-[var(--shadow-md)] mb-6">
               CORE MEMBERS
             </h2>
-            <p className="text-gray-400 font-bold max-w-xl text-base md:text-lg">
+            <p className="text-[var(--text-secondary)] font-bold max-w-xl text-base md:text-lg">
               Meet the dynamic minds leading teams across Executive, Tech, CR, Management, Design, Media, PR, and Marketing.
             </p>
           </motion.div>
@@ -663,18 +663,18 @@ const Team = () => {
             
             {/* Search Bar */}
             <div className="max-w-xl mx-auto relative">
-              <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <Search className="w-5 h-5 text-[var(--text-muted)] absolute left-4 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search by name, role, or department..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-900 border-2 border-white/30 focus:border-brand-yellow text-white pl-12 pr-4 py-3.5 rounded-full outline-none font-medium transition-all shadow-[4px_4px_0px_rgba(255,255,255,0.1)] focus:shadow-[6px_6px_0px_#FFB22C]"
+                className="w-full bg-[var(--bg-card)] border-2 border-[var(--border-color)] focus:border-brand-yellow text-[var(--text-primary)] pl-12 pr-4 py-3.5 rounded-full outline-none font-medium transition-all shadow-[var(--shadow-sm)] focus:shadow-[var(--shadow-md)]"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono uppercase bg-zinc-800 hover:bg-brand-yellow hover:text-black px-2.5 py-1 rounded-full transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono uppercase bg-[var(--bg-hover)] hover:bg-brand-yellow hover:text-[var(--text-on-brand)] px-2.5 py-1 rounded-full transition-colors"
                 >
                   Clear
                 </button>
@@ -695,14 +695,14 @@ const Team = () => {
                     onClick={() => setSelectedDept(dept.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full font-mono text-xs md:text-sm font-bold uppercase transition-all duration-300 border-2 ${
                       isSelected
-                        ? 'bg-brand-yellow text-black border-black shadow-[4px_4px_0px_#fff] scale-105'
-                        : 'bg-zinc-900 text-gray-300 border-zinc-700 hover:border-white hover:text-white'
+                        ? 'bg-brand-yellow text-[var(--text-on-brand)] border-[var(--bg-inverse)] shadow-[var(--shadow-sm)] scale-105'
+                        : 'bg-[var(--bg-card)] text-[var(--text-secondary)] border-[var(--border-color)] hover:border-brand-yellow hover:text-[var(--text-primary)]'
                     }`}
                   >
                     <dept.icon className="w-3.5 h-3.5" />
                     <span>{dept.name}</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
-                      isSelected ? 'bg-black text-brand-yellow' : 'bg-zinc-800 text-gray-400'
+                      isSelected ? 'theme-brand-on-inverse bg-[var(--bg-inverse)] text-brand-yellow' : 'bg-[var(--bg-hover)] text-[var(--text-muted)]'
                     }`}>
                       {count}
                     </span>
@@ -713,11 +713,11 @@ const Team = () => {
           </div>
 
           {/* Results Summary */}
-          <div className="flex justify-between items-center mb-8 px-2 border-b border-zinc-800 pb-4">
-            <div className="text-sm font-mono uppercase text-gray-400">
+          <div className="flex justify-between items-center mb-8 px-2 border-b border-[var(--border-color)] pb-4">
+            <div className="text-sm font-mono uppercase text-[var(--text-muted)]">
               Showing <span className="text-brand-yellow font-bold">{filteredMembers.length}</span> members
               {selectedDept !== 'all' && (
-                <span> in <span className="text-white font-bold">{selectedDept}</span></span>
+                <span> in <span className="text-[var(--text-primary)] font-bold">{selectedDept}</span></span>
               )}
               {searchQuery && (
                 <span> matching "<span className="text-brand-yellow font-bold">{searchQuery}</span>"</span>
@@ -749,16 +749,16 @@ const Team = () => {
               </AnimatePresence>
             </motion.div>
           ) : (
-            <div className="text-center py-20 bg-zinc-900/50 border-2 border-dashed border-zinc-700 rounded-3xl p-8">
-              <Users className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-2xl font-black text-white uppercase mb-2">No Members Found</h3>
-              <p className="text-gray-400 mb-6">Try searching with a different keyword or resetting filters.</p>
+            <div className="text-center py-20 bg-[color-mix(in_srgb,var(--bg-card)_50%,transparent)] border-2 border-dashed border-[var(--border-color)] rounded-3xl p-8">
+              <Users className="w-16 h-16 text-[var(--text-muted)] mx-auto mb-4" />
+              <h3 className="text-2xl font-black text-[var(--text-primary)] uppercase mb-2">No Members Found</h3>
+              <p className="text-[var(--text-secondary)] mb-6">Try searching with a different keyword or resetting filters.</p>
               <button
                 onClick={() => {
                   setSelectedDept('all');
                   setSearchQuery('');
                 }}
-                className="bg-brand-yellow text-black font-black font-mono uppercase px-6 py-3 rounded-full border-2 border-black shadow-[4px_4px_0px_#fff] hover:scale-105 transition-all"
+                className="bg-brand-yellow text-[var(--text-on-brand)] font-black font-mono uppercase px-6 py-3 rounded-full border-2 border-[var(--bg-inverse)] shadow-[var(--shadow-sm)] hover:scale-105 transition-all"
               >
                 Show All Members
               </button>
@@ -769,7 +769,7 @@ const Team = () => {
       </section>
 
       {/* 5. CTA SECTION */}
-      <section className="py-16 md:py-24 bg-white text-black text-center relative overflow-hidden">
+      <section className="py-16 md:py-24 bg-[var(--bg-secondary)] text-[var(--text-primary)] text-center relative overflow-hidden">
         <Marquee text="JOIN US " direction="right" speed={40} className="absolute top-4 opacity-20" />
         <Marquee text="BECOME A LEADER " direction="left" speed={50} className="absolute bottom-4 opacity-20" />
 
@@ -777,11 +777,11 @@ const Team = () => {
           <h2 className="text-5xl md:text-8xl font-black mb-8 md:mb-10 tracking-tighter">
             READY TO <span className="outline-text">LEAD?</span>
           </h2>
-          <p className="text-lg md:text-2xl font-bold max-w-xl mx-auto mb-8 text-zinc-700">
+          <p className="text-lg md:text-2xl font-bold max-w-xl mx-auto mb-8 text-[var(--text-secondary)]">
             Be a part of the vibrant entrepreneurial ecosystem at DYPIU and shape tomorrow's innovators.
           </p>
           <Link to="/apply">
-            <button className="text-xl md:text-3xl font-black bg-brand-yellow px-10 md:px-16 py-5 md:py-7 rounded-full border-4 border-black hover:bg-black hover:text-white hover:scale-105 transition-all duration-300 shadow-[6px_6px_0px_0px_#000] md:shadow-[10px_10px_0px_0px_#000]">
+            <button className="text-xl md:text-3xl font-black bg-brand-yellow text-[var(--text-on-brand)] px-10 md:px-16 py-5 md:py-7 rounded-full border-4 border-[var(--bg-inverse)] hover:bg-[var(--bg-inverse)] hover:text-[var(--text-inverse)] hover:scale-105 transition-all duration-300 shadow-[var(--shadow-lg)]">
               APPLY NOW!
             </button>
           </Link>
@@ -791,13 +791,13 @@ const Team = () => {
       {/* Custom Styles for Stroke Text */}
       <style>{`
         .stroke-text {
-          -webkit-text-stroke: 2px white;
+          -webkit-text-stroke: 2px var(--text-primary);
         }
         .text-stroke-yellow {
-          -webkit-text-stroke: 2px #FFB22C;
+          -webkit-text-stroke: 2px var(--primary-color);
         }
         .outline-text {
-          -webkit-text-stroke: 2px black;
+          -webkit-text-stroke: 2px var(--text-primary);
           color: transparent;
         }
       `}</style>

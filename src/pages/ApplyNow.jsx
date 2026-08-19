@@ -195,7 +195,7 @@ const ApplyNow = () => {
     );
 
     return (
-        <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans">
+        <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans">
             <section className="min-h-[25vh] md:min-h-[35vh] flex flex-col justify-center pt-28 md:pt-32 pb-8 relative border-b-4 border-white bg-black">
                 <div className="container mx-auto px-4 relative z-10 text-center">
                     <div>
@@ -436,7 +436,7 @@ const ApplyNow = () => {
                                     <button
                                         type="submit"
                                         disabled={loading || !captchaToken}
-                                        className="w-full bg-brand-yellow text-black text-xl md:text-2xl font-black uppercase py-4 md:py-6 border-4 border-black hover:bg-white hover:scale-[1.01] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-[4px_4px_0px_#fff]"
+                                        className="w-full bg-brand-yellow text-[var(--text-on-brand)] text-xl md:text-2xl font-black uppercase py-4 md:py-6 border-4 border-black hover:bg-white hover:scale-[1.01] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-[4px_4px_0px_#fff]"
                                     >
                                         {loading ? (
                                             <>

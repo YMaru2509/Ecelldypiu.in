@@ -157,7 +157,7 @@ const Login = () => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-brand-yellow text-black font-black py-4 rounded-xl uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base shadow-[4px_4px_0px_#000000] pt-3"
+                        className="w-full bg-brand-yellow text-[var(--text-on-brand)] font-black py-4 rounded-xl uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base shadow-[4px_4px_0px_#000000] pt-3"
                     >
                         {loading ? (
                             <>
@@ -245,7 +245,7 @@ const Login = () => {
                                 <button
                                     type="submit"
                                     disabled={resetLoading || !resetEmail.trim()}
-                                    className="px-6 py-2 rounded-xl bg-brand-yellow text-black font-black uppercase text-xs hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-6 py-2 rounded-xl bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase text-xs hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send Reset Link'}
                                 </button>

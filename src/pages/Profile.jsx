@@ -452,7 +452,7 @@ const Profile = () => {
                                 <button
                                     type="submit"
                                     disabled={saving}
-                                    className="px-6 py-2 rounded-xl bg-brand-yellow text-black font-black uppercase text-xs hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-6 py-2 rounded-xl bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase text-xs hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save Changes</>}
                                 </button>
@@ -534,7 +534,7 @@ const Profile = () => {
                             </p>
                             <Link
                                 to="/events"
-                                className="inline-flex items-center gap-2 bg-brand-yellow text-black font-black px-4 py-2 rounded-xl text-xs uppercase hover:bg-white transition-colors"
+                                className="inline-flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-2 rounded-xl text-xs uppercase hover:bg-white transition-colors"
                             >
                                 Browse Upcoming Events
                                 <ArrowRight className="w-4 h-4" />

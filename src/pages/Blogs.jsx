@@ -1,4 +1,4 @@
-﻿
+
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -88,7 +88,7 @@ const Blogs = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans overflow-x-hidden">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans overflow-x-hidden">
 
       {/* Hero Section */}
       <section className="min-h-[50vh] md:min-h-screen flex flex-col justify-center pt-24 md:pt-32 pb-12 relative border-b-4 border-white">
@@ -108,7 +108,7 @@ const Blogs = () => {
         </div>
       </section>
 
-      <FunkyMarquee text="READING" speed={25} className="bg-brand-yellow text-black border-y-4 border-black -rotate-1 scale-105 z-20" />
+      <FunkyMarquee text="READING" speed={25} className="bg-brand-yellow text-[var(--text-on-brand)] border-y-4 border-black -rotate-1 scale-105 z-20" />
 
       {/* Featured Articles Section */}
       <section className="py-12 md:py-20 px-4 bg-zinc-900 border-t-4 border-white">
@@ -135,7 +135,7 @@ const Blogs = () => {
                       <div className="flex-1">
                         <div className="flex flex-wrap gap-2 md:gap-4 mb-4 md:mb-6">
                           <span className="bg-zinc-800 text-white px-3 py-1 rounded-full font-mono text-xs md:text-sm border border-zinc-600">{blog.category}</span>
-                          <span className="bg-brand-yellow text-black px-3 py-1 rounded-full font-mono font-bold text-xs md:text-sm">{blog.readTime}</span>
+                          <span className="bg-brand-yellow text-[var(--text-on-brand)] px-3 py-1 rounded-full font-mono font-bold text-xs md:text-sm">{blog.readTime}</span>
                           {!blog.isStatic && (
                             <span className="bg-green-900 text-green-400 px-3 py-1 rounded-full font-mono text-xs md:text-sm border border-green-600">NEW</span>
                           )}

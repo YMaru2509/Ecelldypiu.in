@@ -3,6 +3,18 @@
 
 <head>
   <meta charset="UTF-8" />
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem("ecell-theme");
+        const preferred = window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+        const theme = saved === "light" || saved === "dark" ? saved : preferred;
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+    })();
+  </script>
   <!-- Favicons -->
   <link rel="icon" type="image/png" href="/new-ecell-logo.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/new-ecell-logo.png" />

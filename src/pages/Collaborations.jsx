@@ -141,7 +141,7 @@ const Collaborations = () => {
     };
 
     return (
-        <div className="min-h-screen bg-black text-white pt-32 pb-20 selection:bg-brand-yellow selection:text-black">
+        <div className="min-h-screen bg-black text-white pt-32 pb-20 selection:bg-brand-yellow selection:text-[var(--text-on-brand)]">
             <div className="container mx-auto px-4">
                 {/* Header */}
                 <motion.div
@@ -163,7 +163,7 @@ const Collaborations = () => {
                         <button
                             onClick={() => setActiveTab('past')}
                             className={`px-8 py-3 rounded-full font-bold uppercase transition-all duration-300 ${activeTab === 'past'
-                                ? 'bg-brand-yellow text-black'
+                                ? 'bg-brand-yellow text-[var(--text-on-brand)]'
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
@@ -172,7 +172,7 @@ const Collaborations = () => {
                         <button
                             onClick={() => setActiveTab('apply')}
                             className={`px-8 py-3 rounded-full font-bold uppercase transition-all duration-300 ${activeTab === 'apply'
-                                ? 'bg-brand-yellow text-black'
+                                ? 'bg-brand-yellow text-[var(--text-on-brand)]'
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
@@ -412,7 +412,7 @@ const Collaborations = () => {
                                 <button
                                     type="submit"
                                     disabled={submitLoading || loadingQuestions || dynamicQuestions.length === 0}
-                                    className="w-full bg-brand-yellow text-black font-black py-4 rounded-xl uppercase hover:bg-white transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className="w-full bg-brand-yellow text-[var(--text-on-brand)] font-black py-4 rounded-xl uppercase hover:bg-white transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     {submitLoading ? (
                                         <>

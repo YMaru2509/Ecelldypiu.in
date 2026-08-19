@@ -940,7 +940,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                 </h3>
                                 <button
                                     onClick={addTextField}
-                                    className="bg-brand-yellow text-black font-bold px-3 py-2 rounded-lg text-sm flex items-center gap-1 hover:bg-white transition-colors"
+                                    className="bg-brand-yellow text-[var(--text-on-brand)] font-bold px-3 py-2 rounded-lg text-sm flex items-center gap-1 hover:bg-white transition-colors"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Add
@@ -1126,7 +1126,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                                         key={align}
                                                         onClick={() => updateField(activeFieldIndex, 'textAlign', align)}
                                                         className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase transition-colors ${activeField.textAlign === align
-                                                            ? 'bg-brand-yellow text-black'
+                                                            ? 'bg-brand-yellow text-[var(--text-on-brand)]'
                                                             : 'bg-zinc-800 text-zinc-400 hover:text-white'
                                                             }`}
                                                     >
@@ -1229,7 +1229,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                         <button
                             onClick={handleSave}
                             disabled={saving || !templateUrl}
-                            className="w-full bg-brand-yellow text-black font-black text-xl py-5 rounded-xl border-4 border-white hover:shadow-[8px_8px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-wider"
+                            className="w-full bg-brand-yellow text-[var(--text-on-brand)] font-black text-xl py-5 rounded-xl border-4 border-white hover:shadow-[8px_8px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-wider"
                         >
                             {saving ? (
                                 <><Loader2 className="w-6 h-6 animate-spin" /> Saving...</>
@@ -1328,7 +1328,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                     setDispatchPasswordError('');
                                     handleDispatch();
                                 }}
-                                className="bg-brand-yellow text-black font-black px-6 py-3 rounded-xl hover:shadow-[4px_4px_0px_white] transition-all uppercase flex items-center gap-2"
+                                className="bg-brand-yellow text-[var(--text-on-brand)] font-black px-6 py-3 rounded-xl hover:shadow-[4px_4px_0px_white] transition-all uppercase flex items-center gap-2"
                             >
                                 <Send className="w-4 h-4" /> Yes, Send Now
                             </button>
@@ -1399,7 +1399,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                             <button 
                                 type="submit"
                                 disabled={loadingAttendees}
-                                className="w-full mt-2 bg-brand-yellow hover:bg-white text-black font-black py-3 rounded-xl transition-colors uppercase disabled:opacity-50"
+                                className="w-full mt-2 bg-brand-yellow hover:bg-white text-[var(--text-on-brand)] font-black py-3 rounded-xl transition-colors uppercase disabled:opacity-50"
                             >
                                 {loadingAttendees ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : 'Save Attendee'}
                             </button>
@@ -1442,7 +1442,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                     <button
                                         onClick={fetchAttendees}
                                         disabled={loadingAttendees}
-                                        className="bg-brand-yellow text-black font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-white transition-colors disabled:opacity-50"
+                                        className="bg-brand-yellow text-[var(--text-on-brand)] font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-white transition-colors disabled:opacity-50"
                                     >
                                         {loadingAttendees ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Loading...</>
@@ -1605,7 +1605,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                             <button
                                 onClick={() => setShowDispatchConfirm(true)}
                                 disabled={dispatching || eventAttendees.length === 0}
-                                className="bg-brand-yellow text-black font-black px-6 py-3 rounded-xl border-4 border-white hover:shadow-[6px_6px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider flex items-center gap-2 whitespace-nowrap"
+                                className="bg-brand-yellow text-[var(--text-on-brand)] font-black px-6 py-3 rounded-xl border-4 border-white hover:shadow-[6px_6px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider flex items-center gap-2 whitespace-nowrap"
                             >
                                 {dispatching ? (
                                     <><Loader2 className="w-5 h-5 animate-spin" /> Sending...</>
@@ -1768,7 +1768,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                             <button
                                 onClick={() => setShowDispatchConfirm(true)}
                                 disabled={dispatching || eventAttendees.length === 0}
-                                className="bg-brand-yellow text-black font-black px-8 py-4 rounded-xl border-4 border-white hover:shadow-[6px_6px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider flex items-center gap-2"
+                                className="bg-brand-yellow text-[var(--text-on-brand)] font-black px-8 py-4 rounded-xl border-4 border-white hover:shadow-[6px_6px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider flex items-center gap-2"
                             >
                                 {dispatching ? (
                                     <><Loader2 className="w-5 h-5 animate-spin" /> Sending...</>

@@ -3,7 +3,7 @@ import React from 'react';
 
 const FunkyMarquee = ({ text, direction = 'left', speed = 45, className = "" }) => {
     return (
-        <div className={`relative flex overflow-hidden py-4 group ${className}`}>
+        <div className={`theme-marquee relative flex overflow-hidden py-4 group ${className}`}>
             <div
                 className={`flex whitespace-nowrap group-hover:[animation-play-state:paused] ${direction === 'left' ? 'animate-marquee' : 'animate-marquee-reverse'}`}
                 style={{ animationDuration: `${speed}s` }}

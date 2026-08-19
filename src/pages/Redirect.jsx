@@ -117,7 +117,7 @@ const Redirect = () => {
         <div
             role="status"
             aria-live="polite"
-            className="fixed inset-0 z-[9999] min-h-screen min-h-[100dvh] w-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center overflow-hidden selection:bg-brand-yellow selection:text-black"
+            className="fixed inset-0 z-[9999] min-h-screen min-h-[100dvh] w-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center overflow-hidden selection:bg-brand-yellow selection:text-[var(--text-on-brand)]"
         >
             {/* Ambient Background Radial Glow */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-yellow/10 rounded-full blur-[120px] pointer-events-none motion-reduce:hidden" />
@@ -180,7 +180,7 @@ const Redirect = () => {
                             <Link
                                 to="/"
                                 onClick={() => trackEvent('went_back')}
-                                className="w-full inline-flex items-center justify-center gap-2 bg-brand-yellow text-black font-black px-5 py-3 rounded-xl uppercase text-xs hover:bg-white transition-colors"
+                                className="w-full inline-flex items-center justify-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] font-black px-5 py-3 rounded-xl uppercase text-xs hover:bg-white transition-colors"
                             >
                                 <ArrowLeft className="w-4 h-4" />
                                 Return to Homepage
