@@ -33,44 +33,41 @@ const ApplyNow = () => {
         role: '',
 
         // Step 3: Role Specific Answers
-        pr_why: '',
         pr_experience: '',
-        pr_scenario: '',
+        pr_campaign: '',
+        pr_collab: '',
 
-        marketing_promotion: '',
+        marketing_urgency: '',
         marketing_strategy: '',
         marketing_adapt: '',
 
-        sm_experience: '',
-        sm_skills: '',
-        sm_brand: '',
+        sm_format: '',
+        sm_complex: '',
+        sm_low_footage: '',
+        sm_low_reach: '',
 
         ops_jugaad: '',
-        ops_prioritize: '',
-        ops_crisis: '',
-
-        tech_project: '',
-        tech_experience: '',
+        ops_chaos: '',
+        ops_forgot: '',
 
         cr_why: '',
-        cr_pitch: '',
+        cr_first_message: '',
+        cr_benefit: '',
+        cr_gameplan: '',
 
-        design_portfolio: '',
+        design_why: '',
+        design_poster: '',
         design_software: '',
-
-        aesthetics_ideas: '',
-        aesthetics_experience: ''
+        design_portfolio: ''
     });
 
     const roles = [
+        { id: 'corporate_relations', label: 'Corporate Relations (high chances)', color: 'bg-orange-500' },
+        { id: 'design', label: 'Design (high chances)', color: 'bg-red-500' },
         { id: 'pr', label: 'PR (Public Relations)', color: 'bg-pink-500' },
         { id: 'marketing', label: 'Marketing', color: 'bg-blue-500' },
         { id: 'social_media', label: 'Social Media', color: 'bg-purple-500' },
-        { id: 'operations', label: 'Operations', color: 'bg-green-500' },
-        { id: 'technical', label: 'Technical', color: 'bg-cyan-500' },
-        { id: 'corporate_relations', label: 'Corporate Relations', color: 'bg-orange-500' },
-        { id: 'design', label: 'Design', color: 'bg-red-500' },
-        { id: 'aesthetics', label: 'Aesthetics (Creatives)', color: 'bg-yellow-500' }
+        { id: 'operations', label: 'Operations', color: 'bg-green-500' }
     ];
 
     const handleChange = (e) => {
@@ -364,63 +361,53 @@ const ApplyNow = () => {
                                         <p className="text-gray-400 text-sm md:text-base">Answer the following questions to show us what you've got.</p>
                                     </div>
 
-                                    {formData.role === 'pr' && (
-                                        <>
-                                            {renderField('pr_why', 'Why PR?', 'textarea')}
-                                            {renderField('pr_experience', 'Describe a past experience where you had to promote or convince people efficiently.', 'textarea')}
-                                            {renderField('pr_scenario', 'Posters/social media fail — how do you still attract a crowd?', 'textarea')}
-                                        </>
-                                    )}
-
-                                    {formData.role === 'marketing' && (
-                                        <>
-                                            {renderField('marketing_promotion', 'How would you promote a college event to maximize participation?', 'textarea')}
-                                            {renderField('marketing_strategy', 'Event registrations are low 2 days before the deadline. What quick marketing strategies do you implement?', 'textarea')}
-                                            {renderField('marketing_adapt', 'You notice the marketing plan you created isn\'t working. How do you adapt in real-time?', 'textarea')}
-                                        </>
-                                    )}
-
-                                    {formData.role === 'social_media' && (
-                                        <>
-                                            {renderField('sm_experience', 'Any prior experience of handling social media?', 'textarea')}
-                                            {renderField('sm_skills', 'What skills you think are important for this role?', 'textarea')}
-                                            {renderField('sm_brand', 'Can you name one brand or page you follow that has great social media presence? What do you like about it?', 'textarea')}
-                                        </>
-                                    )}
-
-                                    {formData.role === 'operations' && (
-                                        <>
-                                            {renderField('ops_jugaad', 'What’s the most “jugaad” thing you’ve ever pulled off?', 'textarea')}
-                                            {renderField('ops_prioritize', 'How do you prioritize tasks when multiple things need to be done at once?', 'textarea')}
-                                            {renderField('ops_crisis', 'On event day, food is late, chief guest is missing, and students are restless. What’s your plan?', 'textarea')}
-                                        </>
-                                    )}
-
-                                    {formData.role === 'technical' && (
-                                        <>
-                                            {renderField('tech_project', 'Have you ever built something fun (even small) with code? Describe it in 2 lines.', 'textarea')}
-                                            {renderField('tech_experience', 'Have you worked on websites, apps, or any event tech before?', 'textarea')}
-                                        </>
-                                    )}
-
                                     {formData.role === 'corporate_relations' && (
                                         <>
-                                            {renderField('cr_why', 'Why would you be good at Corporate Relations?', 'textarea')}
-                                            {renderField('cr_pitch', 'How would you pitch an event to a sponsor in 2 sentences?', 'textarea')}
+                                            {renderField('cr_why', '1. Why Corporate Relations?', 'textarea')}
+                                            {renderField('cr_first_message', '2. Imagine you have to approach a company that has never heard of our E-Cell. What would you say in your first message/email to make them interested in partnering with us?\nHow do you ensure both the event and the sponsor benefit from the partnership?', 'textarea')}
+                                            {renderField('cr_gameplan', '3. You have 2 days to get ₹20,000 worth of sponsorship for an event, but you have zero existing contacts. What\'s your game plan?', 'textarea')}
                                         </>
                                     )}
 
                                     {formData.role === 'design' && (
                                         <>
-                                            {renderField('design_portfolio', 'Do you have a portfolio? Paste link here (Drive/Behance/etc).', 'text')}
-                                            {renderField('design_software', 'Which design software are you most proficient in?', 'textarea')}
+                                            {renderField('design_why', '1. Why Design?', 'textarea')}
+                                            {renderField('design_poster', '2. You have 30 minutes to make a post announcing an event. You have the logo, event name and date, nothing else. What are you putting on the poster, and what are you leaving out?', 'textarea')}
+                                            {renderField('design_software', '3. Tools you use : (list them all)', 'textarea')}
+                                            {renderField('design_portfolio', '4. Attach your portfolio or designs : (option to put up things in drive)', 'text', 'https://drive.google.com/... or Behance / Portfolio link')}
                                         </>
                                     )}
 
-                                    {formData.role === 'aesthetics' && (
+                                    {formData.role === 'pr' && (
                                         <>
-                                            {renderField('aesthetics_ideas', 'Describe a theme idea for a tech event decoration.', 'textarea')}
-                                            {renderField('aesthetics_experience', 'Have you worked on venue decoration or stage setup before?', 'textarea')}
+                                            {renderField('pr_experience', '1. Tell us about one time you convinced someone, handled a conflict, or represented a group publicly.', 'textarea')}
+                                            {renderField('pr_campaign', '2. We are launching a campus event, but students are showing almost no interest. You have 4 days to increase registrations. What would your campaign look like?', 'textarea')}
+                                            {renderField('pr_collab', '3. E-Cell is organizing an event and wants to collaborate with an entrepreneurship community from another college. How would you approach them for the first time?', 'textarea')}
+                                        </>
+                                    )}
+
+                                    {formData.role === 'marketing' && (
+                                        <>
+                                            {renderField('marketing_urgency', '1. What, according to you, is the best method for creating urgency in event ticket sales?', 'textarea')}
+                                            {renderField('marketing_strategy', '2. Registrations for our flagship event are stuck at 40%, and the event is in 5 days. “Post more on Instagram” is not an answer. What would you actually do?', 'textarea')}
+                                            {renderField('marketing_adapt', '3. A campaign is getting views but few registrations. What will be your approach to overcome this issue?', 'textarea')}
+                                        </>
+                                    )}
+
+                                    {formData.role === 'social_media' && (
+                                        <>
+                                            {renderField('sm_format', '1. Which content format currently yields the highest engagement rate on Instagram/LinkedIn?', 'textarea')}
+                                            {renderField('sm_complex', '2. You need to explain a complex E-Cell initiative (e.g., a startup mentorship program). What\'s the best approach?', 'textarea')}
+                                            {renderField('sm_low_footage', '3. An E-Cell event happened yesterday, but you have very little usable footage. You still need to make the Instagram account active today. What would you post?', 'textarea')}
+                                            {renderField('sm_low_reach', '4. Suppose an E-Cell reel gets very low reach despite having good content. What would you check before deciding that the content itself was bad?', 'textarea')}
+                                        </>
+                                    )}
+
+                                    {formData.role === 'operations' && (
+                                        <>
+                                            {renderField('ops_jugaad', '1. What’s the most “jugaad” thing you’ve ever pulled off?', 'textarea')}
+                                            {renderField('ops_chaos', '2. On event day, food is late, the chief guest is missing, and students are restless. What’s your plan to handle the chaos?', 'textarea')}
+                                            {renderField('ops_forgot', '3. You realise 10 minutes before an event that your team forgot something important. You can either tell the senior immediately or try to fix it yourself first. What do you do and why?', 'textarea')}
                                         </>
                                     )}
 

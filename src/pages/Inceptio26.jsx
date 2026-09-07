@@ -45,28 +45,33 @@ const Inceptio26 = () => {
 
     const eventDetails = {
         title: 'INCEPTIO\'26',
-        subtitle: 'FLAGSHIP PITCHING & STARTUP CHALLENGE',
+        subtitle: 'STARTUP PITCHING CHALLENGE',
         organizedBy: 'E-Cell × CIIE, DYPIU',
-        date: '23rd August, 2026',
-        time: 'Two Day Event',
+        date: '23 August 2026',
+        time: 'Screening & Pitching Challenge',
         location: 'DYPIU Campus, Akurdi, Pune',
         teamSize: '40 Pitching Teams',
         category: 'Startup Challenge',
         image: '/INCEPTIO26.png',
-        description: 'INCEPTIO\'26, our flagship pitching and startup challenge, wrapped up in style this year — and the ideas on display made the judges\' job anything but easy.',
-        longDescription: 'After an Online Screening round on 22nd August, 40 teams battled it out offline with 5-minute pitches and 2-minute Q&A rounds, narrowing down to the Top 10 who took the final stage on 23rd August. From there, three teams rose to the top.',
+        description: 'INCEPTIO\'26, the flagship startup pitching and business challenge by E-Cell DYPIU in collaboration with CIIE, brought together aspiring entrepreneurs to pitch their ideas, test their business thinking, and take their first step toward building real-world ventures.',
+        longDescription: 'The competition began with an online screening round on 22 August, followed by an offline pitching round where 40 shortlisted teams presented their startups through 5-minute pitches and 2-minute Q&A sessions. After a rigorous evaluation, the Top 10 teams advanced to the final stage on 23 August.',
+        phase2: {
+            title: 'Phase 2 — The One-Week Startup Challenge',
+            desc1: 'The Top 10 qualified teams will now move forward to Phase 2: a one-week Startup Challenge, where they will take their ideas beyond the pitch deck and work on developing and validating their ventures.',
+            desc2: 'The challenge will put their entrepreneurial thinking, execution, problem-solving, and ability to turn an idea into something tangible to the test.'
+        },
         highlights: [
             '₹5,000 Cash Prize for 1st Place Winner (CampusBites)',
             '₹3,000 for 2nd Place (The Method Studio) & ₹2,000 for 3rd Place (Swaraj Saathi)',
+            'Phase 2: 1-Week Startup Challenge for Top 10 Qualified Teams',
             'Direct Entry to Eureka! 2026 Zonals at IIT Bombay for Top 3 Teams',
-            'Access to Advanced Startup Bootcamp & Incubation Support through CIIE',
-            'Official Participation Certificates for Every Registered Pitching Team'
+            'Access to Advanced Startup Bootcamp & Incubation Support through CIIE'
         ],
         process: [
-            { title: 'Screen', desc: 'Online Screening round on 22nd August evaluating innovative pitch decks', icon: Target },
-            { title: 'Battle', desc: '40 teams presented 5-minute pitches & faced 2-minute Q&A rounds offline', icon: Zap },
-            { title: 'Finale', desc: 'Top 10 finalist teams took the final stage on 23rd August', icon: Users },
-            { title: 'Triumph', desc: 'Three standout teams crowned as champions for national advancement', icon: Trophy }
+            { title: 'Screening', desc: 'Online screening round on 22 August evaluating business ideas', icon: Target },
+            { title: 'Offline Pitch', desc: '40 shortlisted teams delivered 5-min pitches & 2-min Q&A', icon: Zap },
+            { title: 'Top 10 Final', desc: 'Top 10 teams advanced to the final stage on 23 August', icon: Users },
+            { title: 'Phase 2 Challenge', desc: '1-Week Startup Challenge to build & validate real ventures', icon: Trophy }
         ],
         winners: {
             first: {
@@ -77,12 +82,12 @@ const Inceptio26 = () => {
             second: {
                 team: 'THE METHOD STUDIO',
                 prize: '₹3,000',
-                members: 'Drashti Tushar Bhatt, Shivani Rakshasbhuwankar, Siddharth Maind, Shreya Tiwari, Keyur Nartam'
+                members: 'Drashti Tushar Bhatt, Shivani Rakshasbhuwankar, Siddharth Maind, Shreya Tiwari & Keyur Nartam'
             },
             third: {
                 team: 'SWARAJ SAATHI',
                 prize: '₹2,000',
-                members: 'Sarthak Rodge & Sarthak Dhemse'
+                members: 'Swaraj Saathi'
             }
         }
     };
@@ -201,6 +206,29 @@ const Inceptio26 = () => {
                                 <p className="text-gray-400 font-medium">{step.desc}</p>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* Phase 2 — The One-Week Startup Challenge */}
+            <section className="py-20 border-b-4 border-white bg-black relative overflow-hidden">
+                <div className="container mx-auto px-4 max-w-5xl">
+                    <div className="bg-zinc-900 border-4 border-brand-yellow p-8 md:p-12 rounded-[2.5rem] shadow-[12px_12px_0px_#FFB22C] relative overflow-hidden">
+                        <div className="inline-flex items-center gap-2 bg-brand-yellow text-black font-black px-4 py-1.5 mb-6 text-sm md:text-base rounded-md uppercase tracking-wider">
+                            <Zap className="w-5 h-5 text-black" /> PHASE 2 UNLOCKED
+                        </div>
+
+                        <h3 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-6 text-white leading-tight">
+                            {eventDetails.phase2.title}
+                        </h3>
+
+                        <p className="text-lg md:text-2xl text-gray-200 leading-relaxed mb-6 font-medium border-l-4 border-brand-yellow pl-6">
+                            {eventDetails.phase2.desc1}
+                        </p>
+
+                        <p className="text-base md:text-xl text-gray-400 leading-relaxed font-mono">
+                            {eventDetails.phase2.desc2}
+                        </p>
                     </div>
                 </div>
             </section>
@@ -327,7 +355,6 @@ const Inceptio26 = () => {
 
                                 <h3 className="text-2xl md:text-3xl font-black uppercase mb-2 text-[#CD7F32]">{eventDetails.winners.third.team}</h3>
                                 <div className="h-1 w-20 bg-[#CD7F32] rounded-full mb-4"></div>
-                                <p className="text-sm font-mono text-gray-400 max-w-xs text-center">{eventDetails.winners.third.members}</p>
                             </motion.div>
                         </div>
                     </div>
@@ -335,29 +362,32 @@ const Inceptio26 = () => {
                     {/* What's Next for Winners Banner */}
                     <div className="max-w-4xl mx-auto bg-zinc-900 border-4 border-white p-8 md:p-12 rounded-[2.5rem] shadow-[12px_12px_0px_#FFB22C] text-left mb-20 relative overflow-hidden">
                         <div className="inline-flex items-center gap-2 bg-brand-yellow text-black font-black px-4 py-1 mb-6 text-sm rounded-sm uppercase tracking-wider">
-                            <Sparkles className="w-4 h-4 text-black" /> NATIONAL STAGE ADVANCEMENT
+                            <Sparkles className="w-4 h-4 text-black" /> EUREKA! 2026 ZONALS
                         </div>
 
                         <h3 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-4 text-white">
-                            WHAT'S NEXT FOR THE WINNERS
+                            WHAT'S NEXT
                         </h3>
 
                         <p className="text-lg md:text-xl text-gray-300 leading-relaxed mb-6 font-medium">
-                            Our Top 3 teams don't stop here — they're headed straight to <strong className="text-brand-yellow">Eureka! 2026 Zonals</strong>, IIT Bombay's flagship business plan competition, where they'll take their pitches to a national stage. They'll also get access to an advanced startup bootcamp and incubation support through CIIE.
+                            The Top 3 teams will continue their entrepreneurial journey at <strong className="text-brand-yellow">Eureka! 2026 Zonals</strong>, IIT Bombay's flagship business plan competition. They will also receive access to an advanced startup bootcamp and incubation support through CIIE.
                         </p>
                     </div>
 
-                    {/* Thank You & Verification Note */}
+                    {/* Thank You & Concluding Note */}
                     <div className="max-w-4xl mx-auto bg-zinc-900/60 border border-white/10 rounded-2xl p-8 backdrop-blur-sm text-left mb-20">
                         <h4 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
                             <Award className="w-6 h-6 text-brand-yellow" />
-                            Thank You & Certificates
+                            Beyond The Pitch Deck
                         </h4>
                         <p className="text-zinc-300 text-lg leading-relaxed mb-4">
-                            To every team that registered, built a deck, and stood up to pitch — thank you for making INCEPTIO'26 a genuine showcase of entrepreneurial energy at DYPIU. Every participant receives an official certificate of participation.
+                            INCEPTIO'26 was more than a pitching competition — it was a platform for students to transform ideas into opportunities, challenge assumptions, and experience what it takes to build.
                         </p>
-                        <p className="text-brand-yellow font-mono text-base font-bold">
-                            Congratulations once again to CampusBites, The Method Studio, and Swaraj Saathi — see you at Eureka! Zonals.
+                        <p className="text-zinc-300 text-lg leading-relaxed mb-6">
+                            Congratulations to <strong className="text-brand-yellow">CampusBites, The Method Studio, and Swaraj Saathi</strong>, and a sincere thank you to every team that registered, built, pitched, and brought their ideas to the stage.
+                        </p>
+                        <p className="text-brand-yellow font-mono text-lg font-black uppercase tracking-wider border-l-4 border-brand-yellow pl-4">
+                            The pitch was only Phase 1. The real challenge starts now.
                         </p>
                     </div>
 

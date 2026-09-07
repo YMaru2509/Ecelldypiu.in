@@ -21,8 +21,8 @@ const Contact = () => {
     {
       icon: Mail,
       title: 'Email Us',
-      details: 'ecell.dypiu@gmail.com',
-      link: 'mailto:ecell.dypiu@gmail.com',
+      details: 'Ecell@dypiu.ac.in',
+      link: 'mailto:Ecell@dypiu.ac.in',
       button: 'SEND MAIL'
     },
     {

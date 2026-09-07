@@ -1239,13 +1239,13 @@ const AdminPortal = () => {
 
     const getRoleLabel = (roleId) => {
         const rolesList = [
+            { id: 'corporate_relations', label: 'Corporate Relations (high chances)' },
+            { id: 'design', label: 'Design (high chances)' },
             { id: 'pr', label: 'PR (Public Relations)' },
             { id: 'marketing', label: 'Marketing' },
             { id: 'social_media', label: 'Social Media' },
             { id: 'operations', label: 'Operations' },
             { id: 'technical', label: 'Technical' },
-            { id: 'corporate_relations', label: 'Corporate Relations' },
-            { id: 'design', label: 'Design' },
             { id: 'aesthetics', label: 'Aesthetics (Creatives)' }
         ];
         const found = rolesList.find(r => r.id === roleId);
@@ -1254,50 +1254,63 @@ const AdminPortal = () => {
 
     const getRoleBadgeStyle = (roleId) => {
         switch (roleId) {
+            case 'corporate_relations': return 'bg-orange-500/20 text-orange-400 border-orange-500/40';
+            case 'design': return 'bg-red-500/20 text-red-400 border-red-500/40';
             case 'pr': return 'bg-pink-500/20 text-pink-400 border-pink-500/40';
             case 'marketing': return 'bg-blue-500/20 text-blue-400 border-blue-500/40';
             case 'social_media': return 'bg-purple-500/20 text-purple-400 border-purple-500/40';
             case 'operations': return 'bg-green-500/20 text-green-400 border-green-500/40';
             case 'technical': return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40';
-            case 'corporate_relations': return 'bg-orange-500/20 text-orange-400 border-orange-500/40';
-            case 'design': return 'bg-red-500/20 text-red-400 border-red-500/40';
             case 'aesthetics': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40';
             default: return 'bg-zinc-800 text-zinc-300 border-zinc-700';
         }
     };
 
     const roleQuestionsMap = {
+        corporate_relations: [
+            { key: 'cr_why', label: 'Why Corporate Relations?' },
+            { key: 'cr_first_message', label: 'First outreach message & mutual benefit strategy' },
+            { key: 'cr_gameplan', label: '2-day ₹20k sponsorship game plan' },
+            { key: 'cr_pitch', label: 'Legacy: 2-sentence sponsor pitch' }
+        ],
+        design: [
+            { key: 'design_why', label: 'Why Design?' },
+            { key: 'design_poster', label: '30-min emergency poster strategy' },
+            { key: 'design_software', label: 'Tools & software used' },
+            { key: 'design_portfolio', label: 'Portfolio link' }
+        ],
         pr: [
-            { key: 'pr_why', label: 'Why PR?' },
-            { key: 'pr_experience', label: 'Past experience promoting/convincing people' },
-            { key: 'pr_scenario', label: 'Scenario: Posters/social media fail — crowd attraction strategy' }
+            { key: 'pr_experience', label: 'Conflict/persuasion experience' },
+            { key: 'pr_campaign', label: '4-day registration campaign' },
+            { key: 'pr_collab', label: 'Inter-college E-Cell collaboration approach' },
+            { key: 'pr_why', label: 'Legacy: Why PR?' },
+            { key: 'pr_scenario', label: 'Legacy: Crowd attraction strategy' }
         ],
         marketing: [
-            { key: 'marketing_promotion', label: 'College event promotion strategy' },
-            { key: 'marketing_strategy', label: 'Low registrations 2 days before deadline strategy' },
-            { key: 'marketing_adapt', label: 'Adapting when marketing plan fails' }
+            { key: 'marketing_urgency', label: 'Creating ticket sales urgency' },
+            { key: 'marketing_strategy', label: 'Stuck registrations 5-day action plan' },
+            { key: 'marketing_adapt', label: 'Low conversion campaign fix' },
+            { key: 'marketing_promotion', label: 'Legacy: College event promotion strategy' }
         ],
         social_media: [
-            { key: 'sm_experience', label: 'Social media handling experience' },
-            { key: 'sm_skills', label: 'Key skills for social media' },
-            { key: 'sm_brand', label: 'Favorite brand/page social media presence' }
+            { key: 'sm_format', label: 'Highest engagement format' },
+            { key: 'sm_complex', label: 'Explaining complex initiatives' },
+            { key: 'sm_low_footage', label: 'Low footage posting strategy' },
+            { key: 'sm_low_reach', label: 'Low reel reach audit checklist' },
+            { key: 'sm_experience', label: 'Legacy: Social media experience' },
+            { key: 'sm_skills', label: 'Legacy: Key skills' },
+            { key: 'sm_brand', label: 'Legacy: Favorite brand/page' }
         ],
         operations: [
             { key: 'ops_jugaad', label: 'Most "jugaad" thing pulled off' },
-            { key: 'ops_prioritize', label: 'Task prioritization strategy' },
-            { key: 'ops_crisis', label: 'Event day crisis response plan' }
+            { key: 'ops_chaos', label: 'Event day chaos management' },
+            { key: 'ops_forgot', label: 'Pre-event missing item decision' },
+            { key: 'ops_prioritize', label: 'Legacy: Task prioritization' },
+            { key: 'ops_crisis', label: 'Legacy: Crisis response plan' }
         ],
         technical: [
             { key: 'tech_project', label: 'Built code projects' },
             { key: 'tech_experience', label: 'Website / App / Event tech experience' }
-        ],
-        corporate_relations: [
-            { key: 'cr_why', label: 'Why suited for Corporate Relations' },
-            { key: 'cr_pitch', label: '2-sentence sponsor pitch' }
-        ],
-        design: [
-            { key: 'design_portfolio', label: 'Portfolio Link' },
-            { key: 'design_software', label: 'Proficient design software' }
         ],
         aesthetics: [
             { key: 'aesthetics_ideas', label: 'Tech event decoration theme idea' },
