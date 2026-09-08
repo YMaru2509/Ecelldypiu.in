@@ -534,8 +534,20 @@ async function handleDeleteApplication(req, res) {
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
     try {
-        const { applicationId } = req.body;
-        if (!applicationId) return res.status(400).json({ error: 'applicationId required' });
+        const { applicationId, applicationIds } = req.body;
+        if (!applicationId && (!applicationIds || !applicationIds.length)) {
+            return res.status(400).json({ error: 'applicationId or applicationIds required' });
+        }
+
+        if (applicationIds && Array.isArray(applicationIds)) {
+            const batch = db.batch();
+            applicationIds.forEach(id => {
+                const docRef = db.collection('TEAM_APPLICATION_FORM').doc(id);
+                batch.delete(docRef);
+            });
+            await batch.commit();
+            return res.status(200).json({ success: true, count: applicationIds.length });
+        }
 
         await db.collection('TEAM_APPLICATION_FORM').doc(applicationId).delete();
 

@@ -95,6 +95,8 @@ function App() {
                     <Route path="/admin" element={<AdminPortal />} />
                     {/* Backward compatibility: redirect old path */}
                     <Route path="/linktree" element={<Navigate to="/ourlinks" replace />} />
+                    {/* Fallback for unknown routes */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>
                 <SocialSidebar />

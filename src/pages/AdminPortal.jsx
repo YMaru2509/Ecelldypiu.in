@@ -462,15 +462,25 @@ const AdminPortal = () => {
         verifyAndRestoreSession();
     }, []);
 
-    // Prevent body scroll when any modal is open
+    // Prevent body scroll and pause Lenis smooth scroll when any modal is open
     useEffect(() => {
-        if (viewingApp || showInterviewModal || showMailPreviewModal || showSubscriberModal) {
+        const isModalOpen = Boolean(viewingApp || showInterviewModal || showMailPreviewModal || showSubscriberModal);
+        if (isModalOpen) {
             document.body.style.overflow = 'hidden';
+            if (typeof window !== 'undefined' && window.lenis) {
+                window.lenis.stop();
+            }
         } else {
-            document.body.style.overflow = 'auto';
+            document.body.style.overflow = '';
+            if (typeof window !== 'undefined' && window.lenis) {
+                window.lenis.start();
+            }
         }
         return () => {
-            document.body.style.overflow = 'auto';
+            document.body.style.overflow = '';
+            if (typeof window !== 'undefined' && window.lenis) {
+                window.lenis.start();
+            }
         };
     }, [viewingApp, showInterviewModal, showMailPreviewModal, showSubscriberModal]);
 
@@ -1075,11 +1085,47 @@ const AdminPortal = () => {
             
             alert('Application deleted successfully.');
             setViewingApp(null);
+            setSelectedApplications(prev => prev.filter(id => id !== appId));
             fetchApplications(); // Refresh list
         } catch (err) {
             alert(err.message);
         }
     };
+
+    const handleDeleteSelectedApplications = async () => {
+        if (selectedApplications.length === 0) {
+            alert('Please select at least one application response using the checkboxes to delete.');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to permanently delete ${selectedApplications.length} selected application(s)? The candidate(s) will NOT be notified.`)) {
+            return;
+        }
+
+        setLoadingApplications(true);
+        try {
+            const response = await fetch('/api/event?action=delete-application', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminKey}`
+                },
+                body: JSON.stringify({ applicationIds: selectedApplications })
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to delete applications');
+
+            alert(`Successfully deleted ${selectedApplications.length} application(s).`);
+            setSelectedApplications([]);
+            fetchApplications();
+        } catch (err) {
+            alert(err.message || 'Failed to delete applications');
+        } finally {
+            setLoadingApplications(false);
+        }
+    };
+
     // Load team applications when manage-applications or dashboard is active
     useEffect(() => {
         if (isAuthenticated && (activeTab === 'manage-applications' || activeTab === 'dashboard')) {
@@ -1886,26 +1932,42 @@ const AdminPortal = () => {
                                 </div>
                             </div>
 
-                            {/* Status Tabs */}
-                            <div className="flex items-center gap-2 mb-2">
-                                <button
-                                    onClick={() => setAppStatusFilter('pending')}
-                                    className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'pending' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
-                                >
-                                    Pending
-                                </button>
-                                <button
-                                    onClick={() => setAppStatusFilter('selected')}
-                                    className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'selected' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
-                                >
-                                    Selected
-                                </button>
-                                <button
-                                    onClick={() => setAppStatusFilter('rejected')}
-                                    className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'rejected' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
-                                >
-                                    Rejected
-                                </button>
+                            {/* Status Tabs & Bulk Delete */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        onClick={() => setAppStatusFilter('pending')}
+                                        className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'pending' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
+                                    >
+                                        Pending
+                                    </button>
+                                    <button
+                                        onClick={() => setAppStatusFilter('selected')}
+                                        className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'selected' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
+                                    >
+                                        Selected
+                                    </button>
+                                    <button
+                                        onClick={() => setAppStatusFilter('rejected')}
+                                        className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'rejected' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
+                                    >
+                                        Rejected
+                                    </button>
+
+                                    {/* Delete Button right next to Rejected */}
+                                    <button
+                                        onClick={handleDeleteSelectedApplications}
+                                        className={`px-5 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 flex items-center gap-2 ${
+                                            selectedApplications.length > 0
+                                                ? 'bg-red-600 text-white border-red-500 hover:bg-red-700 shadow-[2px_2px_0px_#fff]'
+                                                : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-red-500 hover:text-red-400'
+                                        }`}
+                                        title={selectedApplications.length > 0 ? `Delete ${selectedApplications.length} selected candidate(s)` : 'Select candidate(s) using checkboxes to delete'}
+                                    >
+                                        <Trash2 className="w-4 h-4 text-red-400" />
+                                        <span>Delete {selectedApplications.length > 0 ? `(${selectedApplications.length})` : ''}</span>
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Search & Role Filter Toolbar */}
@@ -2021,6 +2083,16 @@ const AdminPortal = () => {
                                                             className="px-4 py-2 bg-zinc-800 border border-zinc-700 hover:border-brand-yellow hover:text-brand-yellow rounded-lg text-xs font-bold uppercase transition-colors flex items-center gap-1.5"
                                                         >
                                                             <Eye className="w-3.5 h-3.5" /> View Response
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteApp(app.id);
+                                                            }}
+                                                            className="px-3 py-2 bg-zinc-800 border border-zinc-700 hover:border-red-500 hover:bg-red-950/40 hover:text-red-400 text-gray-400 rounded-lg text-xs font-bold uppercase transition-colors flex items-center gap-1.5"
+                                                            title="Delete application"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" /> Delete
                                                         </button>
                                                     </div>
                                                 </div>
@@ -3864,88 +3936,120 @@ More content..."
 
             {/* Viewing Application Details Modal */}
             {viewingApp && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-                    <div className="bg-zinc-900 border-4 border-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 shadow-[8px_8px_0px_#FFB22C] relative">
-                        <button
-                            onClick={() => setViewingApp(null)}
-                            className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white bg-black rounded-lg border border-zinc-700"
+                <div 
+                    className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md overflow-hidden"
+                    onClick={() => setViewingApp(null)}
+                >
+                    <div 
+                        data-lenis-prevent
+                        className="bg-zinc-900 border-2 sm:border-4 border-brand-yellow rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-[8px_8px_0px_#FFB22C] relative overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Fixed Modal Header */}
+                        <div className="p-4 sm:p-5 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between gap-3 shrink-0">
+                            <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                                    <h2 className="text-lg sm:text-2xl font-black uppercase text-white truncate">
+                                        {viewingApp.fullName}
+                                    </h2>
+                                    <span className={`px-2.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black uppercase border ${getRoleBadgeStyle(viewingApp.role)}`}>
+                                        {getRoleLabel(viewingApp.role)}
+                                    </span>
+                                    {viewingApp.status && (
+                                        <span className={`px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-bold uppercase ${
+                                            viewingApp.status === 'selected' 
+                                                ? 'bg-green-500/20 text-green-400 border border-green-500/40' 
+                                                : viewingApp.status === 'rejected'
+                                                    ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                                                    : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                                        }`}>
+                                            {viewingApp.status}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                    Submitted: {viewingApp.submittedAt ? new Date(viewingApp.submittedAt).toLocaleString() : 'N/A'}
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => setViewingApp(null)}
+                                className="p-2 text-gray-400 hover:text-white bg-black rounded-lg border border-zinc-700 hover:border-brand-yellow transition-colors shrink-0"
+                                aria-label="Close dialog"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Content Body */}
+                        <div 
+                            data-lenis-prevent
+                            className="p-4 sm:p-6 flex-1 overflow-y-auto overscroll-contain space-y-5 custom-scrollbar"
+                            style={{ WebkitOverflowScrolling: 'touch' }}
                         >
-                            <X className="w-5 h-5" />
-                        </button>
-
-                        <div className="mb-6 border-b border-zinc-800 pb-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <h2 className="text-2xl font-black uppercase text-white">{viewingApp.fullName}</h2>
-                                <span className={`px-3 py-1 rounded-md text-xs font-black uppercase border ${getRoleBadgeStyle(viewingApp.role)}`}>
-                                    {getRoleLabel(viewingApp.role)}
-                                </span>
+                            {/* Candidate Key Details Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/80 p-3 sm:p-4 rounded-xl border border-zinc-800">
+                                <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold block">PRN</span>
+                                    <span className="text-xs sm:text-sm font-bold text-white break-all">{viewingApp.prn || '-'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold block">Division</span>
+                                    <span className="text-xs sm:text-sm font-bold text-white">{viewingApp.division || '-'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold block">Contact</span>
+                                    <span className="text-xs sm:text-sm font-bold text-white">{viewingApp.contactNumber || '-'}</span>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold block">Time Management</span>
+                                    <span className="text-xs sm:text-sm font-black text-brand-yellow">{viewingApp.timeManagementRating || '-'}/10</span>
+                                </div>
+                                <div className="col-span-2 sm:col-span-4 border-t border-zinc-800 pt-2 mt-1">
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold block">Email</span>
+                                    <span className="text-xs sm:text-sm font-bold text-brand-yellow break-all">{viewingApp.email}</span>
+                                </div>
                             </div>
-                            <p className="text-xs text-gray-400">
-                                Submitted: {viewingApp.submittedAt ? new Date(viewingApp.submittedAt).toLocaleString() : 'N/A'}
-                            </p>
+
+                            {/* Role-Specific Answers */}
+                            <div className="space-y-3">
+                                <h3 className="text-sm sm:text-base font-black uppercase text-brand-yellow border-b border-zinc-800 pb-2">
+                                    Role Specific Questionnaire Answers
+                                </h3>
+
+                                {roleQuestionsMap[viewingApp.role] ? (
+                                    roleQuestionsMap[viewingApp.role].map((q) => (
+                                        <div key={q.key} className="bg-black/60 p-3.5 sm:p-4 rounded-xl border border-zinc-800">
+                                            <h4 className="text-[11px] sm:text-xs font-bold uppercase text-gray-400 mb-1.5">{q.label}</h4>
+                                            <p className="text-xs sm:text-sm text-white whitespace-pre-wrap font-medium leading-relaxed">
+                                                {viewingApp[q.key] ? viewingApp[q.key] : <span className="text-zinc-600 italic">No response provided</span>}
+                                            </p>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-xs text-gray-400">No role-specific answers available for this entry.</p>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Candidate Key Details Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-black p-4 rounded-xl border border-zinc-800 mb-6">
-                            <div>
-                                <span className="text-[10px] text-gray-500 uppercase font-bold block">PRN</span>
-                                <span className="text-sm font-bold text-white">{viewingApp.prn || '-'}</span>
-                            </div>
-                            <div>
-                                <span className="text-[10px] text-gray-500 uppercase font-bold block">Division</span>
-                                <span className="text-sm font-bold text-white">{viewingApp.division || '-'}</span>
-                            </div>
-                            <div>
-                                <span className="text-[10px] text-gray-500 uppercase font-bold block">Contact</span>
-                                <span className="text-sm font-bold text-white">{viewingApp.contactNumber || '-'}</span>
-                            </div>
-                            <div>
-                                <span className="text-[10px] text-gray-500 uppercase font-bold block">Time Management</span>
-                                <span className="text-sm font-black text-brand-yellow">{viewingApp.timeManagementRating || '-'}/10</span>
-                            </div>
-                            <div className="col-span-2 md:col-span-4 border-t border-zinc-800 pt-2">
-                                <span className="text-[10px] text-gray-500 uppercase font-bold block">Email</span>
-                                <span className="text-sm font-bold text-brand-yellow">{viewingApp.email}</span>
-                            </div>
-                        </div>
-
-                        {/* Role-Specific Answers */}
-                        <div className="space-y-4 mb-6">
-                            <h3 className="text-lg font-black uppercase text-brand-yellow border-b border-zinc-800 pb-2">
-                                Role Specific Questionnaire Answers
-                            </h3>
-
-                            {roleQuestionsMap[viewingApp.role] ? (
-                                roleQuestionsMap[viewingApp.role].map((q) => (
-                                    <div key={q.key} className="bg-black/60 p-4 rounded-xl border border-zinc-800">
-                                        <h4 className="text-xs font-bold uppercase text-gray-400 mb-2">{q.label}</h4>
-                                        <p className="text-sm text-white whitespace-pre-wrap font-medium">
-                                            {viewingApp[q.key] ? viewingApp[q.key] : <span className="text-zinc-600 italic">No response provided</span>}
-                                        </p>
-                                    </div>
-                                ))
-) : (
-                                <p className="text-sm text-gray-400">No role-specific answers available for this entry.</p>
-                            )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-zinc-800">
-                            <div className="flex gap-2">
+                        {/* Fixed Modal Footer with Actions */}
+                        <div className="p-3 sm:p-4 md:p-5 bg-zinc-950 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <button
                                     onClick={() => handleUpdateAppStatus(viewingApp.id, 'selected', viewingApp.email, viewingApp.fullName)}
-                                    className="px-5 py-2.5 bg-brand-yellow text-black border-2 border-black hover:bg-white rounded-xl font-bold uppercase text-xs flex items-center gap-2"
+                                    className="px-3.5 sm:px-4 py-2 bg-brand-yellow text-black border-2 border-black hover:bg-white rounded-xl font-black uppercase text-xs flex items-center gap-1.5 transition-colors shadow-[2px_2px_0px_#fff]"
                                 >
-                                    Select for Interview
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Select for Interview
                                 </button>
                                 <button
                                     onClick={() => handleUpdateAppStatus(viewingApp.id, 'rejected', viewingApp.email, viewingApp.fullName)}
-                                    className="px-5 py-2.5 bg-red-900/30 text-red-400 border-2 border-red-500 hover:bg-red-900/50 rounded-xl font-bold uppercase text-xs flex items-center gap-2"
+                                    className="px-3.5 sm:px-4 py-2 bg-red-950/60 text-red-400 border-2 border-red-600/60 hover:bg-red-900/60 rounded-xl font-bold uppercase text-xs flex items-center gap-1.5 transition-colors"
                                 >
-                                    Reject
+                                    <X className="w-3.5 h-3.5" /> Reject
                                 </button>
                                 <button
                                     onClick={() => handleDeleteApp(viewingApp.id)}
-                                    className="px-5 py-2.5 bg-zinc-800 text-gray-400 border-2 border-zinc-700 hover:bg-zinc-700 hover:text-white rounded-xl font-bold uppercase text-xs flex items-center gap-2"
+                                    className="px-3 py-2 bg-zinc-800 text-gray-400 border-2 border-zinc-700 hover:bg-red-950/30 hover:border-red-500/50 hover:text-red-400 rounded-xl font-bold uppercase text-xs flex items-center gap-1.5 transition-colors"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" /> Delete
                                 </button>
@@ -3953,7 +4057,7 @@ More content..."
 
                             <button
                                 onClick={() => setViewingApp(null)}
-                                className="px-6 py-2.5 bg-zinc-800 text-white font-bold uppercase text-xs rounded-xl hover:bg-zinc-700"
+                                className="px-5 py-2 bg-zinc-800 text-white font-bold uppercase text-xs rounded-xl hover:bg-zinc-700 border border-zinc-700 ml-auto sm:ml-0"
                             >
                                 Close
                             </button>
@@ -4051,7 +4155,7 @@ More content..."
                         </div>
 
                         {/* Main Content Body */}
-                        <div className="p-6 flex-1 overflow-y-auto space-y-6">
+                        <div data-lenis-prevent className="p-6 flex-1 overflow-y-auto overscroll-contain space-y-6 custom-scrollbar">
                             
                             {/* Email Subject Line (Always visible) */}
                             <div>
