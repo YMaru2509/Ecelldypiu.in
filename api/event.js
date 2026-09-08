@@ -136,6 +136,10 @@ export default async function handler(req, res) {
             return await handleSubmitApplication(req, res);
         } else if (action === 'list-applications') {
             return await handleListApplications(req, res);
+        } else if (action === 'update-application') {
+            return await handleUpdateApplication(req, res);
+        } else if (action === 'delete-application') {
+            return await handleDeleteApplication(req, res);
         } else if (action === 'verify-admin') {
             return await handleVerifyAdmin(req, res);
         } else if (action === 'import-attendees') {
@@ -495,5 +499,49 @@ async function handleDeleteEvent(req, res) {
     } catch (error) {
         console.error('Error deleting event:', error);
         return res.status(500).json({ error: 'Failed to delete event' });
+    }
+}
+
+async function handleUpdateApplication(req, res) {
+    const authHeader = req.headers.authorization;
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (!db) return res.status(503).json({ error: 'Database not available' });
+
+    try {
+        const { applicationId, updates } = req.body;
+        if (!applicationId || !updates) return res.status(400).json({ error: 'applicationId and updates required' });
+
+        const docRef = db.collection('TEAM_APPLICATION_FORM').doc(applicationId);
+        await docRef.update({
+            ...updates,
+            updatedAt: Timestamp.now()
+        });
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error updating application:', error);
+        return res.status(500).json({ error: 'Failed to update application' });
+    }
+}
+
+async function handleDeleteApplication(req, res) {
+    const authHeader = req.headers.authorization;
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (!db) return res.status(503).json({ error: 'Database not available' });
+
+    try {
+        const { applicationId } = req.body;
+        if (!applicationId) return res.status(400).json({ error: 'applicationId required' });
+
+        await db.collection('TEAM_APPLICATION_FORM').doc(applicationId).delete();
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error deleting application:', error);
+        return res.status(500).json({ error: 'Failed to delete application' });
     }
 }

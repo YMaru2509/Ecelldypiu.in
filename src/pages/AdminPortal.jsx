@@ -53,6 +53,7 @@ const AdminPortal = () => {
     const [selectedApplications, setSelectedApplications] = useState([]);
     const [appSearch, setAppSearch] = useState('');
     const [appRoleFilter, setAppRoleFilter] = useState('all');
+    const [appStatusFilter, setAppStatusFilter] = useState('pending'); // 'pending', 'selected', 'rejected'
     const [viewingApp, setViewingApp] = useState(null);
 
     // Interview schedule modal & email editor state
@@ -460,6 +461,18 @@ const AdminPortal = () => {
         };
         verifyAndRestoreSession();
     }, []);
+
+    // Prevent body scroll when any modal is open
+    useEffect(() => {
+        if (viewingApp || showInterviewModal || showMailPreviewModal || showSubscriberModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'auto';
+        }
+        return () => {
+            document.body.style.overflow = 'auto';
+        };
+    }, [viewingApp, showInterviewModal, showMailPreviewModal, showSubscriberModal]);
 
     // Load blogs when authenticated
     useEffect(() => {
@@ -999,6 +1012,74 @@ const AdminPortal = () => {
         }
     };
 
+    const handleUpdateAppStatus = async (appId, newStatus, email, name) => {
+        if (!confirm(`Are you sure you want to mark this application as '${newStatus}'?`)) return;
+        
+        try {
+            const response = await fetch('/api/event?action=update-application', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminKey}`
+                },
+                body: JSON.stringify({
+                    applicationId: appId,
+                    updates: { status: newStatus }
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to update status');
+            
+            // Optionally, send an email to the candidate if selected or rejected
+            if (newStatus === 'selected') {
+                await fetch('/api/mailer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${adminKey}`
+                    },
+                    body: JSON.stringify({
+                        to: 'manual',
+                        manualEmails: email,
+                        type: 'generic',
+                        subject: 'Application Update - E-Cell DYPIU',
+                        data: {
+                            body: `<div style="font-family:Segoe UI,Arial,sans-serif;color:#ffffff;line-height:1.6;font-size:14px;">\n<p style="margin:0 0 12px;">Dear ${name},</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">Congratulations! You have been selected for the next round of interviews.</p>\n<p style="margin:0 0 12px;">You will be notified of the time and schedule soon.</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">Best regards,</p>\n<p style="margin:0 0 12px;">Team E-Cell DYPIU</p>\n</div>`
+                        }
+                    })
+                });
+            }
+            
+            alert(`Application marked as ${newStatus} successfully.`);
+            setViewingApp(null);
+            fetchApplications(); // Refresh list
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const handleDeleteApp = async (appId) => {
+        if (!confirm('Are you sure you want to delete this application permanently? The candidate will NOT be notified.')) return;
+        
+        try {
+            const response = await fetch('/api/event?action=delete-application', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminKey}`
+                },
+                body: JSON.stringify({ applicationId: appId })
+            });
+            
+            if (!response.ok) throw new Error('Failed to delete application');
+            
+            alert('Application deleted successfully.');
+            setViewingApp(null);
+            fetchApplications(); // Refresh list
+        } catch (err) {
+            alert(err.message);
+        }
+    };
     // Load team applications when manage-applications or dashboard is active
     useEffect(() => {
         if (isAuthenticated && (activeTab === 'manage-applications' || activeTab === 'dashboard')) {
@@ -1738,6 +1819,8 @@ const AdminPortal = () => {
                 {/* Manage Team Applications Tab */}
                 {activeTab === 'manage-applications' && (() => {
                     const filteredApplications = applications.filter(app => {
+                        const appStatus = app.status || 'pending';
+                        const matchesStatus = appStatus === appStatusFilter;
                         const matchesSearch = !appSearch || (
                             (app.fullName || '').toLowerCase().includes(appSearch.toLowerCase()) ||
                             (app.email || '').toLowerCase().includes(appSearch.toLowerCase()) ||
@@ -1746,7 +1829,7 @@ const AdminPortal = () => {
                             (app.contactNumber || '').includes(appSearch)
                         );
                         const matchesRole = appRoleFilter === 'all' || app.role === appRoleFilter;
-                        return matchesSearch && matchesRole;
+                        return matchesStatus && matchesSearch && matchesRole;
                     });
 
                     return (
@@ -1801,6 +1884,28 @@ const AdminPortal = () => {
                                         Schedule Interview ({selectedApplications.length})
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Status Tabs */}
+                            <div className="flex items-center gap-2 mb-2">
+                                <button
+                                    onClick={() => setAppStatusFilter('pending')}
+                                    className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'pending' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
+                                >
+                                    Pending
+                                </button>
+                                <button
+                                    onClick={() => setAppStatusFilter('selected')}
+                                    className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'selected' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
+                                >
+                                    Selected
+                                </button>
+                                <button
+                                    onClick={() => setAppStatusFilter('rejected')}
+                                    className={`px-6 py-2.5 rounded-xl text-sm font-black uppercase transition-colors border-2 ${appStatusFilter === 'rejected' ? 'bg-brand-yellow text-black border-brand-yellow' : 'bg-zinc-900 text-gray-400 border-zinc-700 hover:border-gray-500 hover:text-white'}`}
+                                >
+                                    Rejected
+                                </button>
                             </div>
 
                             {/* Search & Role Filter Toolbar */}
@@ -3819,25 +3924,32 @@ More content..."
                                         </p>
                                     </div>
                                 ))
-                            ) : (
+) : (
                                 <p className="text-sm text-gray-400">No role-specific answers available for this entry.</p>
                             )}
                         </div>
 
                         <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-zinc-800">
-                            <button
-                                onClick={() => {
-                                    toggleApplicationSelection(viewingApp.id);
-                                    setViewingApp(null);
-                                }}
-                                className={`px-5 py-2.5 rounded-xl font-bold uppercase text-xs flex items-center gap-2 border-2 ${
-                                    selectedApplications.includes(viewingApp.id)
-                                        ? 'bg-red-900/30 border-red-500 text-red-400'
-                                        : 'bg-brand-yellow text-black border-black hover:bg-white'
-                                }`}
-                            >
-                                {selectedApplications.includes(viewingApp.id) ? 'Deselect for Interview' : 'Select for Interview'}
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleUpdateAppStatus(viewingApp.id, 'selected', viewingApp.email, viewingApp.fullName)}
+                                    className="px-5 py-2.5 bg-brand-yellow text-black border-2 border-black hover:bg-white rounded-xl font-bold uppercase text-xs flex items-center gap-2"
+                                >
+                                    Select for Interview
+                                </button>
+                                <button
+                                    onClick={() => handleUpdateAppStatus(viewingApp.id, 'rejected', viewingApp.email, viewingApp.fullName)}
+                                    className="px-5 py-2.5 bg-red-900/30 text-red-400 border-2 border-red-500 hover:bg-red-900/50 rounded-xl font-bold uppercase text-xs flex items-center gap-2"
+                                >
+                                    Reject
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteApp(viewingApp.id)}
+                                    className="px-5 py-2.5 bg-zinc-800 text-gray-400 border-2 border-zinc-700 hover:bg-zinc-700 hover:text-white rounded-xl font-bold uppercase text-xs flex items-center gap-2"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                </button>
+                            </div>
 
                             <button
                                 onClick={() => setViewingApp(null)}
@@ -4200,3 +4312,4 @@ More content..."
 };
 
 export default AdminPortal;
+
