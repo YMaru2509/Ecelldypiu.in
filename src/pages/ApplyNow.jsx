@@ -1,5 +1,4 @@
-import ReCAPTCHA from "react-google-recaptcha";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, Loader2, ArrowRight, ArrowLeft, Star, Briefcase, Palette, Megaphone, Rocket, Clapperboard, Wrench } from 'lucide-react';
 
 const ApplyNow = () => {
@@ -12,12 +11,6 @@ const ApplyNow = () => {
     const [showSuccess, setShowSuccess] = useState(false);
     const [error, setError] = useState(null);
     const [missingField, setMissingField] = useState(null);
-    const [captchaToken, setCaptchaToken] = useState(null);
-    const recaptchaRef = useRef(null);
-
-    const onCaptchaChange = (token) => {
-        setCaptchaToken(token);
-    };
 
     const [formData, setFormData] = useState({
         // Step 1: Personal Details
@@ -204,17 +197,6 @@ const ApplyNow = () => {
             return;
         }
 
-        if (!captchaToken) {
-            console.error('❌ No captcha token');
-            setError('Please complete the reCAPTCHA verification');
-            const recaptchaEl = document.getElementById('recaptcha-container');
-            if (recaptchaEl) {
-                recaptchaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-            return;
-        }
-
-        console.log('✅ Captcha validated, starting submission...');
         setLoading(true);
         setError(null);
 
@@ -242,12 +224,6 @@ const ApplyNow = () => {
             console.error("❌ Submission Error:", err);
             console.error('Error message:', err.message);
             setError(`Error: ${err.message}`);
-            // Reset reCAPTCHA on error
-            if (recaptchaRef.current) {
-                console.log('🔄 Resetting reCAPTCHA...');
-                recaptchaRef.current.reset();
-            }
-            setCaptchaToken(null);
         } finally {
             console.log('🏁 Submission complete, setting loading to false');
             setLoading(false);
@@ -590,25 +566,9 @@ const ApplyNow = () => {
                                         </>
                                     )}
 
-                                    <div id="recaptcha-container" className={`flex flex-col items-center justify-center mb-6 p-4 rounded-2xl transition-all ${
-                                        error && !captchaToken ? 'border-2 border-red-500 bg-red-950/20 shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse' : ''
-                                    }`}>
-                                        <ReCAPTCHA
-                                            ref={recaptchaRef}
-                                            sitekey="6LfkAWAsAAAAANtYBVUELWkoCVaCWCpbvhC_s6rv"
-                                            onChange={onCaptchaChange}
-                                            theme="dark"
-                                        />
-                                        {error && !captchaToken && (
-                                            <p className="text-red-400 text-xs md:text-sm font-bold mt-2">
-                                                ⚠️ Please complete the reCAPTCHA verification to submit
-                                            </p>
-                                        )}
-                                    </div>
-
                                     <button
                                         type="submit"
-                                        disabled={loading || !captchaToken}
+                                        disabled={loading}
                                         className="w-full bg-brand-yellow text-black text-xl md:text-2xl font-black uppercase py-4 md:py-6 border-4 border-black hover:bg-white hover:scale-[1.01] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-[4px_4px_0px_#fff]"
                                     >
                                         {loading ? (
