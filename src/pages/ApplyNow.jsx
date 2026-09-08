@@ -1,8 +1,6 @@
 import ReCAPTCHA from "react-google-recaptcha";
 import { useState, useEffect, useRef } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import { Check, Loader2, ArrowRight, ArrowLeft, Star } from 'lucide-react';
+import { Check, Loader2, ArrowRight, ArrowLeft, Star, Briefcase, Palette, Megaphone, TrendingUp, Share2, Zap } from 'lucide-react';
 
 const ApplyNow = () => {
     useEffect(() => {
@@ -62,12 +60,54 @@ const ApplyNow = () => {
     });
 
     const roles = [
-        { id: 'corporate_relations', label: 'Corporate Relations (high chances)', color: 'bg-orange-500' },
-        { id: 'design', label: 'Design (high chances)', color: 'bg-red-500' },
-        { id: 'pr', label: 'PR (Public Relations)', color: 'bg-pink-500' },
-        { id: 'marketing', label: 'Marketing', color: 'bg-blue-500' },
-        { id: 'social_media', label: 'Social Media', color: 'bg-purple-500' },
-        { id: 'operations', label: 'Operations', color: 'bg-green-500' }
+        {
+            id: 'corporate_relations',
+            label: 'Corporate Relations',
+            badge: 'High Chances 🔥',
+            desc: 'Hunt down sponsorships, close brand deals, and build lasting corporate partnerships.',
+            icon: Briefcase,
+            borderHover: 'hover:border-orange-500/60'
+        },
+        {
+            id: 'design',
+            label: 'Design',
+            badge: 'High Chances 🔥',
+            desc: 'Craft killer posters, visual branding, and cool merch that define E-Cell’s visual vibe.',
+            icon: Palette,
+            borderHover: 'hover:border-red-500/60'
+        },
+        {
+            id: 'pr',
+            label: 'PR (Public Relations)',
+            badge: 'Campus Voice 📣',
+            desc: 'Be E-Cell’s campus face, lead speaker outreach, and build inter-college community ties.',
+            icon: Megaphone,
+            borderHover: 'hover:border-pink-500/60'
+        },
+        {
+            id: 'marketing',
+            label: 'Marketing',
+            badge: 'Hype Squad 🚀',
+            desc: 'Make E-Cell the hottest topic on campus, spark hype, and pack auditoriums for events.',
+            icon: TrendingUp,
+            borderHover: 'hover:border-blue-500/60'
+        },
+        {
+            id: 'social_media',
+            label: 'Social Media',
+            badge: 'Content & Trends 📱',
+            desc: 'Brainstorm viral creatives, run our social handles, and keep our feeds buzzing.',
+            icon: Share2,
+            borderHover: 'hover:border-purple-500/60'
+        },
+        {
+            id: 'operations',
+            label: 'Operations',
+            badge: 'Masterminds ⚡',
+            desc: 'Run the show backstage, manage event chaos, master logistics, and pull off epic jugaad.',
+            icon: Zap,
+            borderHover: 'hover:border-green-500/60'
+        }
     ];
 
     const handleChange = (e) => {
@@ -308,29 +348,65 @@ const ApplyNow = () => {
 
                                     <div className="mb-8 md:mb-10">
                                         <label className="block text-xl md:text-2xl font-black uppercase mb-4 md:mb-6 text-white border-t-4 border-zinc-800 pt-6 md:pt-8">
-                                            Pick your superpower! 💪 <br /><span className="text-brand-yellow text-base md:text-lg font-mono font-normal">Which role excites you the most?</span>
+                                            Pick your superpower! 💪 <br />
+                                            <span className="text-brand-yellow text-sm md:text-base font-mono font-normal">
+                                                Which role excites you the most? Select one to proceed.
+                                            </span>
                                         </label>
-                                        <div className="grid grid-cols-1 gap-3">
-                                            {roles.map((roleObj) => (
-                                                <div
-                                                    key={roleObj.id}
-                                                    onClick={() => handleChange({ target: { name: 'role', value: roleObj.id } })}
-                                                    className={`cursor - pointer border - 2 p - 4 md: p - 5 rounded - xl flex items - center justify - between transition - all active: scale - [0.98] ${formData.role === roleObj.id
-                                                        ? `bg-zinc-800 border-white text-white shadow-[4px_4px_0px_#FFB22C]`
-                                                        : 'bg-black/50 border-zinc-800 text-gray-400 hover:border-zinc-500'
-                                                        } `}
-                                                >
-                                                    <div className="flex items-center gap-3 md:gap-4">
-                                                        <div className={`w - 5 h - 5 md: w - 6 md: h - 6 rounded - full border - 2 flex items - center justify - center ${formData.role === roleObj.id ? 'border-brand-yellow' : 'border-zinc-600'
-                                                            } `}>
-                                                            {formData.role === roleObj.id && <div className="w-2.5 h-2.5 md:w-3 md:h-3 bg-brand-yellow rounded-full" />}
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 md:gap-4">
+                                            {roles.map((roleObj) => {
+                                                const Icon = roleObj.icon;
+                                                const isSelected = formData.role === roleObj.id;
+                                                return (
+                                                    <div
+                                                        key={roleObj.id}
+                                                        onClick={() => handleChange({ target: { name: 'role', value: roleObj.id } })}
+                                                        className={`cursor-pointer border-2 p-4 md:p-5 rounded-2xl transition-all duration-200 flex flex-col justify-between text-left relative group ${
+                                                            isSelected
+                                                                ? 'bg-zinc-900 border-brand-yellow text-white shadow-[4px_4px_0px_#FFB22C] scale-[1.01]'
+                                                                : `bg-zinc-950/80 border-zinc-800 text-gray-400 ${roleObj.borderHover} hover:bg-zinc-900/60`
+                                                        }`}
+                                                    >
+                                                        <div>
+                                                            <div className="flex items-center justify-between gap-2 mb-2.5">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <div className={`p-2 rounded-xl border ${
+                                                                        isSelected
+                                                                            ? 'bg-brand-yellow/20 border-brand-yellow/50 text-brand-yellow'
+                                                                            : 'bg-zinc-900 border-zinc-800 text-zinc-400 group-hover:text-white'
+                                                                    }`}>
+                                                                        <Icon className="w-5 h-5" />
+                                                                    </div>
+                                                                    <span className={`font-black uppercase tracking-wide text-sm md:text-base ${
+                                                                        isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'
+                                                                    }`}>
+                                                                        {roleObj.label}
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                                                    isSelected ? 'border-brand-yellow bg-brand-yellow' : 'border-zinc-700'
+                                                                }`}>
+                                                                    {isSelected && <Check className="w-3 h-3 text-black stroke-[3]" />}
+                                                                </div>
+                                                            </div>
+
+                                                            <p className="text-xs md:text-sm text-gray-400 leading-relaxed font-medium">
+                                                                {roleObj.desc}
+                                                            </p>
                                                         </div>
-                                                        <span className={`font - bold uppercase tracking - wider text - sm md: text - base ${formData.role === roleObj.id ? 'text-white' : ''} `}>
-                                                            {roleObj.label}
-                                                        </span>
+
+                                                        {roleObj.badge && (
+                                                            <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-start">
+                                                                <span className="text-[10px] md:text-[11px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/30">
+                                                                    {roleObj.badge}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
 

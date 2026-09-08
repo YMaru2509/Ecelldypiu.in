@@ -3077,7 +3077,7 @@ More content..."
                                 </div>
                             ) : (
                                 <div className="divide-y divide-zinc-800 max-h-[500px] overflow-y-auto custom-scrollbar">
-                                    {filteredSubscribers.map((subscriber, index) => (
+                                    {filteredSubscribers.map((subscriber) => (
                                         <div
                                             key={subscriber.id}
                                             className={`p-4 hover:bg-zinc-800/50 transition-colors flex items-center justify-between ${
