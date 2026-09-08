@@ -1,6 +1,6 @@
 import ReCAPTCHA from "react-google-recaptcha";
 import { useState, useEffect, useRef } from 'react';
-import { Check, Loader2, ArrowRight, ArrowLeft, Star, Briefcase, Palette, Megaphone, TrendingUp, Share2, Zap } from 'lucide-react';
+import { Check, Loader2, ArrowRight, ArrowLeft, Star, Briefcase, Palette, Megaphone, Rocket, Clapperboard, Wrench } from 'lucide-react';
 
 const ApplyNow = () => {
     useEffect(() => {
@@ -11,6 +11,7 @@ const ApplyNow = () => {
     const [loading, setLoading] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [error, setError] = useState(null);
+    const [missingField, setMissingField] = useState(null);
     const [captchaToken, setCaptchaToken] = useState(null);
     const recaptchaRef = useRef(null);
 
@@ -27,7 +28,7 @@ const ApplyNow = () => {
         contactNumber: '',
 
         // Step 2: Compatibility & Role
-        timeManagementRating: '',
+        timeManagementRating: '5',
         role: '',
 
         // Step 3: Role Specific Answers
@@ -89,7 +90,7 @@ const ApplyNow = () => {
             label: 'Marketing',
             badge: 'Hype Squad 🚀',
             desc: 'Make E-Cell the hottest topic on campus, spark hype, and pack auditoriums for events.',
-            icon: TrendingUp,
+            icon: Rocket,
             borderHover: 'hover:border-blue-500/60'
         },
         {
@@ -97,7 +98,7 @@ const ApplyNow = () => {
             label: 'Social Media',
             badge: 'Content & Trends 📱',
             desc: 'Brainstorm viral creatives, run our social handles, and keep our feeds buzzing.',
-            icon: Share2,
+            icon: Clapperboard,
             borderHover: 'hover:border-purple-500/60'
         },
         {
@@ -105,7 +106,7 @@ const ApplyNow = () => {
             label: 'Operations',
             badge: 'Masterminds ⚡',
             desc: 'Run the show backstage, manage event chaos, master logistics, and pull off epic jugaad.',
-            icon: Zap,
+            icon: Wrench,
             borderHover: 'hover:border-green-500/60'
         }
     ];
@@ -125,6 +126,10 @@ const ApplyNow = () => {
         }
 
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (missingField === name) {
+            setMissingField(null);
+            setError(null);
+        }
     };
 
     // Scroll to top when step changes
@@ -142,10 +147,30 @@ const ApplyNow = () => {
 
         const missing = requiredFields.find(field => !formData[field]);
         if (missing) {
-            setError(`Please fill in ${missing.replace(/([A-Z])/g, ' $1').toLowerCase()} `);
+            setMissingField(missing);
+            const errorMsg = missing === 'role'
+                ? 'Please select a role to proceed'
+                : missing === 'timeManagementRating'
+                    ? 'Please rate yourself in Time Management'
+                    : `Please fill in ${missing.replace(/([A-Z])/g, ' $1').toLowerCase()}`;
+            setError(errorMsg);
+
+            setTimeout(() => {
+                const targetElement = document.getElementById(`field-container-${missing}`) ||
+                    document.getElementById(`field-${missing}`) ||
+                    document.querySelector(`[name="${missing}"]`);
+                if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const inputElement = document.getElementById(`field-${missing}`) || targetElement.querySelector('input, textarea');
+                    if (inputElement) {
+                        inputElement.focus();
+                    }
+                }
+            }, 50);
             return;
         }
 
+        setMissingField(null);
         setError(null);
         setStep(prev => prev + 1);
     };
@@ -154,11 +179,38 @@ const ApplyNow = () => {
         e.preventDefault();
         console.log('🚀 Form submission started');
         console.log('📝 Form data:', formData);
-        console.log('🔐 Captcha token:', captchaToken ? 'Present' : 'Missing');
+
+        // Validate Step 3 fields before proceeding
+        let step3Fields = [];
+        if (formData.role === 'corporate_relations') step3Fields = ['cr_why', 'cr_first_message', 'cr_gameplan'];
+        else if (formData.role === 'design') step3Fields = ['design_why', 'design_poster', 'design_software'];
+        else if (formData.role === 'pr') step3Fields = ['pr_experience', 'pr_campaign', 'pr_collab'];
+        else if (formData.role === 'marketing') step3Fields = ['marketing_urgency', 'marketing_strategy', 'marketing_adapt'];
+        else if (formData.role === 'social_media') step3Fields = ['sm_format', 'sm_complex', 'sm_low_footage', 'sm_low_reach'];
+        else if (formData.role === 'operations') step3Fields = ['ops_jugaad', 'ops_chaos', 'ops_forgot'];
+
+        const missing = step3Fields.find(f => !formData[f]?.trim());
+        if (missing) {
+            setMissingField(missing);
+            setError('Please answer all role-specific questions');
+            setTimeout(() => {
+                const el = document.getElementById(`field-container-${missing}`) || document.getElementById(`field-${missing}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    const inputEl = document.getElementById(`field-${missing}`) || el.querySelector('input, textarea');
+                    inputEl?.focus();
+                }
+            }, 50);
+            return;
+        }
 
         if (!captchaToken) {
             console.error('❌ No captcha token');
             setError('Please complete the reCAPTCHA verification');
+            const recaptchaEl = document.getElementById('recaptcha-container');
+            if (recaptchaEl) {
+                recaptchaEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
             return;
         }
 
@@ -202,34 +254,57 @@ const ApplyNow = () => {
         }
     };
 
-    const renderField = (name, label, type = 'text', placeholder = '') => (
-        <div className="mb-6">
-            <label className="block text-lg md:text-xl font-bold uppercase mb-2 text-white">
-                {label} <span className="text-brand-yellow text-lg align-top">*</span>
-            </label>
-            {type === 'textarea' ? (
-                <textarea
-                    name={name}
-                    value={formData[name]}
-                    onChange={handleChange}
-                    rows="4"
-                    className="w-full bg-zinc-900 border-b-4 border-zinc-700 p-3 md:p-4 text-base md:text-lg text-white focus:border-brand-yellow focus:outline-none transition-colors placeholder-gray-600 resize-none font-medium rounded-lg"
-                    placeholder={placeholder}
-                    required
-                />
-            ) : (
-                <input
-                    type={type}
-                    name={name}
-                    value={formData[name]}
-                    onChange={handleChange}
-                    className="w-full bg-zinc-900 border-b-4 border-zinc-700 p-3 md:p-4 text-base md:text-lg text-white focus:border-brand-yellow focus:outline-none transition-colors placeholder-gray-600 font-bold rounded-lg"
-                    placeholder={placeholder}
-                    required
-                />
-            )}
-        </div>
-    );
+    const renderField = (name, label, type = 'text', placeholder = '') => {
+        const hasError = missingField === name;
+        return (
+            <div id={`field-container-${name}`} className="mb-6 transition-all">
+                <label className="block text-lg md:text-xl font-bold uppercase mb-2 text-white flex items-center justify-between">
+                    <span>{label} <span className="text-brand-yellow text-lg align-top">*</span></span>
+                    {hasError && (
+                        <span className="text-red-400 text-xs font-bold uppercase tracking-wider animate-bounce">
+                            ⚠️ Required Field
+                        </span>
+                    )}
+                </label>
+                {type === 'textarea' ? (
+                    <textarea
+                        id={`field-${name}`}
+                        name={name}
+                        value={formData[name]}
+                        onChange={handleChange}
+                        rows="4"
+                        className={`w-full bg-zinc-900 border-b-4 p-3 md:p-4 text-base md:text-lg text-white focus:border-brand-yellow focus:outline-none transition-all placeholder-gray-600 resize-none font-medium rounded-lg ${
+                            hasError
+                                ? 'border-red-500 bg-red-950/20 shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse'
+                                : 'border-zinc-700'
+                        }`}
+                        placeholder={placeholder}
+                        required
+                    />
+                ) : (
+                    <input
+                        id={`field-${name}`}
+                        type={type}
+                        name={name}
+                        value={formData[name]}
+                        onChange={handleChange}
+                        className={`w-full bg-zinc-900 border-b-4 p-3 md:p-4 text-base md:text-lg text-white focus:border-brand-yellow focus:outline-none transition-all placeholder-gray-600 font-bold rounded-lg ${
+                            hasError
+                                ? 'border-red-500 bg-red-950/20 shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse'
+                                : 'border-zinc-700'
+                        }`}
+                        placeholder={placeholder}
+                        required
+                    />
+                )}
+                {hasError && (
+                    <p className="text-red-400 text-xs md:text-sm font-bold mt-2 flex items-center gap-1.5">
+                        ⚠️ Please fill in this field to continue
+                    </p>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans">
@@ -311,17 +386,29 @@ const ApplyNow = () => {
                                         <ArrowLeft className="w-4 h-4" /> Back
                                     </button>
 
-                                    <div className="mb-8 md:mb-12">
-                                        <label className="block text-lg md:text-xl font-bold uppercase mb-4 md:mb-6 text-white">
-                                            Rate yourself in Time Management (1-10) <span className="text-brand-yellow text-lg">*</span>
-                                        </label>
-                                        <div className="bg-zinc-800/50 p-6 rounded-xl border-2 border-zinc-700">
+                                    <div id="field-container-timeManagementRating" className="mb-8 md:mb-12 transition-all">
+                                        <div className="flex items-center justify-between mb-4 md:mb-6">
+                                            <label className="block text-lg md:text-xl font-bold uppercase text-white">
+                                                Rate yourself in Time Management (1-10) <span className="text-brand-yellow text-lg">*</span>
+                                            </label>
+                                            {missingField === 'timeManagementRating' && (
+                                                <span className="text-red-400 text-xs font-bold uppercase tracking-wider animate-bounce">
+                                                    ⚠️ Required Field
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={`bg-zinc-800/50 p-6 rounded-xl border-2 transition-all ${
+                                            missingField === 'timeManagementRating'
+                                                ? 'border-red-500 bg-red-950/20 shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse'
+                                                : 'border-zinc-700'
+                                        }`}>
                                             <div className="flex items-center justify-between mb-4">
                                                 <span className="font-mono text-gray-500 text-xs md:text-sm">NOT EFFICIENT</span>
                                                 <span className="text-4xl font-black text-brand-yellow">{formData.timeManagementRating || 5}</span>
                                                 <span className="font-mono text-gray-500 text-xs md:text-sm">VERY EFFICIENT</span>
                                             </div>
                                             <input
+                                                id="field-timeManagementRating"
                                                 type="range"
                                                 min="1"
                                                 max="10"
@@ -344,17 +431,33 @@ const ApplyNow = () => {
                                                 <span>10</span>
                                             </div>
                                         </div>
+                                        {missingField === 'timeManagementRating' && (
+                                            <p className="text-red-400 text-xs md:text-sm font-bold mt-2 flex items-center gap-1.5">
+                                                ⚠️ Please rate yourself in time management
+                                            </p>
+                                        )}
                                     </div>
 
-                                    <div className="mb-8 md:mb-10">
-                                        <label className="block text-xl md:text-2xl font-black uppercase mb-4 md:mb-6 text-white border-t-4 border-zinc-800 pt-6 md:pt-8">
-                                            Pick your superpower! 💪 <br />
-                                            <span className="text-brand-yellow text-sm md:text-base font-mono font-normal">
-                                                Which role excites you the most? Select one to proceed.
-                                            </span>
-                                        </label>
+                                    <div id="field-container-role" className="mb-8 md:mb-10 transition-all">
+                                        <div className="border-t-4 border-zinc-800 pt-6 md:pt-8 mb-4 md:mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                            <label className="block text-xl md:text-2xl font-black uppercase text-white">
+                                                Pick your superpower! 💪 <br />
+                                                <span className="text-brand-yellow text-sm md:text-base font-mono font-normal">
+                                                    Which role excites you the most? Select one to proceed.
+                                                </span>
+                                            </label>
+                                            {missingField === 'role' && (
+                                                <div className="text-red-400 text-xs md:text-sm font-bold uppercase tracking-wider animate-bounce flex items-center gap-1.5 self-start md:self-auto bg-red-950/40 border border-red-500/50 px-3 py-1.5 rounded-lg">
+                                                    ⚠️ Please select a role to proceed
+                                                </div>
+                                            )}
+                                        </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 md:gap-4">
+                                        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3.5 md:gap-4 p-2 rounded-2xl transition-all ${
+                                            missingField === 'role'
+                                                ? 'border-2 border-red-500 bg-red-950/10 shadow-[0_0_25px_rgba(239,68,68,0.3)] animate-pulse'
+                                                : ''
+                                        }`}>
                                             {roles.map((roleObj) => {
                                                 const Icon = roleObj.icon;
                                                 const isSelected = formData.role === roleObj.id;
@@ -487,13 +590,20 @@ const ApplyNow = () => {
                                         </>
                                     )}
 
-                                    <div className="flex justify-center mb-6">
+                                    <div id="recaptcha-container" className={`flex flex-col items-center justify-center mb-6 p-4 rounded-2xl transition-all ${
+                                        error && !captchaToken ? 'border-2 border-red-500 bg-red-950/20 shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse' : ''
+                                    }`}>
                                         <ReCAPTCHA
                                             ref={recaptchaRef}
                                             sitekey="6LfkAWAsAAAAANtYBVUELWkoCVaCWCpbvhC_s6rv"
                                             onChange={onCaptchaChange}
                                             theme="dark"
                                         />
+                                        {error && !captchaToken && (
+                                            <p className="text-red-400 text-xs md:text-sm font-bold mt-2">
+                                                ⚠️ Please complete the reCAPTCHA verification to submit
+                                            </p>
+                                        )}
                                     </div>
 
                                     <button
