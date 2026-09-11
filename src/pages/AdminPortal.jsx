@@ -5,7 +5,7 @@ import {
     Calendar, Clock, Tag, User, Eye, Trash2, BookOpen,
     FileText, Users, CheckSquare, Square, Mail, Phone, Search,
     ArrowLeft, Sparkles, Archive, ArrowUpDown, UserPlus, UserMinus,
-    Award, Building, LinkIcon
+    Award, Building, LinkIcon, Code, Palette, Type, RotateCcw
 } from 'lucide-react';
 import CertificateManager from '../components/CertificateManager';
 import EventManager from '../components/EventManager';
@@ -144,6 +144,16 @@ const AdminPortal = () => {
     const [showComposerCc, setShowComposerCc] = useState(false);
     const [showComposerBcc, setShowComposerBcc] = useState(false);
 
+    // Direct Custom Composer: mode & template customization state
+    const [composerMode, setComposerMode] = useState('text'); // 'text' (Normal Text Format), 'template' (Professional Designed Templates), 'custom' (Complete Custom HTML)
+    const [composerTemplate, setComposerTemplate] = useState('executive'); // 'executive', 'letterhead', 'minimal', 'dark'
+    const [composerAccentColor, setComposerAccentColor] = useState('#FFB22C');
+    const [composerHeaderTitle, setComposerHeaderTitle] = useState('E-CELL DYPIU');
+    const [composerHeaderSubtitle, setComposerHeaderSubtitle] = useState('A MESSAGE FROM THE TEAM');
+    const [composerFooterText, setComposerFooterText] = useState(`© ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.`);
+    const [composerPlainText, setComposerPlainText] = useState('');
+    const [composerCustomHtml, setComposerCustomHtml] = useState('');
+
     // Email Logs tab
     const [emailLogs, setEmailLogs] = useState([]);
     const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
@@ -236,7 +246,7 @@ const AdminPortal = () => {
 
     // A link sitting alone on its own line becomes a full branded CTA button;
     // a link inline within a sentence becomes a normal styled hyperlink instead.
-    const linkButtonHtml = (url) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:6px 0 18px 0;"><tr><td align="center"><a href="${url}" target="_blank" style="display:inline-block;background-color:#FFB22C;color:#000000;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:8px;text-transform:uppercase;letter-spacing:0.3px;border:2px solid #000000;">${guessLinkLabel(url)}</a></td></tr></table>`;
+    const linkButtonHtml = (url) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:8px 0 18px 0;"><tr><td align="center"><a href="${url}" target="_blank" style="display:inline-block;background-color:#FFB22C;color:#000000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;font-weight:900;text-decoration:none;padding:13px 32px;border-radius:8px;text-transform:uppercase;letter-spacing:0.3px;border:2px solid #000000;">${guessLinkLabel(url)}</a></td></tr></table>`;
 
     // Convert plain text into tidy HTML paragraphs: a blank line starts a new paragraph
     // (spaced via margin, not filler "&nbsp;" rows), a single line break inside a
@@ -255,12 +265,12 @@ const AdminPortal = () => {
                 }
                 const linkified = block
                     .replace(/\n/g, '<br/>')
-                    .replace(URL_REGEX, (url) => `<a href="${url}" target="_blank" style="color:#FFB22C; text-decoration:underline;">${url}</a>`);
+                    .replace(URL_REGEX, (url) => `<a href="${url}" target="_blank" style="color:#b45309; text-decoration:underline;">${url}</a>`);
                 return `<p style="margin:0 0 18px 0;">${linkified}</p>`;
             })
             .join('\n');
 
-        return `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#e4e4e7;line-height:1.7;font-size:15px;">\n${paragraphs}\n</div>`;
+        return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1e293b;line-height:1.7;font-size:15px;">\n${paragraphs}\n</div>`;
     };
 
     // Generic composer data state
@@ -419,41 +429,46 @@ const AdminPortal = () => {
     };
 
     // E-Cell-branded shell for the Direct Custom Composer — mirrors generateGenericHTML in
-    // api/mailer.js so the admin's preview matches exactly what gets sent.
-    const buildGenericEmailShell = (bodyHtml) => `<!DOCTYPE html>
+    // api/mailer.js with modern executive light styling and multi-template support.
+    const buildGenericEmailShell = (bodyHtml, template = composerTemplate, accent = composerAccentColor, headerTitle = composerHeaderTitle, headerSubtitle = composerHeaderSubtitle, footerText = composerFooterText) => {
+        if (template === 'letterhead') {
+            return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Cell DYPIU</title>
+    <title>${headerTitle}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
+<body style="margin:0; padding:0; background-color:#f1f5f9; font-family:'Segoe UI', Georgia, serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
         <tr>
-            <td align="center" style="padding:30px 10px;">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
-                    <!-- Header Banner -->
+            <td align="center" style="padding:40px 12px;">
+                <table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border:2px solid #0f172a; border-radius:4px; overflow:hidden; max-width:620px; width:100%; box-shadow:0 10px 25px rgba(0,0,0,0.06);">
                     <tr>
-                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
-                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px; font-family:Arial, sans-serif;">
-                                E-CELL DYPIU
-                            </h1>
-                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold; font-family:Arial, sans-serif;">
-                                A MESSAGE FROM THE TEAM
-                            </p>
+                        <td style="padding:32px 40px 20px 40px; border-bottom:3px double ${accent}; background-color:#ffffff; text-align:left;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                <tr>
+                                    <td>
+                                        <h1 style="margin:0; color:#0f172a; font-size:24px; font-weight:900; text-transform:uppercase; letter-spacing:1px; font-family:'Segoe UI', Arial, sans-serif;">
+                                            ${headerTitle}
+                                        </h1>
+                                        <p style="margin:4px 0 0 0; color:#64748b; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; font-family:'Segoe UI', Arial, sans-serif;">
+                                            Centre for Innovation, Incubation & Entrepreneurship (CIIE) • DYPIU
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
-                    <!-- Main Content -->
                     <tr>
-                        <td style="padding:35px 40px;">
+                        <td style="padding:36px 40px; color:#0f172a; font-size:15px; line-height:1.75; font-family:'Segoe UI', Arial, sans-serif;">
                             ${bodyHtml}
                         </td>
                     </tr>
-                    <!-- Footer -->
                     <tr>
-                        <td style="background-color:#0c0c0e; padding:25px 30px; text-align:center; border-top:2px solid #27272a;">
-                            <p style="margin:0; color:#71717a; font-size:12px; font-family:Arial, sans-serif;">
-                                &copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.
+                        <td style="background-color:#f8fafc; padding:20px 40px; text-align:center; border-top:1px solid #e2e8f0; font-family:'Segoe UI', Arial, sans-serif;">
+                            <p style="margin:0; color:#64748b; font-size:11px;">
+                                ${footerText}
                             </p>
                         </td>
                     </tr>
@@ -463,13 +478,186 @@ const AdminPortal = () => {
     </table>
 </body>
 </html>`;
+        }
 
-    // Generate live html preview of the custom email wrapped in E-cell branding
+        if (template === 'minimal') {
+            return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${headerTitle}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff;">
+        <tr>
+            <td align="center" style="padding:40px 16px;">
+                <table role="presentation" width="580" cellspacing="0" cellpadding="0" border="0" style="max-width:580px; width:100%;">
+                    <tr>
+                        <td style="padding:0 0 24px 0; border-bottom:2px solid #0f172a;">
+                            <span style="display:inline-block; font-size:13px; font-weight:900; text-transform:uppercase; letter-spacing:1px; color:#0f172a;">
+                                ${headerTitle} <span style="color:${accent};">●</span>
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px 0; color:#1e293b; font-size:15px; line-height:1.7;">
+                            ${bodyHtml}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:24px 0 0 0; border-top:1px solid #e2e8f0; color:#94a3b8; font-size:12px;">
+                            ${footerText}
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+        }
+
+        if (template === 'dark') {
+            return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${headerTitle}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#09090b; font-family:Arial, sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#09090b;">
+        <tr>
+            <td align="center" style="padding:35px 12px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:2px solid #27272a; border-radius:16px; overflow:hidden; max-width:600px; width:100%;">
+                    <tr>
+                        <td style="background-color:${accent}; padding:24px 30px; text-align:center;">
+                            <h1 style="margin:0; color:#000000; font-size:24px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px;">
+                                ${headerTitle}
+                            </h1>
+                            <p style="margin:4px 0 0 0; color:#000000; font-size:12px; font-weight:bold; opacity:0.85;">
+                                ${headerSubtitle}
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:35px 40px; color:#f4f4f5; font-size:15px; line-height:1.7;">
+                            ${bodyHtml}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#0c0c0e; padding:22px 30px; text-align:center; border-top:1px solid #27272a;">
+                            <p style="margin:0; color:#71717a; font-size:12px;">
+                                ${footerText}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+        }
+
+        // Default: Modern Executive Light
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${headerTitle}</title>
+    <style type="text/css">
+        @media only screen and (max-width: 620px) {
+            .email-container { width: 100% !important; border-radius: 0 !important; }
+            .mobile-cta { width: 100% !important; display: block !important; box-sizing: border-box !important; text-align: center !important; }
+            .mobile-content { padding: 25px 20px !important; }
+        }
+    </style>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f5f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f5f7;">
+        <tr>
+            <td align="center" style="padding:35px 12px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" class="email-container" style="background-color:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; max-width:600px; width:100%; box-shadow:0 4px 20px rgba(0,0,0,0.05);">
+                    <tr>
+                        <td style="background-color:${accent}; padding:26px 30px; text-align:center; border-bottom:2px solid rgba(0,0,0,0.08);">
+                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+                                ${headerTitle}
+                            </h1>
+                            <p style="margin:6px 0 0 0; color:#000000; font-size:13px; font-weight:800; opacity:0.85; letter-spacing:0.5px;">
+                                ${headerSubtitle}
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="mobile-content" style="padding:35px 40px; color:#1e293b; font-size:15px; line-height:1.7;">
+                            ${bodyHtml}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#f8fafc; padding:24px 30px; text-align:center; border-top:1px solid #e2e8f0;">
+                            <p style="margin:0; color:#64748b; font-size:12px;">
+                                ${footerText}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+    };
+
+    // Clean plain text email renderer (Normal Text Format)
+    const buildPlainTextEmailPreview = (text) => {
+        const safeEscaped = (text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Normal Text Email</title>
+</head>
+<body style="margin:0; padding:24px 16px; background-color:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:15px; line-height:1.65; color:#1e293b;">
+    <div style="max-width:620px; margin:0 auto; white-space:pre-wrap; font-family:inherit; font-size:inherit; color:inherit; line-height:inherit;">${safeEscaped}</div>
+</body>
+</html>`;
+    };
+
+    // Generate live html preview of the email based on composerMode
     const getGenericPreviewHTML = (bodyContent) => {
-        const formattedBody = (bodyContent || '')
-            .replace(/\{name\}/g, composerRecipients[0]?.name || 'Sample Recipient')
-            .replace(/\{email\}/g, composerRecipients[0]?.email || 'sample.recipient@example.com');
-        return buildGenericEmailShell(formattedBody);
+        const sampleName = composerRecipients[0]?.name || 'Sample Recipient';
+        const sampleEmail = composerRecipients[0]?.email || 'sample.recipient@example.com';
+
+        if (composerMode === 'text') {
+            return buildPlainTextEmailPreview(
+                (composerPlainText || genericMailData.plainText || '')
+                    .replace(/\{name\}/g, sampleName)
+                    .replace(/\{email\}/g, sampleEmail)
+            );
+        }
+
+        if (composerMode === 'custom') {
+            return (composerCustomHtml || '')
+                .replace(/\{name\}/g, sampleName)
+                .replace(/\{email\}/g, sampleEmail)
+                .replace(/\{role\}/g, 'Member')
+                .replace(/\{date\}/g, 'Oct 15, 2026')
+                .replace(/\{time\}/g, '10:00 AM')
+                .replace(/\{venue\}/g, 'DYPIU Campus');
+        }
+
+        const formattedBody = (bodyContent || genericMailData.body || '')
+            .replace(/\{name\}/g, sampleName)
+            .replace(/\{email\}/g, sampleEmail);
+        return buildGenericEmailShell(formattedBody, composerTemplate, composerAccentColor, composerHeaderTitle, composerHeaderSubtitle, composerFooterText);
     };
 
     // Copy selected or all emails to clipboard
@@ -500,7 +688,32 @@ const AdminPortal = () => {
         } else if (mailerType === 'event') {
             payloadData = eventMailData;
         } else {
-            payloadData = genericMailData;
+            // Direct Custom Composer
+            if (composerMode === 'text') {
+                payloadData = {
+                    format: 'plain',
+                    isPlainText: true,
+                    plainText: composerPlainText,
+                    body: composerPlainText
+                };
+            } else if (composerMode === 'custom') {
+                payloadData = {
+                    format: 'custom',
+                    customHtml: composerCustomHtml,
+                    fullHtml: composerCustomHtml
+                };
+            } else {
+                payloadData = {
+                    format: 'template',
+                    template: composerTemplate,
+                    accentColor: composerAccentColor,
+                    headerTitle: composerHeaderTitle,
+                    headerSubtitle: composerHeaderSubtitle,
+                    footerText: composerFooterText,
+                    plainText: genericMailData.plainText,
+                    body: genericMailData.body
+                };
+            }
         }
 
         // The Direct Custom Composer uses its own Gmail-style recipient picker instead of
@@ -556,7 +769,9 @@ const AdminPortal = () => {
             } else if (mailerType === 'event') {
                 setEventMailData({ title: '', bannerUrl: '', description: '', date: '', time: '', venue: '', registrationLink: '', buttonText: 'Register Now' });
             } else {
-                setGenericMailData({ plainText: '', body: '' });
+                setGenericMailData({ plainText: DEFAULT_GENERIC_PLAIN_TEXT, body: buildGenericBodyHtml(DEFAULT_GENERIC_PLAIN_TEXT) });
+                setComposerPlainText('');
+                setComposerCustomHtml('');
                 setComposerRecipients([]);
                 setComposerAttachments([]);
                 setComposerCc([]);
@@ -1481,60 +1696,60 @@ const AdminPortal = () => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interview Schedule - E-Cell DYPIU</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #000000; font-family: Arial, sans-serif; color: #ffffff;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #000000;">
+<body style="margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f5f7;">
         <tr>
-            <td align="center" style="padding: 30px 10px;">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #18181b; border: 4px solid #ffffff; border-radius: 20px; overflow: hidden; max-width: 600px; width: 100%;">
+            <td align="center" style="padding: 35px 12px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; max-width: 600px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
                     <!-- Header Banner -->
                     <tr>
-                        <td style="background-color: #FFB22C; padding: 25px 30px; text-align: center;">
-                            <h1 style="margin: 0; color: #000000; font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; font-family: Arial, sans-serif;">
+                        <td style="background-color: #FFB22C; padding: 26px 30px; text-align: center; border-bottom: 2px solid #eab308;">
+                            <h1 style="margin: 0; color: #000000; font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
                                 E-CELL DYPIU
                             </h1>
-                            <p style="margin: 5px 0 0 0; color: #000000; font-size: 13px; font-weight: bold; font-family: Arial, sans-serif;">
+                            <p style="margin: 6px 0 0 0; color: #000000; font-size: 13px; font-weight: 800; opacity: 0.85; letter-spacing: 0.5px;">
                                 TEAM SELECTION INTERVIEW INVITATION
                             </p>
                         </td>
                     </tr>
                     <!-- Main Content -->
                     <tr>
-                        <td style="padding: 35px 40px; color: #ffffff;">
-                            <p style="font-size: 17px; margin: 0 0 20px 0; line-height: 1.5;">
+                        <td style="padding: 35px 40px; color: #1e293b;">
+                            <p style="font-size: 16px; margin: 0 0 20px 0; line-height: 1.5; color: #1e293b;">
                                 Dear <strong>{name}</strong>,
                             </p>
-                            <p style="color: #e4e4e7; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                            <p style="color: #334155; font-size: 15px; line-height: 1.7; margin: 0 0 25px 0;">
                                 Thank you for applying to join <strong>E-Cell DYPIU</strong>! Based on your application review, we are pleased to invite you for an interview round.
                             </p>
                             
                             <!-- Interview Details Box -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #000000; border: 2px solid #FFB22C; border-radius: 12px; margin-bottom: 30px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #fffbeb; border: 2px solid #f59e0b; border-radius: 12px; margin-bottom: 25px;">
                                 <tr>
                                     <td style="padding: 20px;">
-                                        <h3 style="margin: 0 0 12px 0; color: #FFB22C; font-size: 16px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #27272a; padding-bottom: 8px;">Interview Schedule Details</h3>
+                                        <h3 style="margin: 0 0 12px 0; color: #b45309; font-size: 14px; font-weight: 800; text-transform: uppercase; border-bottom: 1px solid #fde68a; padding-bottom: 8px;">Interview Schedule Details</h3>
                                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 1px solid #1f1f22;">
-                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Role</span>
-                                                    <span style="display: block; color: #FFB22C; font-size: 15px; font-weight: bold; margin-top: 3px;">${roleText}</span>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fef3c7;">
+                                                    <span style="display: block; color: #78350f; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Role</span>
+                                                    <span style="display: block; color: #0f172a; font-size: 14px; font-weight: 700; margin-top: 2px;">${roleText}</span>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 1px solid #1f1f22;">
-                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Date</span>
-                                                    <span style="display: block; color: #ffffff; font-size: 15px; margin-top: 3px;">${dateText}</span>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fef3c7;">
+                                                    <span style="display: block; color: #78350f; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Date</span>
+                                                    <span style="display: block; color: #0f172a; font-size: 14px; font-weight: 600; margin-top: 2px;">${dateText}</span>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 8px 0; border-bottom: 1px solid #1f1f22;">
-                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Time / Slot</span>
-                                                    <span style="display: block; color: #ffffff; font-size: 15px; margin-top: 3px;">${timeText}</span>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fef3c7;">
+                                                    <span style="display: block; color: #78350f; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Time / Slot</span>
+                                                    <span style="display: block; color: #0f172a; font-size: 14px; font-weight: 600; margin-top: 2px;">${timeText}</span>
                                                 </td>
                                             </tr>
                                             <tr>
                                                 <td style="padding: 8px 0;">
-                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Location</span>
-                                                    <span style="display: block; color: #ffffff; font-size: 15px; margin-top: 3px;">${venueText}</span>
+                                                    <span style="display: block; color: #78350f; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Location</span>
+                                                    <span style="display: block; color: #0f172a; font-size: 14px; font-weight: 600; margin-top: 2px;">${venueText}</span>
                                                 </td>
                                             </tr>
                                         </table>
@@ -1543,9 +1758,9 @@ const AdminPortal = () => {
                             </table>
 
                             ${(data.notes || '').trim() ? `
-                            <div style="background-color: #27272a; padding: 18px; border-radius: 10px; margin-bottom: 25px;">
-                                <h4 style="margin: 0 0 8px 0; color: #FFB22C; font-size: 14px; text-transform: uppercase;">Important Instructions / Notes</h4>
-                                ${notesText ? `<p style="color: #e4e4e7; font-size: 14px; line-height: 1.5; margin: 0;">${notesText}</p>` : ''}
+                            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 18px; border-radius: 10px; margin-bottom: 25px;">
+                                <h4 style="margin: 0 0 8px 0; color: #0f172a; font-size: 14px; font-weight: 800; text-transform: uppercase;">Important Instructions / Notes</h4>
+                                ${notesText ? `<p style="color: #334155; font-size: 14px; line-height: 1.6; margin: 0;">${notesText}</p>` : ''}
                                 ${notesLinkButton}
                             </div>
                             ` : ''}
@@ -1554,7 +1769,7 @@ const AdminPortal = () => {
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                                 <tr>
                                     <td align="center" style="padding: 10px 0 15px 0;">
-                                        <a href="${data.buttonUrl}" target="_blank" style="display: inline-block; background-color: #FFB22C; color: #000000; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; text-decoration: none; padding: 14px 35px; border-radius: 8px; text-transform: uppercase; border: 3px solid #ffffff;">
+                                        <a href="${data.buttonUrl}" target="_blank" style="display: inline-block; background-color: #FFB22C; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 15px; font-weight: 900; text-decoration: none; padding: 14px 35px; border-radius: 8px; text-transform: uppercase; border: 2px solid #000000;">
                                             ${data.buttonText || 'Join Interview / Confirm Slot'}
                                         </a>
                                     </td>
@@ -1562,17 +1777,17 @@ const AdminPortal = () => {
                             </table>
                             ` : ''}
 
-                            <p style="color: #a1a1aa; font-size: 14px; line-height: 1.5; margin: 25px 0 0 0;">
+                            <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 25px 0 0 0;">
                                 Best of luck! We look forward to meeting you.<br/><br/>
                                 Warm regards,<br/>
-                                <strong>Team E-Cell DYPIU</strong>
+                                <strong style="color: #0f172a;">Team E-Cell DYPIU</strong>
                             </p>
                         </td>
                     </tr>
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #0c0c0e; padding: 25px 30px; text-align: center; border-top: 2px solid #27272a;">
-                            <p style="margin: 0; color: #71717a; font-size: 12px;">
+                        <td style="background-color: #f8fafc; padding: 24px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                            <p style="margin: 0; color: #64748b; font-size: 12px;">
                                 © ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.
                             </p>
                         </td>
@@ -3949,24 +4164,78 @@ More content..."
                                     )}
                                 </div>
 
-                                {/* Mail Template Action Bar */}
-                                <div className="flex gap-2 justify-between items-center border-t-2 border-zinc-800 pt-6">
-                                    <h3 className="text-lg font-black uppercase text-brand-yellow">Mail Template</h3>
-                                    <div className="flex gap-2">
+                                {/* Mode Selector: Normal Text, Professional Template, Custom HTML */}
+                                <div className="border-t-2 border-zinc-800 pt-6">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-black uppercase text-brand-yellow">Composer Format & Design</h3>
+                                            <p className="text-xs text-zinc-400">Choose between a single-click clean normal text email, a curated professional template, or a complete custom HTML design.</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowMailPreviewModal(true)}
+                                                className="px-4 py-2 bg-brand-yellow text-black font-black text-xs uppercase rounded-lg border-2 border-white hover:bg-white transition-all flex items-center gap-1.5 shadow-sm"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                                Preview Email
+                                            </button>
+                                            {composerMode === 'template' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleResetGenericDefault}
+                                                    className="px-3 py-2 bg-zinc-800 text-gray-300 hover:text-white font-bold text-xs uppercase rounded-lg border border-zinc-700 transition-colors flex items-center gap-1"
+                                                >
+                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                    Reset
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Tabs: Text vs Template vs Custom */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-black border-2 border-zinc-700 rounded-xl mb-6">
                                         <button
                                             type="button"
-                                            onClick={() => setShowMailPreviewModal(true)}
-                                            className="px-4 py-2 bg-brand-yellow text-black font-black text-xs uppercase rounded-lg border-2 border-white hover:bg-white transition-all flex items-center gap-1.5"
+                                            onClick={() => setComposerMode('text')}
+                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-xs uppercase transition-all ${
+                                                composerMode === 'text'
+                                                    ? 'bg-brand-yellow text-black shadow-md border-2 border-white'
+                                                    : 'text-gray-400 hover:text-white hover:bg-zinc-800/60'
+                                            }`}
                                         >
-                                            <Eye className="w-4 h-4" />
-                                            Preview Changes
+                                            <Type className="w-4 h-4" />
+                                            <span>Normal Text Format</span>
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={handleResetGenericDefault}
-                                            className="px-4 py-2 bg-zinc-800 text-gray-300 hover:text-white font-bold text-xs uppercase rounded-lg border border-zinc-700 transition-colors"
+                                            onClick={() => setComposerMode('template')}
+                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-xs uppercase transition-all ${
+                                                composerMode === 'template'
+                                                    ? 'bg-brand-yellow text-black shadow-md border-2 border-white'
+                                                    : 'text-gray-400 hover:text-white hover:bg-zinc-800/60'
+                                            }`}
                                         >
-                                            Reset Default
+                                            <Palette className="w-4 h-4" />
+                                            <span>Professional Templates</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                // If opening custom for the first time or empty, initialize from current template
+                                                if (!composerCustomHtml.trim()) {
+                                                    setComposerCustomHtml(getGenericPreviewHTML());
+                                                }
+                                                setComposerMode('custom');
+                                            }}
+                                            className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-xs uppercase transition-all ${
+                                                composerMode === 'custom'
+                                                    ? 'bg-brand-yellow text-black shadow-md border-2 border-white'
+                                                    : 'text-gray-400 hover:text-white hover:bg-zinc-800/60'
+                                            }`}
+                                        >
+                                            <Code className="w-4 h-4" />
+                                            <span>Complete Custom HTML</span>
                                         </button>
                                     </div>
                                 </div>
@@ -3980,47 +4249,300 @@ More content..."
                                         type="text"
                                         value={mailerSubject}
                                         onChange={(e) => setMailerSubject(e.target.value)}
-                                        className="w-full bg-black border-2 border-zinc-700 p-4 text-white rounded-lg focus:border-brand-yellow focus:outline-none"
+                                        className="w-full bg-black border-2 border-zinc-700 p-4 text-white rounded-lg focus:border-brand-yellow focus:outline-none text-base"
                                         placeholder="📢 Welcome to E-Cell DYPIU!"
                                         required
                                     />
                                 </div>
 
-                                {/* Side-by-Side Editors */}
-                                <div className="grid md:grid-cols-2 gap-6">
-                                    {/* Left Column: Quick Edit */}
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
-                                            Quick Edit (No Code)
-                                        </label>
-                                        <textarea
-                                            value={genericMailData.plainText}
-                                            onChange={(e) => handlePlainTextChange(e.target.value)}
-                                            rows={14}
-                                            className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-lg focus:border-brand-yellow focus:outline-none resize-none text-sm font-sans"
-                                            placeholder="Dear {name},&#10;&#10;Type your message here..."
-                                        />
-                                        <p className="text-[11px] text-zinc-500 mt-1">
-                                            Editing here automatically updates the HTML template on the right. Use <strong>Preview Changes</strong> to see the rendered preview.
-                                        </p>
-                                    </div>
+                                {/* MODE 1: NORMAL TEXT FORMAT */}
+                                {composerMode === 'text' && (
+                                    <div className="bg-zinc-900/60 border-2 border-zinc-700 p-5 rounded-xl space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">Direct Normal Text Email</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[11px] text-zinc-400">Insert:</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setComposerPlainText(prev => prev + ' {name}')}
+                                                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-brand-yellow font-mono text-[11px] rounded border border-zinc-600 transition-colors"
+                                                >
+                                                    {`{name}`}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setComposerPlainText(prev => prev + ' {email}')}
+                                                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-brand-yellow font-mono text-[11px] rounded border border-zinc-600 transition-colors"
+                                                >
+                                                    {`{email}`}
+                                                </button>
+                                            </div>
+                                        </div>
 
-                                    {/* Right Column: HTML Editor */}
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
-                                            Body (HTML Code Editor)
-                                        </label>
-                                        <HtmlCodeEditor
-                                            value={genericMailData.body}
-                                            onChange={(val) => setGenericMailData(prev => ({ ...prev, body: val }))}
-                                            minHeight="330px"
-                                            placeholder="HTML code content..."
+                                        <textarea
+                                            value={composerPlainText}
+                                            onChange={(e) => setComposerPlainText(e.target.value)}
+                                            rows={14}
+                                            className="w-full bg-black border-2 border-zinc-700 p-4 text-white rounded-lg focus:border-brand-yellow focus:outline-none resize-none text-sm font-sans leading-relaxed"
+                                            placeholder="Hello {name},&#10;&#10;Write your normal text email here exactly as you want it delivered.&#10;&#10;No fancy cards, no banners, no artificial borders — just clean, readable, professional plain email text.&#10;&#10;Best regards,&#10;E-Cell DYPIU Team"
+                                            required
                                         />
-                                        <p className="text-[11px] text-zinc-500 mt-1">
-                                            Placeholders: <code>{`{name}`}</code> will be automatically replaced with the recipient's name during dispatch.
+                                        <p className="text-[12px] text-zinc-400">
+                                            💡 <strong>Sent as natural direct text:</strong> Delivered cleanly without colored frames, cards, or borders. Standard line breaks and paragraphs are preserved.
                                         </p>
                                     </div>
-                                </div>
+                                )}
+
+                                {/* MODE 2: PROFESSIONAL TEMPLATES */}
+                                {composerMode === 'template' && (
+                                    <div className="space-y-6">
+                                        {/* Template Selector Cards */}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-400 uppercase mb-3">
+                                                Choose Template Design
+                                            </label>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                {[
+                                                    { id: 'executive', name: 'Executive Card', desc: 'Modern card with top badge & accent header', badge: 'Default' },
+                                                    { id: 'letterhead', name: 'Official Letterhead', desc: 'Top brand banner with clean corporate card', badge: 'Formal' },
+                                                    { id: 'minimal', name: 'Minimalist Clean', desc: 'Sleek white card with subtle left accent line', badge: 'Clean' },
+                                                    { id: 'dark', name: 'Modern Dark', desc: 'Polished charcoal card with amber contrast', badge: 'Dark' }
+                                                ].map((tmpl) => (
+                                                    <button
+                                                        key={tmpl.id}
+                                                        type="button"
+                                                        onClick={() => setComposerTemplate(tmpl.id)}
+                                                        className={`text-left p-3.5 rounded-xl border-2 transition-all flex flex-col justify-between ${
+                                                            composerTemplate === tmpl.id
+                                                                ? 'bg-zinc-800 border-brand-yellow text-white shadow-lg shadow-brand-yellow/10 ring-1 ring-brand-yellow'
+                                                                : 'bg-black/60 border-zinc-700 text-gray-400 hover:border-zinc-500 hover:text-gray-200'
+                                                        }`}
+                                                    >
+                                                        <div>
+                                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                                                <span className="font-black text-xs uppercase text-white">{tmpl.name}</span>
+                                                                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                                                    composerTemplate === tmpl.id ? 'bg-brand-yellow text-black' : 'bg-zinc-800 text-zinc-400'
+                                                                }`}>{tmpl.badge}</span>
+                                                            </div>
+                                                            <p className="text-[11px] leading-tight text-zinc-400">{tmpl.desc}</p>
+                                                        </div>
+                                                        <span className="mt-3 text-[10px] font-bold uppercase tracking-wider text-brand-yellow">
+                                                            {composerTemplate === tmpl.id ? '● Selected' : 'Select'}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Template Customizer Toolbar */}
+                                        <div className="bg-zinc-900/60 border-2 border-zinc-700 p-4 rounded-xl space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-black uppercase text-brand-yellow tracking-wider">Customize Template Elements</h4>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        // Export current customized template directly to Custom HTML tab
+                                                        setComposerCustomHtml(getGenericPreviewHTML());
+                                                        setComposerMode('custom');
+                                                    }}
+                                                    className="text-[11px] font-bold text-brand-yellow hover:underline flex items-center gap-1"
+                                                >
+                                                    <Code className="w-3.5 h-3.5" />
+                                                    Customize raw HTML for this template →
+                                                </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                {/* Accent Color Picker */}
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5">Accent Color</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="color"
+                                                            value={composerAccentColor}
+                                                            onChange={(e) => setComposerAccentColor(e.target.value)}
+                                                            className="w-9 h-9 rounded cursor-pointer border border-zinc-600 bg-transparent"
+                                                        />
+                                                        <div className="flex items-center gap-1">
+                                                            {['#FFB22C', '#2563eb', '#059669', '#dc2626', '#7c3aed'].map((col) => (
+                                                                <button
+                                                                    key={col}
+                                                                    type="button"
+                                                                    onClick={() => setComposerAccentColor(col)}
+                                                                    className="w-5 h-5 rounded-full border border-white/20 transition-transform hover:scale-110"
+                                                                    style={{ backgroundColor: col }}
+                                                                    title={col}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Header Title */}
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5">Header Title</label>
+                                                    <input
+                                                        type="text"
+                                                        value={composerHeaderTitle}
+                                                        onChange={(e) => setComposerHeaderTitle(e.target.value)}
+                                                        className="w-full bg-black border border-zinc-700 p-2 text-white rounded-lg text-xs focus:border-brand-yellow focus:outline-none"
+                                                        placeholder="E-CELL DYPIU"
+                                                    />
+                                                </div>
+
+                                                {/* Header Subtitle */}
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5">Header Subtitle</label>
+                                                    <input
+                                                        type="text"
+                                                        value={composerHeaderSubtitle}
+                                                        onChange={(e) => setComposerHeaderSubtitle(e.target.value)}
+                                                        className="w-full bg-black border border-zinc-700 p-2 text-white rounded-lg text-xs focus:border-brand-yellow focus:outline-none"
+                                                        placeholder="OFFICIAL ANNOUNCEMENT"
+                                                    />
+                                                </div>
+
+                                                {/* Footer Text */}
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5">Footer Signoff</label>
+                                                    <input
+                                                        type="text"
+                                                        value={composerFooterText}
+                                                        onChange={(e) => setComposerFooterText(e.target.value)}
+                                                        className="w-full bg-black border border-zinc-700 p-2 text-white rounded-lg text-xs focus:border-brand-yellow focus:outline-none"
+                                                        placeholder="Entrepreneurship Cell, DYPIU"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Side-by-Side Content Editors */}
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            {/* Left Column: Quick Edit */}
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <label className="block text-xs font-bold text-gray-400 uppercase">
+                                                        Quick Edit (Plain Text)
+                                                    </label>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[10px] text-zinc-400">Insert:</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePlainTextChange(genericMailData.plainText + ' {name}')}
+                                                            className="px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-brand-yellow font-mono text-[10px] rounded border border-zinc-600"
+                                                        >
+                                                            {`{name}`}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePlainTextChange(genericMailData.plainText + ' {email}')}
+                                                            className="px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-brand-yellow font-mono text-[10px] rounded border border-zinc-600"
+                                                        >
+                                                            {`{email}`}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <textarea
+                                                    value={genericMailData.plainText}
+                                                    onChange={(e) => handlePlainTextChange(e.target.value)}
+                                                    rows={14}
+                                                    className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-lg focus:border-brand-yellow focus:outline-none resize-none text-sm font-sans"
+                                                    placeholder="Dear {name},&#10;&#10;Type your message here..."
+                                                />
+                                                <p className="text-[11px] text-zinc-500 mt-1">
+                                                    Editing here automatically updates the HTML body on the right. Click <strong>Preview Email</strong> to see the full rendered design.
+                                                </p>
+                                            </div>
+
+                                            {/* Right Column: HTML Editor */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
+                                                    Card Body (HTML Editor)
+                                                </label>
+                                                <HtmlCodeEditor
+                                                    value={genericMailData.body}
+                                                    onChange={(val) => setGenericMailData(prev => ({ ...prev, body: val }))}
+                                                    minHeight="330px"
+                                                    placeholder="HTML content inside card..."
+                                                />
+                                                <p className="text-[11px] text-zinc-500 mt-1">
+                                                    Supports standard HTML formatting: <code>&lt;p&gt;</code>, <code>&lt;strong&gt;</code>, buttons, links, etc.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* MODE 3: COMPLETE CUSTOM HTML */}
+                                {composerMode === 'custom' && (
+                                    <div className="space-y-4">
+                                        <div className="bg-zinc-900/60 border-2 border-zinc-700 p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                            <div>
+                                                <span className="text-xs font-black uppercase text-brand-yellow tracking-wider block">Full Custom HTML Template</span>
+                                                <p className="text-xs text-zinc-400">Total control over entire HTML email structure, CSS, fonts, and layouts.</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-[11px] font-bold text-zinc-400 uppercase">Load Preset:</span>
+                                                {[
+                                                    { id: 'executive', label: 'Executive' },
+                                                    { id: 'letterhead', label: 'Letterhead' },
+                                                    { id: 'minimal', label: 'Minimalist' },
+                                                    { id: 'dark', label: 'Dark' }
+                                                ].map(preset => (
+                                                    <button
+                                                        key={preset.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setComposerCustomHtml(buildGenericEmailShell(
+                                                                genericMailData.body || buildGenericBodyHtml(genericMailData.plainText),
+                                                                preset.id,
+                                                                composerAccentColor,
+                                                                composerHeaderTitle,
+                                                                composerHeaderSubtitle,
+                                                                composerFooterText
+                                                            ));
+                                                        }}
+                                                        className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-gray-300 hover:text-white font-bold text-[11px] rounded border border-zinc-600 transition-colors"
+                                                    >
+                                                        {preset.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Insert Variable Bar */}
+                                        <div className="flex flex-wrap items-center gap-2 p-2 bg-black border border-zinc-800 rounded-lg">
+                                            <span className="text-xs font-bold text-zinc-400 uppercase mr-1">Insert Variable:</span>
+                                            {['{name}', '{email}', '{role}', '{date}', '{time}', '{venue}'].map(tag => (
+                                                <button
+                                                    key={tag}
+                                                    type="button"
+                                                    onClick={() => setComposerCustomHtml(prev => prev + tag)}
+                                                    className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-brand-yellow font-mono text-xs rounded border border-zinc-700 transition-colors"
+                                                >
+                                                    {tag}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Full Code Editor */}
+                                        <div>
+                                            <HtmlCodeEditor
+                                                value={composerCustomHtml}
+                                                onChange={(val) => setComposerCustomHtml(val)}
+                                                minHeight="480px"
+                                                placeholder="<!DOCTYPE html><html>...</html>"
+                                            />
+                                            <p className="text-[11px] text-zinc-500 mt-1">
+                                                This HTML will be sent directly as the complete email document to all recipients. Placeholders like <code>{`{name}`}</code> and <code>{`{email}`}</code> are replaced on dispatch.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Attachments */}
                                 <div className="border-t-2 border-zinc-800 pt-6">
@@ -4062,8 +4584,15 @@ More content..."
 
                                 <button
                                     type="submit"
-                                    disabled={loading || !mailerSubject.trim() || !genericMailData.body.trim() || (composerAudience === 'custom' && composerRecipients.length === 0)}
-                                    className="w-full bg-brand-yellow text-black text-xl font-black uppercase py-4 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
+                                    disabled={
+                                        loading ||
+                                        !mailerSubject.trim() ||
+                                        (composerMode === 'text' && !composerPlainText.trim()) ||
+                                        (composerMode === 'template' && !genericMailData.body.trim()) ||
+                                        (composerMode === 'custom' && !composerCustomHtml.trim()) ||
+                                        (composerAudience === 'custom' && composerRecipients.length === 0)
+                                    }
+                                    className="w-full bg-brand-yellow text-black text-xl font-black uppercase py-4 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-lg"
                                 >
                                     {loading ? (
                                         <>
@@ -4433,7 +4962,7 @@ More content..."
                         {/* Rendered Preview Area */}
                         <div className="flex-1 overflow-y-auto bg-black p-4">
                             <EmailPreviewFrame
-                                srcDoc={getGenericPreviewHTML(genericMailData.body)}
+                                srcDoc={getGenericPreviewHTML()}
                                 desktopHeight={380}
                                 mobileHeight={560}
                             />

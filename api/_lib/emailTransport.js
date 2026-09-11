@@ -7,7 +7,7 @@
 // permissive shape: { filename, content (base64), contentType }. cc/bcc are optional
 // arrays of { name, email }.
 // Shared by api/mailer.js and api/collaboration.js.
-export async function sendEmail(to, subject, htmlContent, provider = 'resend', attachments = [], cc = [], bcc = []) {
+export async function sendEmail(to, subject, htmlContent, provider = 'resend', attachments = [], cc = [], bcc = [], textContent = '') {
     if (provider === 'bridge1' || provider === 'bridge2') {
         const url = provider === 'bridge1' ? process.env.MAIL_BRIDGE_1 : process.env.MAIL_BRIDGE_2;
         if (!url) {
@@ -29,6 +29,7 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
                 bcc: (bcc || []).map(b => b.email),
                 subject,
                 htmlContent,
+                textContent: textContent || undefined,
                 fromName: process.env[envNameKey] || defaultName,
                 fromEmail: process.env[envEmailKey] || defaultEmail,
                 attachments
@@ -94,7 +95,8 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
                 }
             ],
             subject,
-            htmlbody: htmlContent
+            htmlbody: htmlContent,
+            textbody: textContent || undefined
         };
 
         if ((cc || []).length > 0) {
@@ -150,6 +152,7 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
             bcc: (bcc || []).length > 0 ? bcc.map(toResendAddress) : undefined,
             subject,
             html: htmlContent,
+            text: textContent || undefined,
             attachments: formattedAttachments.length > 0 ? formattedAttachments : undefined,
         }),
     });

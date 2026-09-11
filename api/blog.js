@@ -209,19 +209,19 @@ function generateBlogEmailHTML(blogData, subscriberName) {
         }
     </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #000000; font-family: Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #000000;">
+<body style="margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f5f7;">
         <tr>
-            <td align="center" style="padding: 40px 10px;" class="mobile-padding">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" class="email-container" style="background-color: #18181b; border: 4px solid #ffffff; border-radius: 20px; overflow: hidden; max-width: 600px; width: 100%;">
+            <td align="center" style="padding: 35px 12px;" class="mobile-padding">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" class="email-container" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; max-width: 600px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background-color: #FFB22C; padding: 30px 40px; text-align: center;" class="mobile-padding-header">
-                            <h1 style="margin: 0; color: #000000; font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px;" class="mobile-title">
+                        <td style="background-color: #FFB22C; padding: 26px 35px; text-align: center; border-bottom: 2px solid #eab308;" class="mobile-padding-header">
+                            <h1 style="margin: 0; color: #000000; font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.5px;" class="mobile-title">
                                 E-CELL DYPIU
                             </h1>
-                            <p style="margin: 10px 0 0 0; color: #000000; font-size: 14px; font-weight: bold;" class="mobile-small">
+                            <p style="margin: 6px 0 0 0; color: #000000; font-size: 13px; font-weight: 800; opacity: 0.85; letter-spacing: 0.5px;" class="mobile-small">
                                 NEW BLOG POST ALERT 🚀
                             </p>
                         </td>
@@ -229,32 +229,32 @@ function generateBlogEmailHTML(blogData, subscriberName) {
                     
                     <!-- Content -->
                     <tr>
-                        <td style="padding: 40px;" class="mobile-padding-content">
-                            <p style="color: #ffffff; font-size: 18px; margin: 0 0 20px 0;" class="mobile-text">
+                        <td style="padding: 35px 40px;" class="mobile-padding-content">
+                            <p style="color: #1e293b; font-size: 16px; margin: 0 0 20px 0;" class="mobile-text">
                                 Hey <strong>${subscriberName || 'there'}</strong>! 👋
                             </p>
                             
-                            <p style="color: #a1a1aa; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;" class="mobile-text">
+                            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;" class="mobile-text">
                                 We just published a new blog post that we think you'll love! Check it out:
                             </p>
                             
                             <!-- Blog Card -->
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #000000; border: 3px solid #FFB22C; border-radius: 16px; margin-bottom: 30px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #FFB22C; border-radius: 12px; margin-bottom: 30px;">
                                 <tr>
-                                    <td style="padding: 30px;" class="mobile-padding-card">
-                                        <span style="display: inline-block; background-color: #FFB22C; color: #000000; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-bottom: 15px;" class="mobile-small">
+                                    <td style="padding: 24px;" class="mobile-padding-card">
+                                        <span style="display: inline-block; background-color: #FFB22C; color: #000000; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; margin-bottom: 12px;" class="mobile-small">
                                             ${blogData.category || 'BLOG'}
                                         </span>
                                         
-                                        <h2 style="color: #ffffff; font-size: 24px; font-weight: 900; margin: 15px 0; text-transform: uppercase; line-height: 1.3;" class="mobile-heading">
+                                        <h2 style="color: #0f172a; font-size: 20px; font-weight: 900; margin: 10px 0; text-transform: uppercase; line-height: 1.3;" class="mobile-heading">
                                             ${blogData.title}
                                         </h2>
                                         
-                                        <p style="color: #FFB22C; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; font-weight: bold;" class="mobile-text">
+                                        <p style="color: #b45309; font-size: 14px; line-height: 1.6; margin: 0 0 15px 0; font-weight: 700;" class="mobile-text">
                                             🔥 Tap the button below to read this exciting new post!
                                         </p>
                                         
-                                        <p style="color: #71717a; font-size: 13px; margin: 0;" class="mobile-small">
+                                        <p style="color: #64748b; font-size: 12px; margin: 0;" class="mobile-small">
                                             📅 ${blogData.date || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                                             ${blogData.readTime ? ` • ⏱️ ${blogData.readTime}` : ''}
                                         </p>
@@ -267,7 +267,7 @@ function generateBlogEmailHTML(blogData, subscriberName) {
                                 <tr>
                                     <td align="center">
                                         <a href="${blogData.url || 'https://ecelldypiu.in/blogs'}" 
-                                           style="display: inline-block; background-color: #FFB22C; color: #000000; text-decoration: none; padding: 16px 40px; font-size: 16px; font-weight: 900; text-transform: uppercase; border-radius: 8px; border: 3px solid #000000;" class="mobile-cta">
+                                           style="display: inline-block; background-color: #FFB22C; color: #000000; text-decoration: none; padding: 14px 35px; font-size: 15px; font-weight: 900; text-transform: uppercase; border-radius: 8px; border: 2px solid #000000;" class="mobile-cta">
                                             READ NOW →
                                         </a>
                                     </td>
@@ -278,11 +278,11 @@ function generateBlogEmailHTML(blogData, subscriberName) {
                     
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #000000; padding: 30px 40px; border-top: 2px solid #27272a; text-align: center;" class="mobile-footer">
-                            <p style="color: #71717a; font-size: 13px; margin: 0 0 15px 0;" class="mobile-small">
+                        <td style="background-color: #f8fafc; padding: 24px 30px; border-top: 1px solid #e2e8f0; text-align: center;" class="mobile-footer">
+                            <p style="color: #64748b; font-size: 12px; margin: 0 0 8px 0;" class="mobile-small">
                                 You're receiving this because you subscribed to E-Cell DYPIU newsletter.
                             </p>
-                            <p style="color: #52525b; font-size: 12px; margin: 0;" class="mobile-small">
+                            <p style="color: #94a3b8; font-size: 11px; margin: 0;" class="mobile-small">
                                 © ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.<br>
                                 D. Y. Patil International University, Pune
                             </p>

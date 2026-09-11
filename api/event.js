@@ -404,65 +404,65 @@ function buildApplicationConfirmationHTML(formData) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Application Received - E-Cell DYPIU</title>
 </head>
-<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif; color:#ffffff;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
+<body style="margin:0; padding:0; background-color:#f4f5f7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1e293b;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f5f7;">
         <tr>
-            <td align="center" style="padding:30px 10px;">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
+            <td align="center" style="padding:35px 12px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; max-width:600px; width:100%; box-shadow:0 4px 20px rgba(0,0,0,0.05);">
                     <tr>
-                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
-                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px;">E-CELL DYPIU</h1>
-                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold;">APPLICATION RECEIVED</p>
+                        <td style="background-color:#FFB22C; padding:26px 30px; text-align:center; border-bottom:2px solid #eab308;">
+                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-0.5px;">E-CELL DYPIU</h1>
+                            <p style="margin:6px 0 0 0; color:#000000; font-size:13px; font-weight:800; opacity:0.85; letter-spacing:0.5px;">APPLICATION RECEIVED</p>
                         </td>
                     </tr>
                     <tr>
-                        <td style="padding:35px 40px; color:#ffffff;">
-                            <p style="font-size:17px; margin:0 0 20px 0; line-height:1.5;">Dear <strong>${(formData.fullName || 'Applicant').toString().replace(/</g, '&lt;')}</strong>,</p>
-                            <p style="color:#e4e4e7; font-size:15px; line-height:1.6; margin:0 0 25px 0;">
-                                Thank you for applying to join <strong>E-Cell DYPIU</strong>! This is a confirmation copy of the responses you submitted for the <strong style="color:#FFB22C;">${roleLabel}</strong> role. Our team will review your application and reach out regarding next steps.
+                        <td style="padding:35px 40px; color:#1e293b;">
+                            <p style="font-size:16px; margin:0 0 20px 0; line-height:1.5;">Dear <strong>${(formData.fullName || 'Applicant').toString().replace(/</g, '&lt;')}</strong>,</p>
+                            <p style="color:#334155; font-size:15px; line-height:1.6; margin:0 0 25px 0;">
+                                Thank you for applying to join <strong>E-Cell DYPIU</strong>! This is a confirmation copy of the responses you submitted for the <strong style="color:#b45309;">${roleLabel}</strong> role. Our team will review your application and reach out regarding next steps.
                             </p>
 
-                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000; border:2px solid #FFB22C; border-radius:12px; margin-bottom:25px;">
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#fffbeb; border:2px solid #f59e0b; border-radius:12px; margin-bottom:25px;">
                                 <tr>
                                     <td style="padding:18px;">
-                                        <h3 style="margin:0 0 12px 0; color:#FFB22C; font-size:14px; font-weight:bold; text-transform:uppercase; border-bottom:1px solid #27272a; padding-bottom:8px;">Your Details</h3>
+                                        <h3 style="margin:0 0 12px 0; color:#b45309; font-size:14px; font-weight:800; text-transform:uppercase; border-bottom:1px solid #fde68a; padding-bottom:8px;">Your Details</h3>
                                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
-                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Name</span>
-                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.fullName || '-').toString().replace(/</g, '&lt;')}</span>
+                                            <tr><td style="padding:7px 0; border-bottom:1px solid #fef3c7;">
+                                                <span style="display:block; color:#78350f; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Name</span>
+                                                <span style="display:block; color:#0f172a; font-size:14px; font-weight:600; margin-top:2px;">${(formData.fullName || '-').toString().replace(/</g, '&lt;')}</span>
                                             </td></tr>
-                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
-                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">PRN</span>
-                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.prn || '-').toString().replace(/</g, '&lt;')}</span>
+                                            <tr><td style="padding:7px 0; border-bottom:1px solid #fef3c7;">
+                                                <span style="display:block; color:#78350f; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">PRN</span>
+                                                <span style="display:block; color:#0f172a; font-size:14px; font-weight:600; margin-top:2px;">${(formData.prn || '-').toString().replace(/</g, '&lt;')}</span>
                                             </td></tr>
-                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
-                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Division</span>
-                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.division || '-').toString().replace(/</g, '&lt;')}</span>
+                                            <tr><td style="padding:7px 0; border-bottom:1px solid #fef3c7;">
+                                                <span style="display:block; color:#78350f; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Division</span>
+                                                <span style="display:block; color:#0f172a; font-size:14px; font-weight:600; margin-top:2px;">${(formData.division || '-').toString().replace(/</g, '&lt;')}</span>
                                             </td></tr>
-                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
-                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Contact</span>
-                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.contactNumber || '-').toString().replace(/</g, '&lt;')}</span>
+                                            <tr><td style="padding:7px 0; border-bottom:1px solid #fef3c7;">
+                                                <span style="display:block; color:#78350f; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Contact</span>
+                                                <span style="display:block; color:#0f172a; font-size:14px; font-weight:600; margin-top:2px;">${(formData.contactNumber || '-').toString().replace(/</g, '&lt;')}</span>
                                             </td></tr>
-                                            <tr><td style="padding:6px 0;">
-                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Role Applied</span>
-                                                <span style="display:block; color:#FFB22C; font-size:14px; font-weight:bold; margin-top:3px;">${roleLabel}</span>
+                                            <tr><td style="padding:7px 0;">
+                                                <span style="display:block; color:#78350f; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Role Applied</span>
+                                                <span style="display:block; color:#b45309; font-size:14px; font-weight:700; margin-top:2px;">${roleLabel}</span>
                                             </td></tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
 
-                            ${answerRows ? `<h3 style="margin:0 0 12px 0; color:#FFB22C; font-size:14px; font-weight:bold; text-transform:uppercase; border-bottom:1px solid #27272a; padding-bottom:8px;">Your Responses</h3>${answerRows}` : ''}
+                            ${answerRows ? `<h3 style="margin:0 0 12px 0; color:#0f172a; font-size:14px; font-weight:800; text-transform:uppercase; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">Your Responses</h3>${answerRows}` : ''}
 
-                            <p style="color:#a1a1aa; font-size:13px; line-height:1.5; margin:25px 0 0 0;">
+                            <p style="color:#64748b; font-size:13px; line-height:1.6; margin:25px 0 0 0;">
                                 This is an automated confirmation of your own submission. If any of this looks incorrect, please contact us.<br/><br/>
-                                Warm regards,<br/><strong>Team E-Cell DYPIU</strong>
+                                Warm regards,<br/><strong style="color:#0f172a;">Team E-Cell DYPIU</strong>
                             </p>
                         </td>
                     </tr>
                     <tr>
-                        <td style="background-color:#0c0c0e; padding:20px 30px; text-align:center; border-top:2px solid #27272a;">
-                            <p style="margin:0; color:#71717a; font-size:11px;">&copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.</p>
+                        <td style="background-color:#f8fafc; padding:20px 30px; text-align:center; border-top:1px solid #e2e8f0;">
+                            <p style="margin:0; color:#64748b; font-size:11px;">&copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
