@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Loader2, Send, AlertCircle, CheckCircle2, Lock,
     PlusCircle, List, Bell, LogOut, Image, X, Upload,
@@ -153,6 +153,26 @@ const AdminPortal = () => {
     const [composerFooterText, setComposerFooterText] = useState(`© ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.`);
     const [composerPlainText, setComposerPlainText] = useState('');
     const [composerCustomHtml, setComposerCustomHtml] = useState('');
+
+    // Auto-expanding textarea refs
+    const textTextareaRef = useRef(null);
+    const quickEditTextareaRef = useRef(null);
+
+    // Auto-expand Normal Text textarea as content grows
+    useEffect(() => {
+        if (textTextareaRef.current) {
+            textTextareaRef.current.style.height = 'auto';
+            textTextareaRef.current.style.height = `${Math.max(280, textTextareaRef.current.scrollHeight)}px`;
+        }
+    }, [composerPlainText, composerMode]);
+
+    // Auto-expand Quick Edit textarea as content grows
+    useEffect(() => {
+        if (quickEditTextareaRef.current) {
+            quickEditTextareaRef.current.style.height = 'auto';
+            quickEditTextareaRef.current.style.height = `${Math.max(280, quickEditTextareaRef.current.scrollHeight)}px`;
+        }
+    }, [genericMailData?.plainText, composerMode]);
 
     // Email Logs tab
     const [emailLogs, setEmailLogs] = useState([]);
@@ -4283,10 +4303,16 @@ More content..."
                                         </div>
 
                                         <textarea
+                                            ref={textTextareaRef}
                                             value={composerPlainText}
-                                            onChange={(e) => setComposerPlainText(e.target.value)}
-                                            rows={14}
-                                            className="w-full bg-black border-2 border-zinc-700 p-4 text-white rounded-lg focus:border-brand-yellow focus:outline-none resize-none text-sm font-sans leading-relaxed"
+                                            onChange={(e) => {
+                                                setComposerPlainText(e.target.value);
+                                                e.target.style.height = 'auto';
+                                                e.target.style.height = `${Math.max(280, e.target.scrollHeight)}px`;
+                                            }}
+                                            rows={12}
+                                            className="w-full bg-black border-2 border-zinc-700 p-4 text-white rounded-lg focus:border-brand-yellow focus:outline-none text-sm font-sans leading-relaxed overflow-y-auto transition-[height] duration-75"
+                                            style={{ minHeight: '280px' }}
                                             placeholder="Hello {name},&#10;&#10;Write your normal text email here exactly as you want it delivered.&#10;&#10;No fancy cards, no banners, no artificial borders — just clean, readable, professional plain email text.&#10;&#10;Best regards,&#10;E-Cell DYPIU Team"
                                             required
                                         />
@@ -4447,10 +4473,16 @@ More content..."
                                                     </div>
                                                 </div>
                                                 <textarea
+                                                    ref={quickEditTextareaRef}
                                                     value={genericMailData.plainText}
-                                                    onChange={(e) => handlePlainTextChange(e.target.value)}
-                                                    rows={14}
-                                                    className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-lg focus:border-brand-yellow focus:outline-none resize-none text-sm font-sans"
+                                                    onChange={(e) => {
+                                                        handlePlainTextChange(e.target.value);
+                                                        e.target.style.height = 'auto';
+                                                        e.target.style.height = `${Math.max(280, e.target.scrollHeight)}px`;
+                                                    }}
+                                                    rows={12}
+                                                    className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-lg focus:border-brand-yellow focus:outline-none text-sm font-sans overflow-y-auto transition-[height] duration-75"
+                                                    style={{ minHeight: '280px' }}
                                                     placeholder="Dear {name},&#10;&#10;Type your message here..."
                                                 />
                                                 <p className="text-[11px] text-zinc-500 mt-1">
