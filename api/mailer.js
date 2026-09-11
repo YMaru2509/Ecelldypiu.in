@@ -465,7 +465,8 @@ export default async function handler(req, res) {
             if (selectedSubscribers && Array.isArray(selectedSubscribers)) {
                 recipients = selectedSubscribers.map(sub => ({
                     name: sub.name || 'Subscriber',
-                    email: sub.email
+                    email: sub.email,
+                    role: sub.role
                 }));
                 totalDocs = selectedSubscribers.length;
             }

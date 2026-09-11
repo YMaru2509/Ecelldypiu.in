@@ -64,8 +64,11 @@ const AdminPortal = () => {
     const DEFAULT_INTERVIEW_DATA = {
         subject: 'Interview Schedule - E-Cell DYPIU Team Application',
         role: '',
-        date: '',
-        time: '',
+        dateValue: '', // ISO yyyy-mm-dd from the <input type="date"> picker
+        timeStart: '', // 24h HH:MM from the start-time dropdown
+        timeEnd: '', // 24h HH:MM from the end-time dropdown
+        date: '', // derived display string, e.g. "10th September 2026" — used by templates/backend
+        time: '', // derived display string, e.g. "03:00 PM - 03:15 PM" — used by templates/backend
         venue: '',
         notes: 'Please arrive 5 minutes prior to your scheduled slot. Bring a copy of your resume or portfolio if applicable.',
         buttonText: 'Confirm Slot / Join Meet',
@@ -77,6 +80,51 @@ const AdminPortal = () => {
     const [showInterviewModal, setShowInterviewModal] = useState(false);
     const [interviewEditorTab, setInterviewEditorTab] = useState('guided'); // 'guided', 'html', 'preview'
     const [interviewData, setInterviewData] = useState(DEFAULT_INTERVIEW_DATA);
+
+    // Format a yyyy-mm-dd date picker value into "10th September 2026" for the email templates.
+    const formatInterviewDateDisplay = (isoDate) => {
+        if (!isoDate) return '';
+        const [y, m, d] = isoDate.split('-').map(Number);
+        const dateObj = new Date(y, m - 1, d);
+        const suffixes = ['th', 'st', 'nd', 'rd'];
+        const v = d % 100;
+        const suffix = suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0];
+        const month = dateObj.toLocaleString('en-US', { month: 'long' });
+        return `${d}${suffix} ${month} ${y}`;
+    };
+
+    // Format a 24h "HH:MM" dropdown value into "03:00 PM".
+    const formatInterviewTimeDisplay = (hhmm) => {
+        if (!hhmm) return '';
+        const [h, m] = hhmm.split(':').map(Number);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const hour12 = h % 12 === 0 ? 12 : h % 12;
+        return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+    };
+
+    const buildInterviewTimeRange = (start, end) => {
+        if (start && end) return `${formatInterviewTimeDisplay(start)} - ${formatInterviewTimeDisplay(end)}`;
+        if (start) return formatInterviewTimeDisplay(start);
+        return '';
+    };
+
+    // 15-minute increments across the full day, e.g. "09:00" -> "09:00 AM"
+    const INTERVIEW_TIME_OPTIONS = Array.from({ length: 24 * 4 }, (_, i) => {
+        const hh = String(Math.floor(i / 4)).padStart(2, '0');
+        const mm = String((i % 4) * 15).padStart(2, '0');
+        const value = `${hh}:${mm}`;
+        return { value, label: formatInterviewTimeDisplay(value) };
+    });
+
+    const handleInterviewDateChange = (isoDate) => {
+        setInterviewData(prev => ({ ...prev, dateValue: isoDate, date: formatInterviewDateDisplay(isoDate) }));
+    };
+    const handleInterviewTimeStartChange = (val) => {
+        setInterviewData(prev => ({ ...prev, timeStart: val, time: buildInterviewTimeRange(val, prev.timeEnd) }));
+    };
+    const handleInterviewTimeEndChange = (val) => {
+        setInterviewData(prev => ({ ...prev, timeEnd: val, time: buildInterviewTimeRange(prev.timeStart, val) }));
+    };
     const [sendingInterviewMail, setSendingInterviewMail] = useState(false);
 
     // Mailer state variables
@@ -1558,7 +1606,7 @@ const AdminPortal = () => {
         if (interviewData.useCustomHtml && interviewData.customHtml) {
             payloadData = {
                 customHtml: interviewData.customHtml,
-                role: interviewData.role || 'E-Cell Team Member',
+                role: interviewData.role || (selectedAppDocs.length === 1 ? getRoleLabel(selectedAppDocs[0].role) : 'E-Cell Team Role'),
                 date: interviewData.date,
                 time: interviewData.time,
                 venue: interviewData.venue
@@ -4680,29 +4728,6 @@ More content..."
                                             </p>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold uppercase mb-1 text-gray-300">Interview Date *</label>
-                                            <input
-                                                type="text"
-                                                value={interviewData.date}
-                                                onChange={(e) => setInterviewData(prev => ({ ...prev, date: e.target.value }))}
-                                                placeholder="e.g. 10th September 2026"
-                                                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold uppercase mb-1 text-gray-300">Time / Slot *</label>
-                                            <input
-                                                type="text"
-                                                value={interviewData.time}
-                                                onChange={(e) => setInterviewData(prev => ({ ...prev, time: e.target.value }))}
-                                                placeholder="e.g. 03:00 PM - 03:15 PM"
-                                                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none"
-                                            />
-                                        </div>
-                                        <div>
                                             <label className="block text-xs font-bold uppercase mb-1 text-gray-300">Location / Venue / Link *</label>
                                             <input
                                                 type="text"
@@ -4712,6 +4737,44 @@ More content..."
                                                 className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none"
                                             />
                                         </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase mb-1 text-gray-300">Interview Date &amp; Time *</label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            <input
+                                                type="date"
+                                                value={interviewData.dateValue}
+                                                onChange={(e) => handleInterviewDateChange(e.target.value)}
+                                                style={{ colorScheme: 'dark' }}
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none"
+                                            />
+                                            <select
+                                                value={interviewData.timeStart}
+                                                onChange={(e) => handleInterviewTimeStartChange(e.target.value)}
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none"
+                                            >
+                                                <option value="">Start time</option>
+                                                {INTERVIEW_TIME_OPTIONS.map(opt => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                            <select
+                                                value={interviewData.timeEnd}
+                                                onChange={(e) => handleInterviewTimeEndChange(e.target.value)}
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none"
+                                            >
+                                                <option value="">End time</option>
+                                                {INTERVIEW_TIME_OPTIONS.map(opt => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {interviewData.date && (
+                                            <p className="text-[10px] text-zinc-500 mt-1">
+                                                Will appear in the email as: <span className="text-brand-yellow font-mono">{interviewData.date}{interviewData.time ? `, ${interviewData.time}` : ''}</span>
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div>
