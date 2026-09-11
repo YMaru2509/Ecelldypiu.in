@@ -166,13 +166,6 @@ const AdminPortal = () => {
         }
     }, [composerPlainText, composerMode]);
 
-    // Auto-expand Quick Edit textarea as content grows
-    useEffect(() => {
-        if (quickEditTextareaRef.current) {
-            quickEditTextareaRef.current.style.height = 'auto';
-            quickEditTextareaRef.current.style.height = `${Math.max(280, quickEditTextareaRef.current.scrollHeight)}px`;
-        }
-    }, [genericMailData?.plainText, composerMode]);
 
     // Email Logs tab
     const [emailLogs, setEmailLogs] = useState([]);
@@ -299,6 +292,14 @@ const AdminPortal = () => {
         body: buildGenericBodyHtml(DEFAULT_GENERIC_PLAIN_TEXT)
     });
     const [showMailPreviewModal, setShowMailPreviewModal] = useState(false);
+ 
+    // Auto-expand Quick Edit textarea as content grows
+    useEffect(() => {
+        if (quickEditTextareaRef.current) {
+            quickEditTextareaRef.current.style.height = 'auto';
+            quickEditTextareaRef.current.style.height = `${Math.max(280, quickEditTextareaRef.current.scrollHeight)}px`;
+        }
+    }, [genericMailData.plainText, composerMode]);
 
     // Sync plain text edit to HTML
     const handlePlainTextChange = (text) => {
