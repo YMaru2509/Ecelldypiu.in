@@ -347,6 +347,117 @@ const AdminPortal = () => {
     };
 
     // Import Emails from CSV/TXT file
+    // Helper to parse CSV rows with optional quotes
+    const parseCsvLine = (line) => {
+        const result = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                    cur += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (char === ',' && !inQuotes) {
+                result.push(cur.trim());
+                cur = '';
+            } else {
+                cur += char;
+            }
+        }
+        result.push(cur.trim());
+        return result;
+    };
+
+    // Helper to extract { name, email } records from CSV or plain text
+    const parseRecipientsFromCsvText = (text) => {
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) return [];
+
+        const records = [];
+        const seenEmails = new Set();
+
+        // Check if first row is header
+        let startIndex = 0;
+        const firstCols = parseCsvLine(lines[0]);
+        let nameColIdx = 0;
+        let emailColIdx = 1;
+
+        const col0Lower = (firstCols[0] || '').toLowerCase().replace(/[^a-z]/g, '');
+        const col1Lower = (firstCols[1] || '').toLowerCase().replace(/[^a-z]/g, '');
+
+        const isHeader0Name = col0Lower.includes('name');
+        const isHeader0Email = col0Lower.includes('mail') || col0Lower.includes('email');
+        const isHeader1Name = col1Lower.includes('name');
+        const isHeader1Email = col1Lower.includes('mail') || col1Lower.includes('email');
+
+        if (isHeader0Name || isHeader0Email || isHeader1Name || isHeader1Email) {
+            startIndex = 1;
+            if (isHeader0Email) {
+                emailColIdx = 0;
+                nameColIdx = 1;
+            } else {
+                nameColIdx = 0;
+                emailColIdx = 1;
+            }
+        }
+
+        for (let i = startIndex; i < lines.length; i++) {
+            const cols = parseCsvLine(lines[i]);
+            let candidateName = '';
+            let candidateEmail = '';
+
+            if (cols.length >= 2) {
+                const c0 = cols[nameColIdx] !== undefined ? cols[nameColIdx].replace(/^["']|["']$/g, '').trim() : '';
+                const c1 = cols[emailColIdx] !== undefined ? cols[emailColIdx].replace(/^["']|["']$/g, '').trim() : '';
+
+                if (emailRegex.test(c1)) {
+                    candidateEmail = c1;
+                    candidateName = c0;
+                } else if (emailRegex.test(c0)) {
+                    candidateEmail = c0;
+                    candidateName = c1;
+                }
+            }
+
+            // Fallback: If not matched in columns, scan entire line for email address
+            if (!candidateEmail) {
+                const lineEmails = lines[i].match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+                if (lineEmails && lineEmails.length > 0) {
+                    candidateEmail = lineEmails[0];
+                    // Any other text on the line before the email or comma can be the name
+                    const rawParts = lines[i].split(/[,;\t]/).map(p => p.trim()).filter(Boolean);
+                    const nonEmailPart = rawParts.find(p => !p.includes('@'));
+                    if (nonEmailPart) {
+                        candidateName = nonEmailPart.replace(/^["']|["']$/g, '').trim();
+                    }
+                }
+            }
+
+            if (candidateEmail) {
+                const cleanEmail = candidateEmail.toLowerCase();
+                if (!seenEmails.has(cleanEmail)) {
+                    seenEmails.add(cleanEmail);
+                    const cleanName = candidateName && candidateName.length > 0
+                        ? candidateName
+                        : cleanEmail.split('@')[0];
+                    records.push({
+                        name: cleanName,
+                        email: cleanEmail,
+                        source: 'manual'
+                    });
+                }
+            }
+        }
+
+        return records;
+    };
+
+    // Import Emails from CSV/TXT file for manual announcement/event input
     const handleImportEmailsCSV = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -354,29 +465,26 @@ const AdminPortal = () => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target.result;
-            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const matches = text.match(emailRegex) || [];
-            
-            if (matches.length === 0) {
-                alert("No valid email addresses found in the selected file!");
+            const records = parseRecipientsFromCsvText(text);
+
+            if (records.length === 0) {
+                alert("No valid recipient rows found! Expected format:\nHeader: Name, Email\nExample:\nJohn Doe, john@example.com");
                 return;
             }
 
-            const uniqueEmails = [...new Set(matches.map(email => email.toLowerCase()))];
-            
             setMailerManualEmails(prev => {
                 const existing = prev ? prev.split(',').map(email => email.trim().toLowerCase()).filter(Boolean) : [];
-                const combined = [...new Set([...existing, ...uniqueEmails])];
+                const combined = [...new Set([...existing, ...records.map(r => r.email)])];
                 return combined.join(', ');
             });
             
-            alert(`Successfully imported ${uniqueEmails.length} unique email address(es) from "${file.name}"!`);
+            alert(`Successfully imported ${records.length} recipient(s) with names from "${file.name}"!`);
             e.target.value = '';
         };
         reader.readAsText(file);
     };
 
-    // Import Emails from CSV/TXT file directly into the composer's recipient picker
+    // Import Emails from CSV file directly into the composer's recipient picker with Name & Email
     const handleImportEmailsToComposer = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -384,25 +492,20 @@ const AdminPortal = () => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target.result;
-            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-            const matches = text.match(emailRegex) || [];
+            const records = parseRecipientsFromCsvText(text);
 
-            if (matches.length === 0) {
-                alert("No valid email addresses found in the selected file!");
+            if (records.length === 0) {
+                alert("No valid recipient rows found in file! Expected CSV format:\nColumn 1: Name\nColumn 2: Email\n\nExample:\nName, Email\nAditya Sharma, aditya@gmail.com");
                 return;
             }
 
-            const uniqueEmails = [...new Set(matches.map(email => email.toLowerCase()))];
-
             setComposerRecipients(prev => {
                 const existing = new Set(prev.map(r => r.email.toLowerCase()));
-                const added = uniqueEmails
-                    .filter(email => !existing.has(email))
-                    .map(email => ({ name: email.split('@')[0], email, source: 'manual' }));
+                const added = records.filter(r => !existing.has(r.email.toLowerCase()));
                 return [...prev, ...added];
             });
 
-            alert(`Successfully imported ${uniqueEmails.length} unique email address(es) from "${file.name}"!`);
+            alert(`Successfully imported ${records.length} recipient(s) with names and emails from "${file.name}"! Each recipient's {name} will be personalized.`);
             e.target.value = '';
         };
         reader.readAsText(file);
@@ -4139,7 +4242,7 @@ More content..."
                                             <div className="mt-2 flex items-center gap-3 flex-wrap">
                                                 <label className="bg-zinc-800 border-2 border-zinc-700 hover:border-brand-yellow text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer transition-colors flex items-center gap-2">
                                                     <Upload className="w-4 h-4 text-brand-yellow" />
-                                                    <span>Import Emails from CSV / Text File</span>
+                                                    <span>Import CSV (Name, Email)</span>
                                                     <input
                                                         type="file"
                                                         accept=".csv,.txt"
@@ -4147,8 +4250,11 @@ More content..."
                                                         className="hidden"
                                                     />
                                                 </label>
+                                                <span className="text-[11px] text-zinc-500 font-medium">
+                                                    Format: 2 columns <code className="text-zinc-400 bg-zinc-900 px-1 py-0.5 rounded border border-zinc-800 font-mono text-[10px]">Name, Email</code>
+                                                </span>
                                                 {!showComposerCc && (
-                                                    <button type="button" onClick={() => setShowComposerCc(true)} className="text-xs font-bold uppercase text-brand-yellow hover:underline">
+                                                    <button type="button" onClick={() => setShowComposerCc(true)} className="text-xs font-bold uppercase text-brand-yellow hover:underline ml-auto">
                                                         + Cc
                                                     </button>
                                                 )}
