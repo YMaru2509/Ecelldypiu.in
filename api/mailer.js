@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { sendEmail } from './_lib/emailTransport.js';
 
 // Initialize Firebase Admin (only once)
 const privateKey = process.env.FIREBASE_PRIVATE_KEY
@@ -17,88 +18,6 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
-
-// Unified email sender supporting ZeptoMail and Resend
-async function sendEmail(to, subject, htmlContent) {
-    if (process.env.ZEPTOMAIL_API_KEY) {
-        const url = process.env.ZEPTOMAIL_URL || 'https://api.zeptomail.in/v1.1/email';
-        let authHeader = process.env.ZEPTOMAIL_API_KEY;
-        if (!authHeader.toLowerCase().startsWith('zoho-enczapikey')) {
-            authHeader = `Zoho-enczapikey ${authHeader}`;
-        }
-
-        const fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'ecell@dypiu.ac.in';
-        const fromName = process.env.ZEPTOMAIL_FROM_NAME || 'E-Cell DYPIU';
-
-        let toName = '';
-        let toAddress = to;
-        const toMatch = to.match(/^(.*?)\s*<(.*?)>$/);
-        if (toMatch) {
-            toName = toMatch[1].trim();
-            toAddress = toMatch[2].trim();
-        }
-
-        const payload = {
-            from: {
-                address: fromAddress,
-                name: fromName
-            },
-            to: [
-                {
-                    email_address: {
-                        address: toAddress,
-                        name: toName || toAddress.split('@')[0]
-                    }
-                }
-            ],
-            subject: subject,
-            htmlbody: htmlContent
-        };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': authHeader
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`ZeptoMail send failed: ${error}`);
-        }
-
-        return response.json();
-    }
-
-    // Fallback to Resend
-    if (!process.env.RESEND_API_KEY) {
-        throw new Error('No email sending service configured (ZeptoMail or Resend)');
-    }
-
-    const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            from: process.env.EMAIL_FROM || 'E-Cell DYPIU <noreply@ecelldypiu.in>',
-            to: [to],
-            subject: subject,
-            html: htmlContent,
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Email send failed: ${JSON.stringify(error)}`);
-    }
-
-    return response.json();
-}
 
 // Generate Announcement Email Layout
 function generateAnnouncementHTML(data, subscriberName) {
@@ -263,16 +182,22 @@ function generateEventHTML(data, subscriberName) {
                                         <h3 style="margin: 0 0 12px 0; color: #FFB22C; font-size: 16px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #27272a; padding-bottom: 8px;">Event Details</h3>
                                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                                             ${data.date ? `<tr>
-                                                <td style="padding: 4px 0; color: #a1a1aa; font-size: 14px; width: 80px; font-weight: bold;">DATE:</td>
-                                                <td style="padding: 4px 0; color: #ffffff; font-size: 14px;">${data.date}</td>
+                                                <td style="padding: 7px 0; border-bottom: 1px solid #1f1f22;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Date</span>
+                                                    <span style="display: block; color: #ffffff; font-size: 14px; margin-top: 3px;">${data.date}</span>
+                                                </td>
                                             </tr>` : ''}
                                             ${data.time ? `<tr>
-                                                <td style="padding: 4px 0; color: #a1a1aa; font-size: 14px; font-weight: bold;">TIME:</td>
-                                                <td style="padding: 4px 0; color: #ffffff; font-size: 14px;">${data.time}</td>
+                                                <td style="padding: 7px 0; border-bottom: 1px solid #1f1f22;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Time</span>
+                                                    <span style="display: block; color: #ffffff; font-size: 14px; margin-top: 3px;">${data.time}</span>
+                                                </td>
                                             </tr>` : ''}
                                             ${data.venue ? `<tr>
-                                                <td style="padding: 4px 0; color: #a1a1aa; font-size: 14px; font-weight: bold;">VENUE:</td>
-                                                <td style="padding: 4px 0; color: #ffffff; font-size: 14px;">${data.venue}</td>
+                                                <td style="padding: 7px 0;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Venue</span>
+                                                    <span style="display: block; color: #ffffff; font-size: 14px; margin-top: 3px;">${data.venue}</span>
+                                                </td>
                                             </tr>` : ''}
                                         </table>
                                     </td>
@@ -413,40 +338,46 @@ function generateInterviewHTML(data, candidateName) {
 `;
 }
 
-// Generate Generic Compose Email Layout
-function generateGenericHTML(data, subscriberName) {
-    const formattedBody = (data.body || '').replace(/\n/g, '<br/>');
-    return `
-<!DOCTYPE html>
+// Generate Generic Compose Email Layout (Direct Custom Composer)
+function generateGenericHTML(data, recipient) {
+    const formattedBody = (data.body || '')
+        .replace(/\{name\}/g, recipient?.name || 'Applicant')
+        .replace(/\{email\}/g, recipient?.email || '');
+
+    return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Cell DYPIU</title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #000000; font-family: Arial, sans-serif;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #000000;">
+<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
         <tr>
-            <td align="center" style="padding: 30px 10px;">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #18181b; border: 4px solid #ffffff; border-radius: 20px; overflow: hidden; max-width: 600px; width: 100%;">
-                    <!-- Header -->
+            <td align="center" style="padding:30px 10px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
+                    <!-- Header Banner -->
                     <tr>
-                        <td style="background-color: #FFB22C; padding: 25px 30px; text-align: center;">
-                            <h1 style="margin: 0; color: #000000; font-size: 26px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px;">
+                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
+                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px; font-family:Arial, sans-serif;">
                                 E-CELL DYPIU
                             </h1>
+                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold; font-family:Arial, sans-serif;">
+                                A MESSAGE FROM THE TEAM
+                            </p>
                         </td>
                     </tr>
-                    <!-- Content -->
+                    <!-- Main Content -->
                     <tr>
-                        <td style="padding: 35px 40px; color: #ffffff; font-size: 15px; line-height: 1.6;">
+                        <td style="padding:35px 40px;">
                             ${formattedBody}
                         </td>
                     </tr>
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #0c0c0e; padding: 25px 30px; text-align: center;">
-                            <p style="margin: 0; color: #71717a; font-size: 11px;">
-                                © ${new Date().getFullYear()} E-Cell DYPIU.
+                        <td style="background-color:#0c0c0e; padding:25px 30px; text-align:center; border-top:2px solid #27272a;">
+                            <p style="margin:0; color:#71717a; font-size:12px; font-family:Arial, sans-serif;">
+                                &copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -455,8 +386,29 @@ function generateGenericHTML(data, subscriberName) {
         </tr>
     </table>
 </body>
-</html>
-`;
+</html>`;
+}
+
+// Fetch past dispatch logs for the Email Logs admin tab, newest first.
+async function handleGetEmailLogs(req, res) {
+    try {
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+        const snapshot = await db.collection('EMAIL_LOGS').orderBy('sentAt', 'desc').limit(limit).get();
+
+        const logs = snapshot.docs.map(doc => {
+            const d = doc.data();
+            return {
+                id: doc.id,
+                ...d,
+                sentAt: d.sentAt?.toDate ? d.sentAt.toDate().toISOString() : d.sentAt
+            };
+        });
+
+        return res.status(200).json({ success: true, logs });
+    } catch (error) {
+        console.error('Failed to fetch email logs:', error);
+        return res.status(500).json({ error: 'Failed to fetch email logs', details: error.message });
+    }
 }
 
 export default async function handler(req, res) {
@@ -466,10 +418,6 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
-
     // Verify admin API key
     const authHeader = req.headers.authorization;
     const adminKey = process.env.ADMIN_API_KEY;
@@ -478,8 +426,16 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    if (req.method === 'GET' && req.query.action === 'logs') {
+        return handleGetEmailLogs(req, res);
+    }
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     try {
-        const { to, manualEmails, type, subject, data, selectedSubscribers } = req.body;
+        const { to, manualEmails, type, subject, data, selectedSubscribers, provider, attachments, cc, bcc } = req.body;
 
         if (!type || !subject) {
             return res.status(400).json({ error: 'Type and Subject are required' });
@@ -564,10 +520,10 @@ export default async function handler(req, res) {
                 } else if (type === 'interview') {
                     htmlContent = generateInterviewHTML(data, recipient.name);
                 } else {
-                    htmlContent = generateGenericHTML(data, recipient.name);
+                    htmlContent = generateGenericHTML(data, recipient);
                 }
 
-                await sendEmail(recipient.email, recipientSubject, htmlContent);
+                await sendEmail(recipient.email, recipientSubject, htmlContent, provider || 'resend', attachments || [], cc || [], bcc || []);
                 results.sent++;
                 results.details.push({
                     name: recipient.name,
@@ -589,6 +545,26 @@ export default async function handler(req, res) {
             if (i < recipients.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
+        }
+
+        // Best-effort audit log — must never fail the dispatch response itself.
+        try {
+            await db.collection('EMAIL_LOGS').add({
+                type,
+                subject,
+                provider: provider || 'resend',
+                to,
+                recipients: results.details,
+                cc: (cc || []).map(c => ({ name: c.name || '', email: c.email })),
+                bcc: (bcc || []).map(b => ({ name: b.name || '', email: b.email })),
+                attachmentCount: (attachments || []).length,
+                sentCount: results.sent,
+                failedCount: results.failed,
+                totalRecipients: recipients.length,
+                sentAt: Timestamp.now()
+            });
+        } catch (logErr) {
+            console.error('Failed to write email log:', logErr.message);
         }
 
         return res.status(200).json({

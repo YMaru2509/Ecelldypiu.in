@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Loader2, Send, AlertCircle, CheckCircle2, Lock,
     PlusCircle, List, Bell, LogOut, Image, X, Upload,
@@ -10,6 +10,10 @@ import {
 import CertificateManager from '../components/CertificateManager';
 import EventManager from '../components/EventManager';
 import LinkShortener from '../components/LinkShortener';
+import HtmlCodeEditor from '../components/HtmlCodeEditor';
+import RecipientPicker from '../components/RecipientPicker';
+import MailProviderSelect from '../components/MailProviderSelect';
+import EmailPreviewFrame from '../components/EmailPreviewFrame';
 
 const AdminPortal = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,9 +61,7 @@ const AdminPortal = () => {
     const [viewingApp, setViewingApp] = useState(null);
 
     // Interview schedule modal & email editor state
-    const [showInterviewModal, setShowInterviewModal] = useState(false);
-    const [interviewEditorTab, setInterviewEditorTab] = useState('guided'); // 'guided', 'html', 'preview'
-    const [interviewData, setInterviewData] = useState({
+    const DEFAULT_INTERVIEW_DATA = {
         subject: 'Interview Schedule - E-Cell DYPIU Team Application',
         role: '',
         date: '',
@@ -69,8 +71,12 @@ const AdminPortal = () => {
         buttonText: 'Confirm Slot / Join Meet',
         buttonUrl: '',
         useCustomHtml: false,
-        customHtml: ''
-    });
+        customHtml: '',
+        provider: 'zeptomail'
+    };
+    const [showInterviewModal, setShowInterviewModal] = useState(false);
+    const [interviewEditorTab, setInterviewEditorTab] = useState('guided'); // 'guided', 'html', 'preview'
+    const [interviewData, setInterviewData] = useState(DEFAULT_INTERVIEW_DATA);
     const [sendingInterviewMail, setSendingInterviewMail] = useState(false);
 
     // Mailer state variables
@@ -78,6 +84,53 @@ const AdminPortal = () => {
     const [mailerManualEmails, setMailerManualEmails] = useState('');
     const [mailerSubject, setMailerSubject] = useState('');
     const [mailerType, setMailerType] = useState('announcement'); // 'announcement', 'event', 'generic'
+    const [mailerProvider, setMailerProvider] = useState('zeptomail'); // mail bridge used by announcement/event/composer mailers
+
+    // Direct Custom Composer: Gmail-style recipient picker state
+    const [composerAudience, setComposerAudience] = useState('custom'); // 'all', 'custom'
+    const [composerRecipients, setComposerRecipients] = useState([]); // [{name, email, source}]
+    const [composerSeeded, setComposerSeeded] = useState(false);
+    const [composerAttachments, setComposerAttachments] = useState([]); // [{filename, content(base64), contentType, size}]
+    const [composerCc, setComposerCc] = useState([]); // [{name, email, source}]
+    const [composerBcc, setComposerBcc] = useState([]);
+    const [showComposerCc, setShowComposerCc] = useState(false);
+    const [showComposerBcc, setShowComposerBcc] = useState(false);
+
+    // Email Logs tab
+    const [emailLogs, setEmailLogs] = useState([]);
+    const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
+    const [expandedLogId, setExpandedLogId] = useState(null);
+    const [emailLogTypeFilter, setEmailLogTypeFilter] = useState('all'); // 'all', 'announcement', 'event', 'interview', 'generic'
+
+    const fetchEmailLogs = async () => {
+        setLoadingEmailLogs(true);
+        try {
+            const response = await fetch('/api/mailer?action=logs', {
+                headers: { 'Authorization': `Bearer ${adminKey}` }
+            });
+            const data = await response.json();
+            if (data.logs) setEmailLogs(data.logs);
+        } catch (err) {
+            console.error('Failed to fetch email logs:', err);
+        } finally {
+            setLoadingEmailLogs(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAuthenticated && activeTab === 'email-logs') {
+            fetchEmailLogs();
+        }
+    }, [isAuthenticated, activeTab]);
+
+    const EMAIL_LOG_TYPE_LABELS = {
+        announcement: 'Announcement',
+        event: 'Event Notifier',
+        interview: 'Interview Schedule',
+        generic: 'Custom Composer'
+    };
+
+    const filteredEmailLogs = emailLogs.filter(log => emailLogTypeFilter === 'all' || log.type === emailLogTypeFilter);
     
     // Announcement data state
     const [announcementData, setAnnouncementData] = useState({
@@ -101,38 +154,89 @@ const AdminPortal = () => {
         buttonText: 'Register Now'
     });
 
+    const DEFAULT_GENERIC_PLAIN_TEXT = 'Dear {name},\n\nA very warm welcome to E-Cell DYPIU! We are absolutely thrilled to have you join our entrepreneurship community.\n\nWe will keep you updated with the latest incubation cohorts, ideation workshops, and startup funding opportunities.\n\nBest regards,\nTeam E-Cell DYPIU';
+
+    const URL_REGEX = /(https?:\/\/[^\s<]+)/gi;
+    const SOLE_URL_REGEX = /^(https?:\/\/[^\s<]+)$/i;
+
+    // Guess a friendly, context-aware label for a pasted link based on its domain,
+    // so "https://meet.google.com/abc-defg-hij" becomes a "Join Google Meet" button
+    // instead of a raw, unlabeled URL.
+    const guessLinkLabel = (url) => {
+        const lower = url.toLowerCase();
+        if (lower.includes('meet.google.com')) return 'Join Google Meet';
+        if (lower.includes('zoom.us')) return 'Join Zoom Meeting';
+        if (lower.includes('teams.microsoft.com')) return 'Join Microsoft Teams';
+        if (lower.includes('forms.gle') || lower.includes('docs.google.com/forms')) return 'Fill Out The Form';
+        if (lower.includes('calendar.google.com') || lower.includes('calendar.app.google')) return 'Add To Calendar';
+        if (lower.includes('drive.google.com')) return 'View On Google Drive';
+        if (lower.includes('docs.google.com')) return 'View Document';
+        if (lower.includes('instagram.com')) return 'View On Instagram';
+        if (lower.includes('linkedin.com')) return 'View On LinkedIn';
+        if (lower.includes('wa.me') || lower.includes('whatsapp.com')) return 'Chat On WhatsApp';
+        if (lower.includes('youtube.com') || lower.includes('youtu.be')) return 'Watch On YouTube';
+        if (lower.includes('eventbrite')) return 'Register On Eventbrite';
+        if (lower.includes('github.com')) return 'View On GitHub';
+        if (lower.includes('/apply') || lower.includes('register')) return 'Register Now';
+        try {
+            const host = new URL(url).hostname.replace(/^www\./, '');
+            return `Visit ${host}`;
+        } catch {
+            return 'Open Link';
+        }
+    };
+
+    // A link sitting alone on its own line becomes a full branded CTA button;
+    // a link inline within a sentence becomes a normal styled hyperlink instead.
+    const linkButtonHtml = (url) => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:6px 0 18px 0;"><tr><td align="center"><a href="${url}" target="_blank" style="display:inline-block;background-color:#FFB22C;color:#000000;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:8px;text-transform:uppercase;letter-spacing:0.3px;border:2px solid #000000;">${guessLinkLabel(url)}</a></td></tr></table>`;
+
+    // Convert plain text into tidy HTML paragraphs: a blank line starts a new paragraph
+    // (spaced via margin, not filler "&nbsp;" rows), a single line break inside a
+    // paragraph becomes <br/> — e.g. keeps a "Best regards, / Team E-Cell DYPIU" signature together.
+    // Any pasted link is auto-detected: a link alone on its own line becomes a CTA button,
+    // an inline link becomes a styled clickable hyperlink.
+    const buildGenericBodyHtml = (text) => {
+        const paragraphs = (text || '')
+            .split(/\n{2,}/)
+            .map(block => block.trim())
+            .filter(Boolean)
+            .map(block => {
+                const soleUrlMatch = block.match(SOLE_URL_REGEX);
+                if (soleUrlMatch) {
+                    return linkButtonHtml(soleUrlMatch[1]);
+                }
+                const linkified = block
+                    .replace(/\n/g, '<br/>')
+                    .replace(URL_REGEX, (url) => `<a href="${url}" target="_blank" style="color:#FFB22C; text-decoration:underline;">${url}</a>`);
+                return `<p style="margin:0 0 18px 0;">${linkified}</p>`;
+            })
+            .join('\n');
+
+        return `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#e4e4e7;line-height:1.7;font-size:15px;">\n${paragraphs}\n</div>`;
+    };
+
     // Generic composer data state
     const [genericMailData, setGenericMailData] = useState({
-        plainText: 'Dear {name},\n\nA very warm welcome to E-Cell DYPIU! We are absolutely thrilled to have you join our entrepreneurship community.\n\nWe will keep you updated with the latest incubation cohorts, ideation workshops, and startup funding opportunities.\n\nBest regards,\nTeam E-Cell DYPIU',
-        body: `<div style="font-family:Segoe UI,Arial,sans-serif;color:#ffffff;line-height:1.6;font-size:14px;">\n<p style="margin:0 0 12px;">Dear {name},</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">A very warm welcome to E-Cell DYPIU! We are absolutely thrilled to have you join our entrepreneurship community.</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">We will keep you updated with the latest incubation cohorts, ideation workshops, and startup funding opportunities.</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">Best regards,</p>\n<p style="margin:0 0 12px;">Team E-Cell DYPIU</p>\n</div>`
+        plainText: DEFAULT_GENERIC_PLAIN_TEXT,
+        body: buildGenericBodyHtml(DEFAULT_GENERIC_PLAIN_TEXT)
     });
     const [showMailPreviewModal, setShowMailPreviewModal] = useState(false);
 
     // Sync plain text edit to HTML
     const handlePlainTextChange = (text) => {
-        setGenericMailData(prev => {
-            const paragraphs = text.split('\n').map(line => {
-                const trimmed = line.trim();
-                if (!trimmed) return '<p style="margin:0 0 10px;">&nbsp;</p>';
-                return `<p style="margin:0 0 12px;">${trimmed}</p>`;
-            }).join('\n');
-            
-            const htmlContent = `<div style="font-family:Segoe UI,Arial,sans-serif;color:#ffffff;line-height:1.6;font-size:14px;">\n${paragraphs}\n</div>`;
-            
-            return {
-                ...prev,
-                plainText: text,
-                body: htmlContent
-            };
-        });
+        setGenericMailData(prev => ({
+            ...prev,
+            plainText: text,
+            body: buildGenericBodyHtml(text)
+        }));
     };
 
     // Reset Generic Composer default template
     const handleResetGenericDefault = () => {
         if (window.confirm("Are you sure you want to reset the custom email template? This will discard your current edits.")) {
             setGenericMailData({
-                plainText: 'Dear {name},\n\nA very warm welcome to E-Cell DYPIU! We are absolutely thrilled to have you join our entrepreneurship community.\n\nWe will keep you updated with the latest incubation cohorts, ideation workshops, and startup funding opportunities.\n\nBest regards,\nTeam E-Cell DYPIU',
-                body: `<div style="font-family:Segoe UI,Arial,sans-serif;color:#ffffff;line-height:1.6;font-size:14px;">\n<p style="margin:0 0 12px;">Dear {name},</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">A very warm welcome to E-Cell DYPIU! We are absolutely thrilled to have you join our entrepreneurship community.</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">We will keep you updated with the latest incubation cohorts, ideation workshops, and startup funding opportunities.</p>\n<p style="margin:0 0 10px;">&nbsp;</p>\n<p style="margin:0 0 12px;">Best regards,</p>\n<p style="margin:0 0 12px;">Team E-Cell DYPIU</p>\n</div>`
+                plainText: DEFAULT_GENERIC_PLAIN_TEXT,
+                body: buildGenericBodyHtml(DEFAULT_GENERIC_PLAIN_TEXT)
             });
         }
     };
@@ -193,43 +297,115 @@ const AdminPortal = () => {
         reader.readAsText(file);
     };
 
-    // Generate live html preview of the custom email wrapped in E-cell branding
-    const getGenericPreviewHTML = (bodyContent) => {
-        const formattedBody = (bodyContent || '').replace(/\n/g, '<br/>');
-        return `
-<!DOCTYPE html>
+    // Import Emails from CSV/TXT file directly into the composer's recipient picker
+    const handleImportEmailsToComposer = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+            const matches = text.match(emailRegex) || [];
+
+            if (matches.length === 0) {
+                alert("No valid email addresses found in the selected file!");
+                return;
+            }
+
+            const uniqueEmails = [...new Set(matches.map(email => email.toLowerCase()))];
+
+            setComposerRecipients(prev => {
+                const existing = new Set(prev.map(r => r.email.toLowerCase()));
+                const added = uniqueEmails
+                    .filter(email => !existing.has(email))
+                    .map(email => ({ name: email.split('@')[0], email, source: 'manual' }));
+                return [...prev, ...added];
+            });
+
+            alert(`Successfully imported ${uniqueEmails.length} unique email address(es) from "${file.name}"!`);
+            e.target.value = '';
+        };
+        reader.readAsText(file);
+    };
+
+    // Add one or more attachments to the Direct Custom Composer (base64-encoded, sent with every recipient)
+    const MAX_ATTACHMENTS_TOTAL_BYTES = 8 * 1024 * 1024; // 8MB combined, keeps the request well under serverless body limits
+
+    const handleAddComposerAttachments = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        files.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const base64 = event.target.result.split(',')[1] || '';
+                setComposerAttachments(prev => {
+                    const currentTotal = prev.reduce((sum, a) => sum + a.size, 0);
+                    if (currentTotal + file.size > MAX_ATTACHMENTS_TOTAL_BYTES) {
+                        alert(`"${file.name}" was skipped — total attachments would exceed the 8MB limit.`);
+                        return prev;
+                    }
+                    return [...prev, {
+                        filename: file.name,
+                        content: base64,
+                        contentType: file.type || 'application/octet-stream',
+                        size: file.size
+                    }];
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        e.target.value = '';
+    };
+
+    const removeComposerAttachment = (filename) => {
+        setComposerAttachments(prev => prev.filter(a => a.filename !== filename));
+    };
+
+    const formatFileSize = (bytes) => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    };
+
+    // E-Cell-branded shell for the Direct Custom Composer — mirrors generateGenericHTML in
+    // api/mailer.js so the admin's preview matches exactly what gets sent.
+    const buildGenericEmailShell = (bodyHtml) => `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body { margin: 0; padding: 0; background-color: #000000; font-family: Arial, sans-serif; color: #ffffff; }
-    </style>
+    <title>E-Cell DYPIU</title>
 </head>
-<body>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #000000;">
+<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
         <tr>
-            <td align="center" style="padding: 20px 10px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #18181b; border: 3px solid #ffffff; border-radius: 16px; overflow: hidden; max-width: 550px; width: 100%;">
-                    <!-- Header -->
+            <td align="center" style="padding:30px 10px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
+                    <!-- Header Banner -->
                     <tr>
-                        <td style="background-color: #FFB22C; padding: 20px; text-align: center;">
-                            <h1 style="margin: 0; color: #000000; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; font-family: Arial, sans-serif;">
+                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
+                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px; font-family:Arial, sans-serif;">
                                 E-CELL DYPIU
                             </h1>
+                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold; font-family:Arial, sans-serif;">
+                                A MESSAGE FROM THE TEAM
+                            </p>
                         </td>
                     </tr>
-                    <!-- Content -->
+                    <!-- Main Content -->
                     <tr>
-                        <td style="padding: 25px 30px; color: #ffffff; font-size: 14px; line-height: 1.6; font-family: Arial, sans-serif;">
-                            ${formattedBody}
+                        <td style="padding:35px 40px;">
+                            ${bodyHtml}
                         </td>
                     </tr>
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #0c0c0e; padding: 20px; text-align: center; border-top: 1px solid #27272a;">
-                            <p style="margin: 0; color: #71717a; font-size: 10px; font-family: Arial, sans-serif;">
-                                © ${new Date().getFullYear()} E-Cell DYPIU.
+                        <td style="background-color:#0c0c0e; padding:25px 30px; text-align:center; border-top:2px solid #27272a;">
+                            <p style="margin:0; color:#71717a; font-size:12px; font-family:Arial, sans-serif;">
+                                &copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -238,8 +414,14 @@ const AdminPortal = () => {
         </tr>
     </table>
 </body>
-</html>
-        `;
+</html>`;
+
+    // Generate live html preview of the custom email wrapped in E-cell branding
+    const getGenericPreviewHTML = (bodyContent) => {
+        const formattedBody = (bodyContent || '')
+            .replace(/\{name\}/g, composerRecipients[0]?.name || 'Sample Recipient')
+            .replace(/\{email\}/g, composerRecipients[0]?.email || 'sample.recipient@example.com');
+        return buildGenericEmailShell(formattedBody);
     };
 
     // Copy selected or all emails to clipboard
@@ -273,7 +455,13 @@ const AdminPortal = () => {
             payloadData = genericMailData;
         }
 
-        const selectedSubs = subscribers.filter(s => selectedSubscribers.includes(s.email));
+        // The Direct Custom Composer uses its own Gmail-style recipient picker instead of
+        // the Contacts Directory checkbox selection used by the announcement/event mailers.
+        const isComposer = mailerType === 'generic';
+        const to = isComposer ? (composerAudience === 'all' ? 'all' : 'selected') : mailerTo;
+        const selectedSubs = isComposer
+            ? composerRecipients.map(r => ({ name: r.name, email: r.email }))
+            : subscribers.filter(s => selectedSubscribers.includes(s.email));
 
         try {
             const response = await fetch('/api/mailer', {
@@ -283,12 +471,16 @@ const AdminPortal = () => {
                     'Authorization': `Bearer ${adminKey}`
                 },
                 body: JSON.stringify({
-                    to: mailerTo,
+                    to,
                     manualEmails: mailerManualEmails,
                     type: mailerType,
                     subject: mailerSubject,
                     data: payloadData,
-                    selectedSubscribers: selectedSubs
+                    selectedSubscribers: selectedSubs,
+                    provider: mailerProvider,
+                    attachments: isComposer ? composerAttachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })) : [],
+                    cc: isComposer ? composerCc.map(c => ({ name: c.name, email: c.email })) : [],
+                    bcc: isComposer ? composerBcc.map(b => ({ name: b.name, email: b.email })) : []
                 })
             });
 
@@ -316,7 +508,13 @@ const AdminPortal = () => {
             } else if (mailerType === 'event') {
                 setEventMailData({ title: '', bannerUrl: '', description: '', date: '', time: '', venue: '', registrationLink: '', buttonText: 'Register Now' });
             } else {
-                setGenericMailData({ body: '' });
+                setGenericMailData({ plainText: '', body: '' });
+                setComposerRecipients([]);
+                setComposerAttachments([]);
+                setComposerCc([]);
+                setComposerBcc([]);
+                setShowComposerCc(false);
+                setShowComposerBcc(false);
             }
             setMailerSubject('');
             setMailerManualEmails('');
@@ -994,9 +1192,9 @@ const AdminPortal = () => {
         }
     };
 
-    // Load subscribers when manage-subscribers tab or dashboard is active
+    // Load subscribers when manage-subscribers tab, dashboard, or the composer (recipient search) is active
     useEffect(() => {
-        if (isAuthenticated && (activeTab === 'manage-subscribers' || activeTab === 'dashboard')) {
+        if (isAuthenticated && (activeTab === 'manage-subscribers' || activeTab === 'dashboard' || activeTab === 'mailer-generic')) {
             fetchSubscribersForManagement();
         }
     }, [isAuthenticated, activeTab]);
@@ -1126,12 +1324,50 @@ const AdminPortal = () => {
         }
     };
 
-    // Load team applications when manage-applications or dashboard is active
+    // Load team applications when manage-applications, dashboard, or the composer (recipient search) is active
     useEffect(() => {
-        if (isAuthenticated && (activeTab === 'manage-applications' || activeTab === 'dashboard')) {
+        if (isAuthenticated && (activeTab === 'manage-applications' || activeTab === 'dashboard' || activeTab === 'mailer-generic')) {
             fetchApplications();
         }
     }, [isAuthenticated, activeTab]);
+
+    // Seed the composer's recipient picker once from a "send to selected" shortcut
+    // (the Contacts Directory tab pre-selects subscribers and navigates here with mailerTo='selected').
+    useEffect(() => {
+        if (activeTab === 'mailer-generic' && !composerSeeded) {
+            if (mailerTo === 'selected' && selectedSubscribers.length > 0) {
+                const seeded = subscribers
+                    .filter(s => selectedSubscribers.includes(s.email))
+                    .map(s => ({ name: s.name || s.email.split('@')[0], email: s.email, source: 'subscriber' }));
+                if (seeded.length > 0) {
+                    setComposerRecipients(seeded);
+                    setComposerAudience('custom');
+                }
+            }
+            setComposerSeeded(true);
+        } else if (activeTab !== 'mailer-generic' && composerSeeded) {
+            setComposerSeeded(false);
+        }
+    }, [activeTab, composerSeeded, mailerTo, selectedSubscribers, subscribers]);
+
+    // Merged, deduped recipient candidates for the composer's search-as-you-type picker
+    const composerCandidates = useMemo(() => {
+        const seen = new Set();
+        const list = [];
+        subscribers.forEach(s => {
+            if (s.email && !seen.has(s.email.toLowerCase())) {
+                seen.add(s.email.toLowerCase());
+                list.push({ name: s.name || s.email.split('@')[0], email: s.email, source: 'subscriber' });
+            }
+        });
+        applications.forEach(a => {
+            if (a.email && !seen.has(a.email.toLowerCase())) {
+                seen.add(a.email.toLowerCase());
+                list.push({ name: a.fullName || a.email.split('@')[0], email: a.email, source: 'applicant' });
+            }
+        });
+        return list;
+    }, [subscribers, applications]);
 
     const toggleApplicationSelection = (id) => {
         setSelectedApplications(prev =>
@@ -1182,7 +1418,13 @@ const AdminPortal = () => {
         const dateText = data.date || '{date}';
         const timeText = data.time || '{time}';
         const venueText = data.venue || '{venue}';
-        const notesText = (data.notes || '').replace(/\n/g, '<br/>');
+        const notesSoleUrl = (data.notes || '').trim().match(SOLE_URL_REGEX);
+        const notesText = notesSoleUrl
+            ? ''
+            : (data.notes || '')
+                .replace(/\n/g, '<br/>')
+                .replace(URL_REGEX, (url) => `<a href="${url}" target="_blank" style="color:#FFB22C; text-decoration:underline;">${url}</a>`);
+        const notesLinkButton = notesSoleUrl ? linkButtonHtml(notesSoleUrl[1]) : '';
 
         return `<!DOCTYPE html>
 <html>
@@ -1224,30 +1466,39 @@ const AdminPortal = () => {
                                         <h3 style="margin: 0 0 12px 0; color: #FFB22C; font-size: 16px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #27272a; padding-bottom: 8px;">Interview Schedule Details</h3>
                                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                                             <tr>
-                                                <td style="padding: 6px 0; color: #a1a1aa; font-size: 14px; width: 110px; font-weight: bold;">ROLE:</td>
-                                                <td style="padding: 6px 0; color: #FFB22C; font-size: 14px; font-weight: bold;">${roleText}</td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #1f1f22;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Role</span>
+                                                    <span style="display: block; color: #FFB22C; font-size: 15px; font-weight: bold; margin-top: 3px;">${roleText}</span>
+                                                </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 6px 0; color: #a1a1aa; font-size: 14px; font-weight: bold;">DATE:</td>
-                                                <td style="padding: 6px 0; color: #ffffff; font-size: 14px;">${dateText}</td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #1f1f22;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Date</span>
+                                                    <span style="display: block; color: #ffffff; font-size: 15px; margin-top: 3px;">${dateText}</span>
+                                                </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 6px 0; color: #a1a1aa; font-size: 14px; font-weight: bold;">TIME / SLOT:</td>
-                                                <td style="padding: 6px 0; color: #ffffff; font-size: 14px;">${timeText}</td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #1f1f22;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Time / Slot</span>
+                                                    <span style="display: block; color: #ffffff; font-size: 15px; margin-top: 3px;">${timeText}</span>
+                                                </td>
                                             </tr>
                                             <tr>
-                                                <td style="padding: 6px 0; color: #a1a1aa; font-size: 14px; font-weight: bold;">LOCATION:</td>
-                                                <td style="padding: 6px 0; color: #ffffff; font-size: 14px;">${venueText}</td>
+                                                <td style="padding: 8px 0;">
+                                                    <span style="display: block; color: #a1a1aa; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Location</span>
+                                                    <span style="display: block; color: #ffffff; font-size: 15px; margin-top: 3px;">${venueText}</span>
+                                                </td>
                                             </tr>
                                         </table>
                                     </td>
                                 </tr>
                             </table>
 
-                            ${notesText ? `
+                            ${(data.notes || '').trim() ? `
                             <div style="background-color: #27272a; padding: 18px; border-radius: 10px; margin-bottom: 25px;">
                                 <h4 style="margin: 0 0 8px 0; color: #FFB22C; font-size: 14px; text-transform: uppercase;">Important Instructions / Notes</h4>
-                                <p style="color: #e4e4e7; font-size: 14px; line-height: 1.5; margin: 0;">${notesText}</p>
+                                ${notesText ? `<p style="color: #e4e4e7; font-size: 14px; line-height: 1.5; margin: 0;">${notesText}</p>` : ''}
+                                ${notesLinkButton}
                             </div>
                             ` : ''}
 
@@ -1338,7 +1589,8 @@ const AdminPortal = () => {
                     type: 'interview',
                     subject: interviewData.subject,
                     data: payloadData,
-                    selectedSubscribers
+                    selectedSubscribers,
+                    provider: interviewData.provider
                 })
             });
 
@@ -1767,6 +2019,13 @@ const AdminPortal = () => {
                                         <Send className="w-4 h-4 text-green-500 group-hover:text-black" />
                                         <span>Direct Custom Composer</span>
                                     </button>
+                                    <button
+                                        onClick={() => { setActiveTab('email-logs'); setError(null); setResult(null); }}
+                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-green-500 hover:text-black transition-colors text-left group"
+                                    >
+                                        <FileText className="w-4 h-4 text-green-500 group-hover:text-black" />
+                                        <span>Email Logs</span>
+                                    </button>
                                 </div>
                             </div>
 
@@ -1922,6 +2181,10 @@ const AdminPortal = () => {
                                                 alert('Please select at least one application response to schedule an interview.');
                                                 return;
                                             }
+                                            // Reset the modal to a clean slate for this batch so a previous
+                                            // batch's date/time/venue/custom HTML never leaks into this send.
+                                            setInterviewData(DEFAULT_INTERVIEW_DATA);
+                                            setInterviewEditorTab('guided');
                                             setShowInterviewModal(true);
                                         }}
                                         className="px-5 py-2.5 bg-brand-yellow text-black font-black uppercase text-sm rounded-xl hover:bg-white transition-colors border-2 border-black flex items-center gap-2 shadow-[4px_4px_0px_#fff]"
@@ -3157,7 +3420,10 @@ More content..."
                             <form onSubmit={handleSendMailerEmail} className="space-y-6">
                                 {/* Audience Selection */}
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Target Audience</label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-sm font-bold uppercase">Target Audience</label>
+                                        <MailProviderSelect value={mailerProvider} onChange={setMailerProvider} className="!p-2 !text-xs" />
+                                    </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         {['all', 'selected', 'manual'].map(type => (
                                             <button
@@ -3165,8 +3431,8 @@ More content..."
                                                 type="button"
                                                 onClick={() => setMailerTo(type)}
                                                 className={`py-2 px-4 rounded-lg font-bold text-xs uppercase border-2 transition-all ${
-                                                    mailerTo === type 
-                                                    ? 'bg-brand-yellow text-black border-white' 
+                                                    mailerTo === type
+                                                    ? 'bg-brand-yellow text-black border-white'
                                                     : 'bg-black text-gray-400 border-zinc-800 hover:border-zinc-600'
                                                 }`}
                                             >
@@ -3191,11 +3457,11 @@ More content..."
                                                 <label className="bg-zinc-800 border-2 border-zinc-700 hover:border-brand-yellow text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer transition-colors flex items-center gap-2">
                                                     <Upload className="w-4 h-4 text-brand-yellow" />
                                                     <span>Import Emails from CSV / Text File</span>
-                                                    <input 
-                                                        type="file" 
-                                                        accept=".csv,.txt" 
-                                                        onChange={handleImportEmailsCSV} 
-                                                        className="hidden" 
+                                                    <input
+                                                        type="file"
+                                                        accept=".csv,.txt"
+                                                        onChange={handleImportEmailsCSV}
+                                                        className="hidden"
                                                     />
                                                 </label>
                                                 <span className="text-zinc-500 text-[10px] uppercase font-bold">Supports CSV/Excel/Text lists</span>
@@ -3341,7 +3607,10 @@ More content..."
                             <form onSubmit={handleSendMailerEmail} className="space-y-6">
                                 {/* Audience Selection */}
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Target Audience</label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-sm font-bold uppercase">Target Audience</label>
+                                        <MailProviderSelect value={mailerProvider} onChange={setMailerProvider} className="!p-2 !text-xs" />
+                                    </div>
                                     <div className="grid grid-cols-3 gap-2">
                                         {['all', 'selected', 'manual'].map(type => (
                                             <button
@@ -3349,8 +3618,8 @@ More content..."
                                                 type="button"
                                                 onClick={() => setMailerTo(type)}
                                                 className={`py-2 px-4 rounded-lg font-bold text-xs uppercase border-2 transition-all ${
-                                                    mailerTo === type 
-                                                    ? 'bg-brand-yellow text-black border-white' 
+                                                    mailerTo === type
+                                                    ? 'bg-brand-yellow text-black border-white'
                                                     : 'bg-black text-gray-400 border-zinc-800 hover:border-zinc-600'
                                                 }`}
                                             >
@@ -3375,11 +3644,11 @@ More content..."
                                                 <label className="bg-zinc-800 border-2 border-zinc-700 hover:border-brand-yellow text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer transition-colors flex items-center gap-2">
                                                     <Upload className="w-4 h-4 text-brand-yellow" />
                                                     <span>Import Emails from CSV / Text File</span>
-                                                    <input 
-                                                        type="file" 
-                                                        accept=".csv,.txt" 
-                                                        onChange={handleImportEmailsCSV} 
-                                                        className="hidden" 
+                                                    <input
+                                                        type="file"
+                                                        accept=".csv,.txt"
+                                                        onChange={handleImportEmailsCSV}
+                                                        className="hidden"
                                                     />
                                                 </label>
                                                 <span className="text-zinc-500 text-[10px] uppercase font-bold">Supports CSV/Excel/Text lists</span>
@@ -3547,54 +3816,87 @@ More content..."
                             <form onSubmit={handleSendMailerEmail} className="space-y-6">
                                 {/* Audience Selection */}
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Target Audience</label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {['all', 'selected', 'manual'].map(type => (
-                                            <button
-                                                key={type}
-                                                type="button"
-                                                onClick={() => setMailerTo(type)}
-                                                className={`py-2 px-4 rounded-lg font-bold text-xs uppercase border-2 transition-all ${
-                                                    mailerTo === type 
-                                                    ? 'bg-brand-yellow text-black border-white' 
-                                                    : 'bg-black text-gray-400 border-zinc-800 hover:border-zinc-600'
-                                                }`}
-                                            >
-                                                {type === 'all' && 'All Subscribers'}
-                                                {type === 'selected' && `Selected (${selectedSubscribers.length})`}
-                                                {type === 'manual' && 'Manual Entry'}
-                                            </button>
-                                        ))}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="block text-sm font-bold uppercase">Recipients</label>
+                                        <MailProviderSelect value={mailerProvider} onChange={setMailerProvider} className="!p-2 !text-xs" />
                                     </div>
-                                    {mailerTo === 'manual' && (
-                                        <div className="mt-3">
-                                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Recipients Emails (comma separated)</label>
-                                            <textarea
-                                                value={mailerManualEmails}
-                                                onChange={(e) => setMailerManualEmails(e.target.value)}
-                                                rows={2}
-                                                className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-lg focus:border-brand-yellow focus:outline-none"
-                                                placeholder="email1@domain.com, email2@domain.com"
-                                                required={mailerTo === 'manual'}
+                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setComposerAudience('custom')}
+                                            className={`py-2 px-4 rounded-lg font-bold text-xs uppercase border-2 transition-all ${
+                                                composerAudience === 'custom'
+                                                ? 'bg-brand-yellow text-black border-white'
+                                                : 'bg-black text-gray-400 border-zinc-800 hover:border-zinc-600'
+                                            }`}
+                                        >
+                                            Pick Recipients ({composerRecipients.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setComposerAudience('all')}
+                                            className={`py-2 px-4 rounded-lg font-bold text-xs uppercase border-2 transition-all ${
+                                                composerAudience === 'all'
+                                                ? 'bg-brand-yellow text-black border-white'
+                                                : 'bg-black text-gray-400 border-zinc-800 hover:border-zinc-600'
+                                            }`}
+                                        >
+                                            All Subscribers
+                                        </button>
+                                    </div>
+
+                                    {composerAudience === 'custom' ? (
+                                        <>
+                                            <RecipientPicker
+                                                recipients={composerRecipients}
+                                                onChange={setComposerRecipients}
+                                                candidates={composerCandidates}
                                             />
-                                            <div className="mt-2 flex items-center gap-3">
+                                            <div className="mt-2 flex items-center gap-3 flex-wrap">
                                                 <label className="bg-zinc-800 border-2 border-zinc-700 hover:border-brand-yellow text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase cursor-pointer transition-colors flex items-center gap-2">
                                                     <Upload className="w-4 h-4 text-brand-yellow" />
                                                     <span>Import Emails from CSV / Text File</span>
-                                                    <input 
-                                                        type="file" 
-                                                        accept=".csv,.txt" 
-                                                        onChange={handleImportEmailsCSV} 
-                                                        className="hidden" 
+                                                    <input
+                                                        type="file"
+                                                        accept=".csv,.txt"
+                                                        onChange={handleImportEmailsToComposer}
+                                                        className="hidden"
                                                     />
                                                 </label>
-                                                <span className="text-zinc-500 text-[10px] uppercase font-bold">Supports CSV/Excel/Text lists</span>
+                                                {!showComposerCc && (
+                                                    <button type="button" onClick={() => setShowComposerCc(true)} className="text-xs font-bold uppercase text-brand-yellow hover:underline">
+                                                        + Cc
+                                                    </button>
+                                                )}
+                                                {!showComposerBcc && (
+                                                    <button type="button" onClick={() => setShowComposerBcc(true)} className="text-xs font-bold uppercase text-brand-yellow hover:underline">
+                                                        + Bcc
+                                                    </button>
+                                                )}
                                             </div>
-                                        </div>
-                                    )}
-                                    {mailerTo === 'selected' && (
-                                        <div className="mt-3 bg-zinc-800/50 p-3 rounded-lg border border-zinc-700 text-xs text-zinc-400">
-                                            ⚡ Sending to the **{selectedSubscribers.length}** contact(s) currently checkmarked in the Contacts Directory.
+
+                                            {showComposerCc && (
+                                                <div className="mt-3">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <label className="text-xs font-bold text-gray-400 uppercase">Cc</label>
+                                                        <button type="button" onClick={() => { setShowComposerCc(false); setComposerCc([]); }} className="text-zinc-500 hover:text-red-400 text-xs font-bold uppercase">Remove</button>
+                                                    </div>
+                                                    <RecipientPicker recipients={composerCc} onChange={setComposerCc} candidates={composerCandidates} />
+                                                </div>
+                                            )}
+                                            {showComposerBcc && (
+                                                <div className="mt-3">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <label className="text-xs font-bold text-gray-400 uppercase">Bcc</label>
+                                                        <button type="button" onClick={() => { setShowComposerBcc(false); setComposerBcc([]); }} className="text-zinc-500 hover:text-red-400 text-xs font-bold uppercase">Remove</button>
+                                                    </div>
+                                                    <RecipientPicker recipients={composerBcc} onChange={setComposerBcc} candidates={composerCandidates} />
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="mt-1 bg-zinc-800/50 p-3 rounded-lg border border-zinc-700 text-xs text-zinc-400">
+                                            ⚡ Sending to every contact in the Contacts Directory (newsletter subscribers).
                                         </div>
                                     )}
                                 </div>
@@ -3658,15 +3960,13 @@ More content..."
                                     {/* Right Column: HTML Editor */}
                                     <div>
                                         <label className="block text-xs font-bold text-gray-400 uppercase mb-2">
-                                            Body (HTML or Plain Text)
+                                            Body (HTML Code Editor)
                                         </label>
-                                        <textarea
+                                        <HtmlCodeEditor
                                             value={genericMailData.body}
-                                            onChange={(e) => setGenericMailData(prev => ({ ...prev, body: e.target.value }))}
-                                            rows={14}
-                                            className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-lg focus:border-brand-yellow focus:outline-none resize-none font-mono text-xs"
+                                            onChange={(val) => setGenericMailData(prev => ({ ...prev, body: val }))}
+                                            minHeight="330px"
                                             placeholder="HTML code content..."
-                                            required
                                         />
                                         <p className="text-[11px] text-zinc-500 mt-1">
                                             Placeholders: <code>{`{name}`}</code> will be automatically replaced with the recipient's name during dispatch.
@@ -3674,9 +3974,47 @@ More content..."
                                     </div>
                                 </div>
 
+                                {/* Attachments */}
+                                <div className="border-t-2 border-zinc-800 pt-6">
+                                    <label className="block text-sm font-bold uppercase mb-2">
+                                        Attachments <span className="text-zinc-500 normal-case font-normal">(sent with every recipient)</span>
+                                    </label>
+                                    <label className="inline-flex items-center gap-2 bg-zinc-800 border-2 border-zinc-700 hover:border-brand-yellow text-gray-300 hover:text-white px-4 py-2.5 rounded-lg text-xs font-bold uppercase cursor-pointer transition-colors">
+                                        <Upload className="w-4 h-4 text-brand-yellow" />
+                                        <span>Add Attachments</span>
+                                        <input
+                                            type="file"
+                                            multiple
+                                            onChange={handleAddComposerAttachments}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                    {composerAttachments.length > 0 && (
+                                        <div className="mt-3 space-y-1.5">
+                                            {composerAttachments.map(att => (
+                                                <div key={att.filename} className="flex items-center justify-between gap-3 bg-black border border-zinc-700 rounded-lg px-3 py-2">
+                                                    <span className="text-xs text-gray-300 truncate">
+                                                        {att.filename} <span className="text-zinc-500">({formatFileSize(att.size)})</span>
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeComposerAttachment(att.filename)}
+                                                        className="text-zinc-500 hover:text-red-400 flex-shrink-0"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <p className="text-[10px] text-zinc-500">
+                                                Total: {formatFileSize(composerAttachments.reduce((sum, a) => sum + a.size, 0))} / 8 MB
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <button
                                     type="submit"
-                                    disabled={loading || (mailerTo === 'selected' && selectedSubscribers.length === 0)}
+                                    disabled={loading || !mailerSubject.trim() || !genericMailData.body.trim() || (composerAudience === 'custom' && composerRecipients.length === 0)}
                                     className="w-full bg-brand-yellow text-black text-xl font-black uppercase py-4 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl"
                                 >
                                     {loading ? (
@@ -3693,6 +4031,139 @@ More content..."
                                 </button>
                             </form>
                         </div>
+                    </div>
+                )}
+
+                {/* Email Logs */}
+                {activeTab === 'email-logs' && (
+                    <div className="max-w-5xl mx-auto">
+                        <button
+                            onClick={() => { setActiveTab('dashboard'); setError(null); setResult(null); }}
+                            className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                            <span>Back to Dashboard</span>
+                        </button>
+                        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                            <h2 className="text-3xl font-black uppercase">
+                                Email <span className="text-brand-yellow">Logs</span>
+                            </h2>
+                            <button
+                                onClick={fetchEmailLogs}
+                                disabled={loadingEmailLogs}
+                                className="px-4 py-2.5 bg-zinc-800 border-2 border-zinc-600 rounded-xl text-sm font-bold hover:bg-zinc-700 flex items-center gap-2"
+                            >
+                                <Loader2 className={`w-4 h-4 ${loadingEmailLogs ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </button>
+                        </div>
+                        <p className="text-gray-400 mb-6">
+                            Every dispatch from the Announcement, Event, Interview, and Custom Composer mailers is logged here — who sent what, from which panel, and to how many recipients. Certificate dispatch is not included.
+                        </p>
+
+                        {/* Type Filter */}
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            {['all', 'announcement', 'event', 'interview', 'generic'].map(t => (
+                                <button
+                                    key={t}
+                                    onClick={() => setEmailLogTypeFilter(t)}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold uppercase border-2 transition-all ${
+                                        emailLogTypeFilter === t
+                                        ? 'bg-brand-yellow text-black border-white'
+                                        : 'bg-black text-gray-400 border-zinc-800 hover:border-zinc-600'
+                                    }`}
+                                >
+                                    {t === 'all' ? 'All' : EMAIL_LOG_TYPE_LABELS[t]}
+                                </button>
+                            ))}
+                        </div>
+
+                        {loadingEmailLogs ? (
+                            <div className="flex justify-center py-16">
+                                <Loader2 className="w-8 h-8 animate-spin text-brand-yellow" />
+                            </div>
+                        ) : filteredEmailLogs.length === 0 ? (
+                            <div className="bg-zinc-900 border-2 border-zinc-700 rounded-2xl p-10 text-center text-gray-400">
+                                No email logs found{emailLogTypeFilter !== 'all' ? ` for ${EMAIL_LOG_TYPE_LABELS[emailLogTypeFilter]}` : ''}.
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredEmailLogs.map(log => {
+                                    const isOpen = expandedLogId === log.id;
+                                    return (
+                                        <div key={log.id} className="bg-zinc-900 border-2 border-zinc-700 rounded-xl overflow-hidden">
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpandedLogId(isOpen ? null : log.id)}
+                                                className="w-full flex flex-wrap items-center justify-between gap-3 p-4 text-left hover:bg-zinc-800/50 transition-colors"
+                                            >
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-brand-yellow text-black">
+                                                            {EMAIL_LOG_TYPE_LABELS[log.type] || log.type}
+                                                        </span>
+                                                        <span className="text-[10px] text-zinc-500 uppercase font-bold">via {log.provider}</span>
+                                                    </div>
+                                                    <p className="text-sm font-bold text-white truncate">{log.subject}</p>
+                                                    <p className="text-xs text-zinc-500 mt-0.5">
+                                                        {log.sentAt ? new Date(log.sentAt).toLocaleString() : 'Unknown time'}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-4 flex-shrink-0">
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-black text-green-400">{log.sentCount}</p>
+                                                        <p className="text-[10px] text-zinc-500 uppercase">Sent</p>
+                                                    </div>
+                                                    {log.failedCount > 0 && (
+                                                        <div className="text-right">
+                                                            <p className="text-lg font-black text-red-400">{log.failedCount}</p>
+                                                            <p className="text-[10px] text-zinc-500 uppercase">Failed</p>
+                                                        </div>
+                                                    )}
+                                                    <Eye className="w-4 h-4 text-zinc-500" />
+                                                </div>
+                                            </button>
+
+                                            {isOpen && (
+                                                <div className="border-t border-zinc-800 p-4 bg-black/40 space-y-4">
+                                                    {log.cc?.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase text-zinc-500 mb-1">Cc</p>
+                                                            <p className="text-xs text-zinc-300">{log.cc.map(c => c.name ? `${c.name} <${c.email}>` : c.email).join(', ')}</p>
+                                                        </div>
+                                                    )}
+                                                    {log.bcc?.length > 0 && (
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase text-zinc-500 mb-1">Bcc</p>
+                                                            <p className="text-xs text-zinc-300">{log.bcc.map(b => b.name ? `${b.name} <${b.email}>` : b.email).join(', ')}</p>
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <p className="text-[10px] font-bold uppercase text-zinc-500 mb-2">
+                                                            Recipients ({log.recipients?.length || 0})
+                                                        </p>
+                                                        <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                                                            {(log.recipients || []).map((r, idx) => (
+                                                                <div key={`${r.email}-${idx}`} className="flex items-center justify-between gap-3 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2">
+                                                                    <span className="text-xs text-gray-300 truncate">
+                                                                        <span className="font-bold text-white">{r.name}</span> <span className="text-zinc-500">{r.email}</span>
+                                                                    </span>
+                                                                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded flex-shrink-0 ${
+                                                                        r.status === 'sent' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                                                    }`}>
+                                                                        {r.status}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -3892,7 +4363,7 @@ More content..."
             {/* Custom Mail Preview Modal */}
             {showMailPreviewModal && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-                    <div className="bg-zinc-900 border-4 border-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-[8px_8px_0px_#FFB22C] overflow-hidden">
+                    <div className="bg-zinc-900 border-4 border-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[8px_8px_0px_#FFB22C] overflow-hidden">
                         {/* Modal Header */}
                         <div className="p-4 border-b-2 border-zinc-700 flex items-center justify-between bg-zinc-800">
                             <h3 className="text-md font-black uppercase text-brand-yellow">Mail Preview</h3>
@@ -3904,19 +4375,19 @@ More content..."
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        
+
                         {/* Subject Indicator */}
                         <div className="p-4 bg-zinc-900 border-b border-zinc-800">
                             <p className="text-xs font-bold text-zinc-500 uppercase">Subject</p>
                             <p className="text-sm font-black text-white">{mailerSubject || '(No Subject)'}</p>
                         </div>
-                        
+
                         {/* Rendered Preview Area */}
                         <div className="flex-1 overflow-y-auto bg-black p-4">
-                            <iframe
+                            <EmailPreviewFrame
                                 srcDoc={getGenericPreviewHTML(genericMailData.body)}
-                                title="Email Rendered Preview"
-                                className="w-full h-[380px] border-none bg-black rounded-lg"
+                                desktopHeight={380}
+                                mobileHeight={560}
                             />
                         </div>
                         
@@ -4193,18 +4664,20 @@ More content..."
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-bold uppercase mb-1 text-gray-300">
-                                                Role Title (Auto-Filled Per Candidate)
+                                                Role Override (Optional)
                                             </label>
-                                            <div className="w-full bg-zinc-900/90 border border-zinc-700 rounded-lg p-3 text-sm text-brand-yellow font-mono font-bold flex items-center justify-between">
-                                                <span>
-                                                    {selectedApplications.length === 1
-                                                        ? getRoleLabel(applications.find(a => selectedApplications.includes(a.id))?.role)
-                                                        : 'Auto-filled per candidate\'s applied role ({role})'}
-                                                </span>
-                                                <span className="text-[10px] bg-zinc-800 text-gray-400 px-2 py-0.5 rounded border border-zinc-700 font-sans uppercase flex-shrink-0">
-                                                    Locked
-                                                </span>
-                                            </div>
+                                            <input
+                                                type="text"
+                                                value={interviewData.role}
+                                                onChange={(e) => setInterviewData(prev => ({ ...prev, role: e.target.value }))}
+                                                placeholder={selectedApplications.length === 1
+                                                    ? `Default: ${getRoleLabel(applications.find(a => selectedApplications.includes(a.id))?.role)}`
+                                                    : "Default: each candidate's own applied role"}
+                                                className="w-full bg-black border border-zinc-700 rounded-lg p-3 text-sm text-white focus:border-brand-yellow focus:outline-none font-mono"
+                                            />
+                                            <p className="text-[10px] text-zinc-500 mt-1">
+                                                Leave blank to send each candidate their own applied role. Fill in only to force the same role text for everyone in this batch.
+                                            </p>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold uppercase mb-1 text-gray-300">Interview Date *</label>
@@ -4330,15 +4803,12 @@ More content..."
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <textarea
-                                            value={interviewData.useCustomHtml ? interviewData.customHtml : generateInterviewHtmlTemplate(interviewData)}
-                                            onChange={(e) => setInterviewData(prev => ({ ...prev, useCustomHtml: true, customHtml: e.target.value }))}
-                                            rows="14"
-                                            className="w-full bg-black border border-zinc-700 p-4 text-xs font-mono text-green-400 focus:border-brand-yellow focus:outline-none rounded-xl leading-relaxed resize-y"
-                                            placeholder="Paste or type raw email HTML content..."
-                                        />
-                                    </div>
+                                    <HtmlCodeEditor
+                                        value={interviewData.useCustomHtml ? interviewData.customHtml : generateInterviewHtmlTemplate(interviewData)}
+                                        onChange={(val) => setInterviewData(prev => ({ ...prev, useCustomHtml: true, customHtml: val }))}
+                                        minHeight="360px"
+                                        placeholder="Paste or type raw email HTML content..."
+                                    />
                                 </div>
                             )}
 
@@ -4347,22 +4817,22 @@ More content..."
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs font-bold uppercase text-gray-400">Live Email Output Render</span>
-                                        <span className="text-xs text-brand-yellow font-mono">Sample variables applied for preview</span>
+                                        <span className="text-xs text-brand-yellow font-mono">Unfilled fields show as {'{placeholder}'}</span>
                                     </div>
 
-                                    <div className="border-2 border-zinc-700 rounded-xl overflow-hidden bg-black p-2">
-                                        <iframe
-                                            srcDoc={(interviewData.useCustomHtml ? interviewData.customHtml : generateInterviewHtmlTemplate(interviewData))
-                                                .replace(/\{name\}/g, selectedApplications.length > 0 ? (applications.find(a => selectedApplications.includes(a.id))?.fullName || 'John Doe') : 'John Doe')
-                                                .replace(/\{email\}/g, 'john@example.com')
-                                                .replace(/\{role\}/g, interviewData.role || 'Technical')
-                                                .replace(/\{date\}/g, interviewData.date || '10th September 2026')
-                                                .replace(/\{time\}/g, interviewData.time || '03:00 PM')
-                                                .replace(/\{venue\}/g, interviewData.venue || 'Room 204')}
-                                            title="Live Email Render"
-                                            className="w-full h-[450px] border-none bg-black rounded-lg"
-                                        />
-                                    </div>
+                                    <EmailPreviewFrame
+                                        srcDoc={(interviewData.useCustomHtml ? interviewData.customHtml : generateInterviewHtmlTemplate(interviewData))
+                                            .replace(/\{name\}/g, selectedApplications.length > 0 ? (applications.find(a => selectedApplications.includes(a.id))?.fullName || 'Sample Applicant') : 'Sample Applicant')
+                                            .replace(/\{email\}/g, 'sample.applicant@example.com')
+                                            .replace(/\{role\}/g, interviewData.role || (
+                                                selectedApplications.length > 0
+                                                    ? getRoleLabel(applications.find(a => selectedApplications.includes(a.id))?.role)
+                                                    : "each candidate's own applied role"
+                                            ))}
+                                        title="Live Email Render"
+                                        desktopHeight={450}
+                                        mobileHeight={620}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -4379,6 +4849,11 @@ More content..."
                                         <Eye className="w-3.5 h-3.5" /> Preview Output
                                     </button>
                                 )}
+                                <MailProviderSelect
+                                    value={interviewData.provider}
+                                    onChange={(val) => setInterviewData(prev => ({ ...prev, provider: val }))}
+                                    className="!p-2 !text-xs"
+                                />
                             </div>
 
                             <div className="flex items-center gap-3">

@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { sendEmail } from './_lib/emailTransport.js';
 
 let db = null;
 
@@ -340,6 +341,138 @@ async function handleLookupAttendee(req, res) {
     }
 }
 
+const APPLICATION_ROLE_LABELS = {
+    corporate_relations: 'Corporate Relations',
+    design: 'Design',
+    pr: 'PR (Public Relations)',
+    marketing: 'Marketing',
+    social_media: 'Social Media',
+    operations: 'Operations',
+    technical: 'Technical',
+    aesthetics: 'Aesthetics (Creatives)'
+};
+
+const APPLICATION_ROLE_QUESTIONS = {
+    corporate_relations: [
+        { key: 'cr_why', label: 'Why Corporate Relations?' },
+        { key: 'cr_first_message', label: 'First outreach message & mutual benefit strategy' },
+        { key: 'cr_gameplan', label: '2-day ₹20k sponsorship game plan' }
+    ],
+    design: [
+        { key: 'design_why', label: 'Why Design?' },
+        { key: 'design_poster', label: '30-min emergency poster strategy' },
+        { key: 'design_software', label: 'Tools & software used' },
+        { key: 'design_portfolio', label: 'Portfolio link' }
+    ],
+    pr: [
+        { key: 'pr_experience', label: 'Conflict/persuasion experience' },
+        { key: 'pr_campaign', label: '4-day registration campaign' },
+        { key: 'pr_collab', label: 'Inter-college E-Cell collaboration approach' }
+    ],
+    marketing: [
+        { key: 'marketing_urgency', label: 'Creating ticket sales urgency' },
+        { key: 'marketing_strategy', label: 'Stuck registrations 5-day action plan' },
+        { key: 'marketing_adapt', label: 'Low conversion campaign fix' }
+    ],
+    social_media: [
+        { key: 'sm_format', label: 'Highest engagement format' },
+        { key: 'sm_complex', label: 'Explaining complex initiatives' },
+        { key: 'sm_low_footage', label: 'Low footage posting strategy' },
+        { key: 'sm_low_reach', label: 'Low reel reach audit checklist' }
+    ],
+    operations: [
+        { key: 'ops_jugaad', label: 'Most "jugaad" thing pulled off' },
+        { key: 'ops_chaos', label: 'Event day chaos management' },
+        { key: 'ops_forgot', label: 'Pre-event missing item decision' }
+    ]
+};
+
+function buildApplicationConfirmationHTML(formData) {
+    const roleLabel = APPLICATION_ROLE_LABELS[formData.role] || formData.role || 'General';
+    const questions = APPLICATION_ROLE_QUESTIONS[formData.role] || [];
+
+    const answerRows = questions.map(q => `
+        <div style="background-color:#000000; border:1px solid #27272a; border-radius:10px; padding:14px; margin-bottom:10px;">
+            <p style="margin:0 0 6px 0; color:#a1a1aa; font-size:12px; font-weight:bold; text-transform:uppercase;">${q.label}</p>
+            <p style="margin:0; color:#e4e4e7; font-size:14px; white-space:pre-wrap;">${(formData[q.key] || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;') || '<span style="color:#52525b;">No response provided</span>'}</p>
+        </div>`).join('');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Received - E-Cell DYPIU</title>
+</head>
+<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif; color:#ffffff;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
+        <tr>
+            <td align="center" style="padding:30px 10px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
+                    <tr>
+                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
+                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px;">E-CELL DYPIU</h1>
+                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold;">APPLICATION RECEIVED</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:35px 40px; color:#ffffff;">
+                            <p style="font-size:17px; margin:0 0 20px 0; line-height:1.5;">Dear <strong>${(formData.fullName || 'Applicant').toString().replace(/</g, '&lt;')}</strong>,</p>
+                            <p style="color:#e4e4e7; font-size:15px; line-height:1.6; margin:0 0 25px 0;">
+                                Thank you for applying to join <strong>E-Cell DYPIU</strong>! This is a confirmation copy of the responses you submitted for the <strong style="color:#FFB22C;">${roleLabel}</strong> role. Our team will review your application and reach out regarding next steps.
+                            </p>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000; border:2px solid #FFB22C; border-radius:12px; margin-bottom:25px;">
+                                <tr>
+                                    <td style="padding:18px;">
+                                        <h3 style="margin:0 0 12px 0; color:#FFB22C; font-size:14px; font-weight:bold; text-transform:uppercase; border-bottom:1px solid #27272a; padding-bottom:8px;">Your Details</h3>
+                                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
+                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Name</span>
+                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.fullName || '-').toString().replace(/</g, '&lt;')}</span>
+                                            </td></tr>
+                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
+                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">PRN</span>
+                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.prn || '-').toString().replace(/</g, '&lt;')}</span>
+                                            </td></tr>
+                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
+                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Division</span>
+                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.division || '-').toString().replace(/</g, '&lt;')}</span>
+                                            </td></tr>
+                                            <tr><td style="padding:6px 0; border-bottom:1px solid #1f1f22;">
+                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Contact</span>
+                                                <span style="display:block; color:#ffffff; font-size:14px; margin-top:3px;">${(formData.contactNumber || '-').toString().replace(/</g, '&lt;')}</span>
+                                            </td></tr>
+                                            <tr><td style="padding:6px 0;">
+                                                <span style="display:block; color:#a1a1aa; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Role Applied</span>
+                                                <span style="display:block; color:#FFB22C; font-size:14px; font-weight:bold; margin-top:3px;">${roleLabel}</span>
+                                            </td></tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            ${answerRows ? `<h3 style="margin:0 0 12px 0; color:#FFB22C; font-size:14px; font-weight:bold; text-transform:uppercase; border-bottom:1px solid #27272a; padding-bottom:8px;">Your Responses</h3>${answerRows}` : ''}
+
+                            <p style="color:#a1a1aa; font-size:13px; line-height:1.5; margin:25px 0 0 0;">
+                                This is an automated confirmation of your own submission. If any of this looks incorrect, please contact us.<br/><br/>
+                                Warm regards,<br/><strong>Team E-Cell DYPIU</strong>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#0c0c0e; padding:20px 30px; text-align:center; border-top:2px solid #27272a;">
+                            <p style="margin:0; color:#71717a; font-size:11px;">&copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+}
+
 async function handleSubmitApplication(req, res) {
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -349,6 +482,19 @@ async function handleSubmitApplication(req, res) {
             ...formData,
             submittedAt: Timestamp.now(),
         });
+
+        // Best-effort confirmation copy to the applicant's own email — must never fail the submission itself.
+        if (formData.email) {
+            try {
+                await sendEmail(
+                    formData.email,
+                    'Your E-Cell DYPIU Application - Response Copy',
+                    buildApplicationConfirmationHTML(formData)
+                );
+            } catch (mailErr) {
+                console.error('Failed to send application confirmation email:', mailErr.message);
+            }
+        }
 
         return res.status(200).json({
             success: true,

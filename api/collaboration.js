@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { sendEmail } from './_lib/emailTransport.js';
 
 const privateKey = process.env.FIREBASE_PRIVATE_KEY
     ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
@@ -17,89 +18,14 @@ if (!getApps().length) {
 
 const db = getFirestore();
 
-// Send email via Resend
-async function sendEmail(to, subject, html) {
-    if (process.env.ZEPTOMAIL_API_KEY) {
-        try {
-            const url = process.env.ZEPTOMAIL_URL || 'https://api.zeptomail.in/v1.1/email';
-            let authHeader = process.env.ZEPTOMAIL_API_KEY;
-            if (!authHeader.toLowerCase().startsWith('zoho-enczapikey')) {
-                authHeader = `Zoho-enczapikey ${authHeader}`;
-            }
-
-            const fromAddress = process.env.ZEPTOMAIL_FROM_ADDRESS || 'ecell@dypiu.ac.in';
-            const fromName = process.env.ZEPTOMAIL_FROM_NAME || 'E-Cell DYPIU';
-
-            let toName = '';
-            let toAddress = to;
-            const toMatch = to.match(/^(.*?)\s*<(.*?)>$/);
-            if (toMatch) {
-                toName = toMatch[1].trim();
-                toAddress = toMatch[2].trim();
-            }
-
-            const payload = {
-                from: {
-                    address: fromAddress,
-                    name: fromName
-                },
-                to: [
-                    {
-                        email_address: {
-                            address: toAddress,
-                            name: toName || toAddress.split('@')[0]
-                        }
-                    }
-                ],
-                subject,
-                htmlbody: html
-            };
-
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'Authorization': authHeader
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                console.error(`ZeptoMail send failed: ${errorText}`);
-            } else {
-                console.log(`Email sent successfully via ZeptoMail to ${to}`);
-            }
-        } catch (err) {
-            console.error(`ZeptoMail send error: ${err.message}`);
-        }
-        return;
-    }
-
-    if (!process.env.RESEND_API_KEY) {
-        console.warn('RESEND_API_KEY is not set. Skipping email send.');
-        return;
-    }
-    const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-            from: process.env.EMAIL_FROM || 'E-Cell DYPIU <noreply@ecelldypiu.in>',
-            to: [to],
-            subject,
-            html,
-        }),
-    });
-
-    if (!res.ok) {
-        const error = await res.text();
-        console.error(`Email send failed: ${error}`);
-    } else {
+// Best-effort wrapper: collaboration workflow actions (submit/approve/reject) must still
+// succeed and persist to Firestore even if the notification email fails to send.
+async function sendEmailBestEffort(to, subject, html) {
+    try {
+        await sendEmail(to, subject, html);
         console.log(`Email sent successfully to ${to}`);
+    } catch (err) {
+        console.error(`Email send failed: ${err.message}`);
     }
 }
 
@@ -258,7 +184,7 @@ async function handleSubmitCollaboration(req, res) {
                     <p>Best Regards,<br>E-Cell DYPIU Team</p>
                 </div>
             `;
-            await sendEmail(email, 'Application Received - E-Cell DYPIU', emailHTML);
+            await sendEmailBestEffort(email, 'Application Received - E-Cell DYPIU', emailHTML);
         }
 
         return res.status(200).json({
@@ -356,7 +282,7 @@ async function handleManageCollaboration(req, res) {
                     </div>
                 </div>
             `;
-            if (recipientEmail) await sendEmail(recipientEmail, 'Collaboration Application Approved - E-Cell DYPIU', emailHTML);
+            if (recipientEmail) await sendEmailBestEffort(recipientEmail, 'Collaboration Application Approved - E-Cell DYPIU', emailHTML);
             return res.status(200).json({ success: true, message: 'Collaboration approved' });
 
         } else if (action === 'reject') {
@@ -388,7 +314,7 @@ async function handleManageCollaboration(req, res) {
                     </div>
                 </div>
             `;
-            if (recipientEmail) await sendEmail(recipientEmail, 'Update on Collaboration Application - E-Cell DYPIU', emailHTML);
+            if (recipientEmail) await sendEmailBestEffort(recipientEmail, 'Update on Collaboration Application - E-Cell DYPIU', emailHTML);
             return res.status(200).json({ success: true, message: 'Collaboration rejected' });
         } else {
             return res.status(400).json({ error: 'Invalid action. Must be approve or reject.' });
