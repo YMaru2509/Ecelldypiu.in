@@ -31,6 +31,7 @@ function isAuthorized(authHeader) {
     if (!adminKey || !authHeader) return false;
     const token = authHeader.replace(/^Bearer\s+/, '').trim().replace(/^["'`]|["'`]$/g, '');
     const cleanAdminKey = adminKey.trim().replace(/^["'`]|["'`]$/g, '');
+    if (token === cleanAdminKey) return true;
     const validKeys = cleanAdminKey.split(',').map(k => k.trim().replace(/^["'`]|["'`]$/g, ''));
     return validKeys.includes(token);
 }
