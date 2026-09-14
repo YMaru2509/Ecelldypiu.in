@@ -17,7 +17,18 @@ import EmailPreviewFrame from '../components/EmailPreviewFrame';
 
 const AdminPortal = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [adminEmail, setAdminEmail] = useState('');
+    const [adminPassword, setAdminPassword] = useState('');
     const [adminKey, setAdminKey] = useState('');
+    const [adminRole, setAdminRole] = useState('super_admin');
+    const [adminPermissions, setAdminPermissions] = useState(['blogs', 'events', 'subscribers', 'certificates', 'passes', 'collaborations', 'mass-mail', 'registrations', 'team', 'users', 'links', 'settings']);
+    const [adminUsers, setAdminUsers] = useState([]);
+    const [loadingUsers, setLoadingUsers] = useState(false);
+    const [showNewUserForm, setShowNewUserForm] = useState(false);
+    const [newUserForm, setNewUserForm] = useState({ email: '', displayName: '', password: '', role: 'admin', permissions: [] });
+    const [editingUserId, setEditingUserId] = useState(null);
+    const [editingPermissions, setEditingPermissions] = useState([]);
+    const [editingDisplayName, setEditingDisplayName] = useState('');
     const [activeTab, setActiveTab] = useState('dashboard');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
@@ -822,32 +833,58 @@ const AdminPortal = () => {
 
     const handleLogin = async (e) => {
         e.preventDefault();
-        if (!adminKey.trim()) return;
+        if (!adminEmail.trim() || !adminPassword.trim()) return;
 
         setLoginLoading(true);
         setLoginError('');
 
         try {
-            const response = await fetch('/api/event', {
+            const response = await fetch('/api/admin-users?action=login', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${adminKey}`
-                },
-                body: JSON.stringify({ action: 'verify-admin' })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: adminEmail.trim(),
+                    password: adminPassword.trim()
+                })
             });
 
             const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.message || data.error || 'Invalid admin key');
+            if (response.ok && data.success) {
+                const token = data.token || adminPassword.trim();
+                setAdminKey(token);
+                sessionStorage.setItem('adminKey', token);
+                sessionStorage.setItem('adminEmail', adminEmail.trim());
+                setAdminRole(data.user?.role || 'super_admin');
+                setAdminPermissions(data.user?.permissions || ['blogs', 'events', 'subscribers', 'certificates', 'passes', 'collaborations', 'mass-mail', 'registrations', 'team', 'users', 'links', 'settings']);
+                setIsAuthenticated(true);
+                return;
             }
 
-            // Success - save key and authenticate
-            sessionStorage.setItem('adminKey', adminKey);
-            setIsAuthenticated(true);
+            // Fallback: test admin password as API key with /api/event
+            const verifyRes = await fetch('/api/event', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${adminPassword.trim()}`
+                },
+                body: JSON.stringify({ action: 'verify-admin' })
+            });
+
+            if (verifyRes.ok) {
+                const token = adminPassword.trim();
+                setAdminKey(token);
+                sessionStorage.setItem('adminKey', token);
+                sessionStorage.setItem('adminEmail', adminEmail.trim());
+                setAdminRole('super_admin');
+                setAdminPermissions(['blogs', 'events', 'subscribers', 'certificates', 'passes', 'collaborations', 'mass-mail', 'registrations', 'team', 'users', 'links', 'settings']);
+                setIsAuthenticated(true);
+                return;
+            }
+
+            throw new Error(data.error || 'Invalid email or password');
         } catch (err) {
-            setLoginError(err.message || 'Unauthorized - Invalid admin key');
+            setLoginError(err.message || 'Unauthorized - Invalid credentials');
         } finally {
             setLoginLoading(false);
         }
@@ -855,7 +892,10 @@ const AdminPortal = () => {
 
     const handleLogout = () => {
         sessionStorage.removeItem('adminKey');
+        sessionStorage.removeItem('adminEmail');
         setAdminKey('');
+        setAdminEmail('');
+        setAdminPassword('');
         setIsAuthenticated(false);
     };
 
@@ -1767,12 +1807,20 @@ const AdminPortal = () => {
                             </div>
                         )}
                         <input
+                            type="email"
+                            value={adminEmail}
+                            onChange={(e) => { setAdminEmail(e.target.value); setLoginError(''); }}
+                            placeholder="Admin Email"
+                            className={`w-full bg-black border-2 p-4 text-white rounded-lg mb-4 focus:border-brand-yellow focus:outline-none ${loginError ? 'border-red-500' : 'border-zinc-700'}`}
+                            required
+                            disabled={loginLoading}
+                        />
+                        <input
                             type="password"
-                            value={adminKey}
-                            onChange={(e) => { setAdminKey(e.target.value); setLoginError(''); }}
-                            placeholder="Enter Admin API Key"
-                            className={`w-full bg-black border-2 p-4 text-white rounded-lg mb-4 focus:border-brand-yellow focus:outline-none ${loginError ? 'border-red-500' : 'border-zinc-700'
-                                }`}
+                            value={adminPassword}
+                            onChange={(e) => { setAdminPassword(e.target.value); setLoginError(''); }}
+                            placeholder="Admin Password"
+                            className={`w-full bg-black border-2 p-4 text-white rounded-lg mb-4 focus:border-brand-yellow focus:outline-none ${loginError ? 'border-red-500' : 'border-zinc-700'}`}
                             required
                             disabled={loginLoading}
                         />
