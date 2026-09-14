@@ -26,6 +26,15 @@ try {
     console.warn('⚠️  Firebase not available for event API:', e.message);
 }
 
+function isAuthorized(authHeader) {
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey || !authHeader) return false;
+    const token = authHeader.replace(/^Bearer\s+/, '').trim().replace(/^["'`]|["'`]$/g, '');
+    const cleanAdminKey = adminKey.trim().replace(/^["'`]|["'`]$/g, '');
+    const validKeys = cleanAdminKey.split(',').map(k => k.trim().replace(/^["'`]|["'`]$/g, ''));
+    return validKeys.includes(token);
+}
+
 function getEventKeywords(eventId) {
     return eventId.split(/[-_]/).filter(w => w.length > 2 && !['for', 'the', 'and'].includes(w));
 }
@@ -116,6 +125,12 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
+    let body = req.body;
+    if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch (e) {}
+    }
+    req.body = body;
+
     const url = new URL(req.url, 'http://localhost');
     const actionQuery = req.query?.action || url.searchParams.get('action');
     const action = actionQuery || req.body?.action;
@@ -159,8 +174,7 @@ export default async function handler(req, res) {
 
 async function handleListApplications(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -197,8 +211,7 @@ async function handleListApplications(req, res) {
 
 async function handleListAttendees(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     const eventId = req.query?.eventId || new URL(req.url, 'http://localhost').searchParams.get('eventId');
     if (!eventId) return res.status(400).json({ error: 'eventId is required' });
@@ -513,7 +526,7 @@ async function handleVerifyAdmin(req, res) {
 
     if (!adminKey) return res.status(500).json({ error: 'Admin key not configured on server' });
 
-    if (!authHeader || authHeader !== `Bearer ${adminKey}`) {
+    if (!isAuthorized(authHeader)) {
         return res.status(401).json({ error: 'Unauthorized', message: 'Invalid admin key' });
     }
 
@@ -522,8 +535,7 @@ async function handleVerifyAdmin(req, res) {
 
 async function handleImportAttendees(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     const { eventId, attendees } = req.body;
     if (!eventId || !attendees || !Array.isArray(attendees)) return res.status(400).json({ error: 'eventId and attendees array required' });
@@ -554,8 +566,7 @@ async function handleGetEvents(req, res) {
 
     try {
         const authHeader = req.headers.authorization;
-        const adminKey = process.env.ADMIN_API_KEY;
-        const isAdmin = adminKey && authHeader === `Bearer ${adminKey}`;
+        const isAdmin = isAuthorized(authHeader);
 
         const snapshot = await db.collection('events').orderBy('createdAt', 'desc').get();
         let events = [];
@@ -579,8 +590,7 @@ async function handleGetEvents(req, res) {
 
 async function handleCreateEvent(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -606,8 +616,7 @@ async function handleCreateEvent(req, res) {
 
 async function handleUpdateEvent(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -630,8 +639,7 @@ async function handleUpdateEvent(req, res) {
 
 async function handleDeleteEvent(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -650,8 +658,7 @@ async function handleDeleteEvent(req, res) {
 
 async function handleUpdateApplication(req, res) {
     const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
