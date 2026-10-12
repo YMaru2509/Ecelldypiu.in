@@ -182,6 +182,38 @@ Nearly every student startup encounters what industry veterans call the Trough o
 The Incubation Ecosystem: Your Operational Co-Pilot
 
 Building a viable enterprise while navigating university coursework does not have to be a solitary battle. At E-Cell DYPIU, our incubation initiatives are designed explicitly to support founders during the critical post-pitch execution phase. We provide dedicated co-working facilities, legal advisory partnerships, seed micro-grants, and structured milestone reviews to ensure that stage-winning concepts evolve into economically resilient enterprises. If you have an idea that has survived the competition circuit, step forward and partner with our incubation cohort. Stop pitching your dream, and start building your legacy.`
+  },
+  {
+    title: "From Ideas to Impact: A Recap of the SIH 2026 Internal Hackathon at DYPIU",
+    slug: "from-ideas-to-impact-sih-2026-internal-hackathon-dypiu",
+    author: "E-Cell DYPIU",
+    category: "Events",
+    readTime: "6 min read",
+    tags: ["SIH", "Smart India Hackathon", "Hackathon", "Innovation", "Entrepreneurship", "Startups", "DYPIU", "E-Cell"],
+    date: "September 28, 2026",
+    excerpt: "Over 180 teams, intense defense rounds, and a 20-member industry jury: here is the complete recap of the high-octane SIH 2026 Internal Hackathon hosted by CIIE, E-Cell, and IIC at DYPIU.",
+    images: ["/SIH.png"],
+    content: `On 26th and 27th September 2026, the campus of D. Y. Patil International University (DYPIU) transformed into a high-energy arena where bold ideas collided with real-world problems. The Smart India Hackathon (SIH) 2026 Internal Rounds, organized collaboratively by the Centre for Industry Interaction and Entrepreneurship (CIIE), E-Cell DYPIU, and the Institution's Innovation Council (IIC), brought together 180+ teams across the Shantai Auditorium and the 6th floor of J-Block. Every participant was driven by a single ambition: securing a coveted place on the national stage. It was not just about presenting an idea; it was about proving that the idea could withstand the scrutiny of industry-grade interrogation.
+
+The Inaugural Address and Industry Keynote
+
+The two-day marathon commenced with an inaugural ceremony graced by Dr. (Prof.) Manish Bhalla, Vice Chancellor of DYPIU, and Prof. Yogesh D. Brahmankar, Advisor at CIIE. Both emphasized the pivotal role of student-led innovation in driving national technological self-reliance. A standout highlight of the morning was the keynote address delivered by the Guest of Honor, Mr. Amit Agrahari of Philips. Drawing on his rich background in AI/ML and innovation product management, Mr. Agrahari brought an invaluable industry lens to the room, challenging student builders to ground their technical ingenuity in genuine user empathy. Following the keynote, Dr. Sandhya Ingale, Assistant Director at CIIE, officially declared the hackathon open, and the intense pitching rounds began.
+
+The Gauntlet of the Twenty-Member Jury
+
+What followed was a demanding marathon of pitches and probing questions. Participants did not merely present theoretical solutions; they defended their architectures, codebases, hardware prototypes, and business feasibility before a distinguished 20-member jury comprised of senior academics, seasoned industry professionals, and domain experts. The evaluators critically weighed every submission on novelty, technical feasibility, operational sustainability, and long-term societal impact. Student teams faced sharp, constructive questioning that forced them to think beyond standard hackathon prototypes and consider real-world deployment challenges.
+
+The Unsung Heroes: E-Cell DYPIU Volunteers
+
+Behind the scenes, the student volunteers of E-Cell DYPIU kept the massive event moving with precision. From multi-track venue management across two major university locations to hospitality for visiting dignitaries, audio-visual technical support, and seamless jury logistics, the organizing team worked round-the-clock to ensure every single team had its rightful moment to shine on stage.
+
+Celebrating the Winners: Hardware and Software Standouts
+
+When the final evaluation rounds concluded, the results spoke for themselves, highlighting the immense depth of talent at DYPIU. In the Hardware category, Team HexaTech claimed 1st place with their standout embedded prototype, followed by Team Yantrix in 2nd place and Team SonarX in 3rd place. In the Software category, Team Hashira led the pack with an exceptional software solution to take 1st place, followed closely by Team VoidX in 2nd place and Team Fraq’D in 3rd place. The valedictory ceremony at the Shantai Auditorium honored the jury and celebrated the winning teams amidst roaring applause.
+
+Carrying the DYPIU Name to the National Stage
+
+While the internal round has concluded, for DYPIU’s innovators, this is only the beginning. The top 100 teams will now proudly carry the DYPIU name forward to the national level of the Smart India Hackathon. With ongoing guidance from CIIE and incubation mentorship from E-Cell DYPIU, these teams are gearing up to represent the university with pride and prove their mettle against the best young minds across India.`
   }
 ];
 
@@ -202,7 +234,7 @@ async function uploadBlogs() {
         category: blog.category,
         readTime: blog.readTime,
         tags: blog.tags,
-        images: [],
+        images: blog.images || [],
         date: blog.date,
         updatedAt: Timestamp.now(),
         published: true,
