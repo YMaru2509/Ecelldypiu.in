@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, User, Tag, ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { db } from '../firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const BlogDetail = () => {
   const { slug } = useParams();
@@ -18,14 +20,38 @@ const BlogDetail = () => {
   const fetchBlog = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/blog?slug=${slug}`);
-      const data = await response.json();
+      setError(null);
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Blog not found');
+      // Try API endpoint first
+      try {
+        const response = await fetch(`/api/blog?slug=${slug}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.blog) {
+            setBlog(data.blog);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API fetch failed, falling back to Firestore client:', apiErr);
       }
 
-      setBlog(data.blog);
+      // Direct Firestore client fallback
+      const q = query(
+        collection(db, 'BLOGS'),
+        where('slug', '==', slug),
+        where('published', '==', true)
+      );
+      const querySnap = await getDocs(q);
+
+      if (!querySnap.empty) {
+        const docSnap = querySnap.docs[0];
+        setBlog({ id: docSnap.id, ...docSnap.data() });
+        return;
+      }
+
+      throw new Error('Blog not found');
     } catch (err) {
       setError(err.message);
     } finally {

@@ -1,4 +1,4 @@
-﻿
+
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FunkyMarquee from '../components/FunkyMarquee';
+import { db } from '../firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const Blogs = () => {
   const [dynamicBlogs, setDynamicBlogs] = useState([]);
@@ -27,11 +29,30 @@ const Blogs = () => {
     try {
       const response = await fetch('/api/blog');
       const data = await response.json();
-      if (data.blogs) {
+      if (data.blogs && Array.isArray(data.blogs) && data.blogs.length > 0) {
         setDynamicBlogs(data.blogs);
+        setLoading(false);
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch blogs:', err);
+      console.warn('API fetch failed, falling back to Firestore client:', err);
+    }
+
+    try {
+      const q = query(collection(db, 'BLOGS'), where('published', '==', true));
+      const snap = await getDocs(q);
+      const blogsList = [];
+      snap.forEach((doc) => {
+        blogsList.push({ id: doc.id, ...doc.data() });
+      });
+      blogsList.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return bTime - aTime;
+      });
+      setDynamicBlogs(blogsList);
+    } catch (clientErr) {
+      console.error('Failed to fetch blogs from client Firestore:', clientErr);
     } finally {
       setLoading(false);
     }

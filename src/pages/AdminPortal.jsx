@@ -14,6 +14,8 @@ import HtmlCodeEditor from '../components/HtmlCodeEditor';
 import RecipientPicker from '../components/RecipientPicker';
 import MailProviderSelect from '../components/MailProviderSelect';
 import EmailPreviewFrame from '../components/EmailPreviewFrame';
+import { db } from '../firebaseConfig';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const AdminPortal = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -753,11 +755,30 @@ const AdminPortal = () => {
         try {
             const response = await fetch('/api/blog');
             const data = await response.json();
-            if (data.blogs) {
+            if (data.blogs && Array.isArray(data.blogs) && data.blogs.length > 0) {
                 setBlogs(data.blogs);
+                setLoadingBlogs(false);
+                return;
             }
         } catch (err) {
-            console.error('Failed to fetch blogs:', err);
+            console.warn('Failed to fetch blogs via API, falling back to client Firestore:', err);
+        }
+
+        try {
+            const q = query(collection(db, 'BLOGS'), where('published', '==', true));
+            const snap = await getDocs(q);
+            const blogsList = [];
+            snap.forEach((doc) => {
+                blogsList.push({ id: doc.id, ...doc.data() });
+            });
+            blogsList.sort((a, b) => {
+                const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+                const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+                return bTime - aTime;
+            });
+            setBlogs(blogsList);
+        } catch (clientErr) {
+            console.error('Failed to fetch blogs from client Firestore:', clientErr);
         } finally {
             setLoadingBlogs(false);
         }
