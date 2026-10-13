@@ -11,7 +11,10 @@ import {
   Palette, 
   Share2, 
   DollarSign, 
-  Award
+  Award,
+  Instagram,
+  ExternalLink,
+  Calendar
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -488,7 +491,7 @@ const MemberCard = ({ member, index }) => {
   }, [member.image]);
 
   // Get initials for fallback avatar
-  const getInitials = (name) => {
+  const getInitials = (name = '') => {
     return name
       .split(' ')
       .filter(Boolean)
@@ -533,6 +536,17 @@ const MemberCard = ({ member, index }) => {
               <Users className="w-5 h-5 text-brand-yellow opacity-40" />
             </div>
           )}
+          {member.instagramUrl && (
+            <a
+              href={member.instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute top-3 right-3 z-20 w-8 h-8 md:w-10 md:h-10 rounded-xl bg-pink-600/90 text-white flex items-center justify-center border border-white/40 hover:bg-pink-500 hover:scale-110 transition-all shadow-lg"
+              title="Instagram Profile"
+            >
+              <Instagram className="w-4 h-4 md:w-5 md:h-5" />
+            </a>
+          )}
         </div>
 
         {/* Info Banner at Bottom */}
@@ -544,6 +558,12 @@ const MemberCard = ({ member, index }) => {
             <span className="inline-block w-1.5 h-1.5 md:w-2 md:h-2 bg-brand-yellow rounded-full animate-pulse flex-shrink-0 mt-0.5" />
             <span className="line-clamp-2">{member.position}</span>
           </p>
+          {member.joiningDate && (
+            <p className="text-zinc-400 font-mono text-[9px] sm:text-xs flex items-center gap-1 mt-1 font-semibold">
+              <Calendar className="w-3 h-3 text-brand-yellow flex-shrink-0" />
+              <span>Joined {member.joiningDate}</span>
+            </p>
+          )}
         </div>
 
       </div>
@@ -551,24 +571,61 @@ const MemberCard = ({ member, index }) => {
   );
 };
 
+const staticImageMap = teamData.reduce((acc, m) => {
+  if (m.name && m.image) {
+    acc[m.name.toLowerCase().trim()] = m.image;
+  }
+  return acc;
+}, {});
+
 const Team = () => {
   const containerRef = useRef(null);
   const [selectedDept, setSelectedDept] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [teamMembers, setTeamMembers] = useState(teamData);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        const response = await fetch('/api/team');
+        const data = await response.json();
+        if (data.team && data.team.length > 0) {
+          const enriched = data.team.map((m) => ({
+            ...m,
+            image: (m.image && m.image.trim() && !m.image.includes('placeholder'))
+              ? m.image
+              : staticImageMap[(m.name || '').toLowerCase().trim()] || ''
+          }));
+
+          if (enriched.length < teamData.length) {
+            const dbNames = new Set(enriched.map((m) => (m.name || '').toLowerCase().trim()));
+            const missingStatic = teamData.filter((m) => !dbNames.has(m.name.toLowerCase().trim()));
+            setTeamMembers([...enriched, ...missingStatic]);
+          } else {
+            setTeamMembers(enriched);
+          }
+        }
+      } catch (err) {
+        console.warn('Falling back to default team members:', err);
+      }
+    };
+    fetchMembers();
+  }, []);
 
   // Filter members based on department and search query
   const filteredMembers = useMemo(() => {
-    return teamData.filter((member) => {
+    return teamMembers.filter((member) => {
       const matchesDept = selectedDept === 'all' || member.department === selectedDept;
       const query = searchQuery.toLowerCase().trim();
-      const matchesSearch =
-        !query ||
-        member.name.toLowerCase().includes(query) ||
-        member.position.toLowerCase().includes(query) ||
-        member.department.toLowerCase().includes(query);
-      return matchesDept && matchesSearch;
+      if (!query) return matchesDept;
+
+      const nameMatch = (member.name || '').toLowerCase().includes(query);
+      const posMatch = (member.position || '').toLowerCase().includes(query);
+      const deptMatch = (member.department || '').toLowerCase().includes(query);
+
+      return matchesDept && (nameMatch || posMatch || deptMatch);
     });
-  }, [selectedDept, searchQuery]);
+  }, [teamMembers, selectedDept, searchQuery]);
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black overflow-x-hidden" ref={containerRef}>
@@ -686,8 +743,8 @@ const Team = () => {
               {departments.map((dept) => {
                 const isSelected = selectedDept === dept.id;
                 const count = dept.id === 'all'
-                  ? teamData.length
-                  : teamData.filter(m => m.department === dept.id).length;
+                  ? teamMembers.length
+                  : teamMembers.filter(m => m.department === dept.id).length;
 
                 return (
                   <button
