@@ -3,6 +3,18 @@
 
 <head>
   <meta charset="UTF-8" />
+  <script>
+    (function () {
+      try {
+        const saved = localStorage.getItem("ecell-theme");
+        const preferred = window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+        const theme = saved === "light" || saved === "dark" ? saved : preferred;
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {}
+    })();
+  </script>
   <!-- Favicons -->
   <link rel="icon" type="image/png" href="/new-ecell-logo.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/new-ecell-logo.png" />
@@ -33,8 +45,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-B2UehCjA.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BzDfvnOg.css">
+  <script type="module" crossorigin src="/assets/index-CFyTZnlH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-EpugYJku.css">
 </head>
 
 <body>
