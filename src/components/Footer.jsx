@@ -46,7 +46,7 @@ const Footer = () => {
   // (kept here so Footer still renders correctly and values are centralized)
 
   return (
-    <footer className="bg-black text-white" style={{ backgroundColor: '#000000', color: '#ffffff' }}>
+    <footer className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <div className="container mx-auto px-4 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Logo and Description */}
@@ -57,9 +57,9 @@ const Footer = () => {
                 alt="E-Cell"
                 className="h-16 w-auto"
               />
-              <span className="text-white font-bold text-2xl tracking-wide">ECELL DYPIU</span>
+              <span className="text-[var(--text-primary)] font-bold text-2xl tracking-wide">ECELL DYPIU</span>
             </div>
-            <p className="text-gray-300 mb-6 max-w-md font-body">
+            <p className="text-[var(--text-secondary)] mb-6 max-w-md font-body">
               Fostering entrepreneurship and innovation at D Y Patil International University.
               Join us in building the next generation of entrepreneurs and innovators.
             </p>
@@ -71,9 +71,9 @@ const Footer = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={social.label}
-                  className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors duration-300"
+                  className="w-10 h-10 bg-[var(--bg-card)] rounded-lg flex items-center justify-center hover:bg-[var(--bg-hover)] transition-colors duration-300"
                 >
-                  <social.icon className="w-5 h-5 text-white" />
+                  <social.icon className="w-5 h-5 text-[var(--text-primary)]" />
                 </a>
               ))}
             </div>
@@ -87,7 +87,7 @@ const Footer = () => {
                 <li key={index}>
                   <Link
                     to={link.path}
-                    className="text-gray-300 hover:text-blue-400 transition-colors duration-300"
+                    className="text-[var(--text-secondary)] hover:text-brand-yellow transition-colors duration-300"
                   >
                     {link.name}
                   </Link>
@@ -97,7 +97,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/contact"
-                  className="text-gray-300 hover:text-purple-400 transition-colors duration-300"
+                  className="text-[var(--text-secondary)] hover:text-brand-yellow transition-colors duration-300"
                 >
                   Contact Us
                 </Link>
@@ -105,7 +105,7 @@ const Footer = () => {
               <li>
                 <Link
                   to="/apply"
-                  className="text-gray-300 hover:text-brand-yellow transition-colors duration-300"
+                  className="text-[var(--text-secondary)] hover:text-brand-yellow transition-colors duration-300"
                 >
                   Join the Team
                 </Link>
@@ -118,17 +118,17 @@ const Footer = () => {
             <h4 className="text-lg font-semibold mb-4">Contact Info</h4>
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
-                <MapPin className="w-5 h-5 text-blue-400 mt-1 flex-shrink-0" />
-                <p className="text-gray-300 text-sm">
+                <MapPin className="w-5 h-5 text-brand-yellow mt-1 flex-shrink-0" />
+                <p className="text-[var(--text-secondary)] text-sm">
                   D Y Patil International University,
                   Pune, Maharashtra, India
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <Mail className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                <Mail className="w-5 h-5 text-brand-yellow flex-shrink-0" />
                 <a
                   href="mailto:Ecell@dypiu.ac.in"
-                  className="text-gray-300 hover:text-purple-400 transition-colors duration-300"
+                  className="text-[var(--text-secondary)] hover:text-brand-yellow transition-colors duration-300"
                 >
                   Ecell@dypiu.ac.in
                 </a>
@@ -138,13 +138,13 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-gray-700 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-gray-400 text-sm">
+        <div className="border-t border-[var(--border-color)] mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+          <p className="text-[var(--text-muted)] text-sm">
             © {currentYear} E-Cell DYPIU. All rights reserved.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
-            <p className="text-gray-400 text-sm">
-              Made with ❤️ by <a href="https://www.linkedin.com/in/yash-kumar-tripathi-998457306/" target="_blank" rel="noopener noreferrer" className="text-brand-yellow hover:text-white transition-colors">Yash Tripathi</a>
+            <p className="text-[var(--text-muted)] text-sm">
+              Made with ❤️ by <a href="https://www.linkedin.com/in/yash-kumar-tripathi-998457306/" target="_blank" rel="noopener noreferrer" className="text-brand-yellow hover:text-[var(--text-primary)] transition-colors">Yash Tripathi</a>
             </p>
           </div>
         </div>

@@ -1849,7 +1849,7 @@ const AdminPortal = () => {
                         <button
                             type="submit"
                             disabled={loginLoading}
-                            className="w-full bg-brand-yellow text-black font-black py-4 rounded-lg uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full bg-brand-yellow text-[var(--text-on-brand)] font-black py-4 rounded-lg uppercase hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loginLoading ? (
                                 <>
@@ -1983,7 +1983,7 @@ const AdminPortal = () => {
                                 <button
                                     onClick={openSubscriberModal}
                                     disabled={loading}
-                                    className="w-full bg-brand-yellow text-black py-4 rounded-xl font-black uppercase text-lg flex items-center justify-center gap-3 hover:bg-white transition-colors disabled:opacity-50"
+                                    className="w-full bg-brand-yellow text-[var(--text-on-brand)] py-4 rounded-xl font-black uppercase text-lg flex items-center justify-center gap-3 hover:bg-white transition-colors disabled:opacity-50"
                                 >
                                     {loading ? (
                                         <>
@@ -2075,21 +2075,21 @@ const AdminPortal = () => {
                                 <div className="space-y-2 text-sm">
                                     <button
                                         onClick={() => { setActiveTab('create-blog'); setError(null); setResult(null); }}
-                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors text-left group"
+                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors text-left group"
                                     >
                                         <PlusCircle className="w-4 h-4 text-brand-yellow group-hover:text-black" />
                                         <span>Push New Blog</span>
                                     </button>
                                     <button
                                         onClick={() => { setActiveTab('manage-blogs'); setError(null); setResult(null); }}
-                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors text-left group"
+                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors text-left group"
                                     >
                                         <List className="w-4 h-4 text-brand-yellow group-hover:text-black" />
                                         <span>Manage Blogs</span>
                                     </button>
                                     <button
                                         onClick={() => { setActiveTab('notify'); setError(null); setResult(null); }}
-                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors text-left group"
+                                        className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors text-left group"
                                     >
                                         <Bell className="w-4 h-4 text-brand-yellow group-hover:text-black" />
                                         <span>Send Notification</span>
@@ -2160,7 +2160,7 @@ const AdminPortal = () => {
                                 </div>
                                 <button
                                     onClick={() => { setActiveTab('manage-events'); setError(null); setResult(null); }}
-                                    className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors text-left group"
+                                    className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors text-left group"
                                 >
                                     <List className="w-4 h-4 text-brand-yellow group-hover:text-black" />
                                     <span>Manage Events</span>
@@ -2229,7 +2229,7 @@ const AdminPortal = () => {
                                 </div>
                                 <button
                                     onClick={() => { setActiveTab('link-shortener'); setError(null); setResult(null); }}
-                                    className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors text-left group"
+                                    className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors text-left group"
                                 >
                                     <LinkIcon className="w-4 h-4 text-brand-yellow group-hover:text-black" />
                                     <span>Link Shortener</span>
@@ -2745,7 +2745,7 @@ More content..."
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-brand-yellow text-black text-xl font-black uppercase py-5 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-[4px_4px_0px_#fff]"
+                                className="w-full bg-brand-yellow text-[var(--text-on-brand)] text-xl font-black uppercase py-5 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-[4px_4px_0px_#fff]"
                             >
                                 {loading ? (
                                     <>
@@ -2784,7 +2784,7 @@ More content..."
                                 <button
                                     onClick={() => setBlogFilter('all')}
                                     className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${blogFilter === 'all'
-                                        ? 'bg-brand-yellow text-black'
+                                        ? 'bg-brand-yellow text-[var(--text-on-brand)]'
                                         : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
                                         }`}
                                 >
@@ -2862,7 +2862,7 @@ More content..."
                                                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                                                     <span className={`px-2 py-1 rounded text-xs font-bold ${blog.isLegacy
                                                         ? 'bg-zinc-700 text-gray-300'
-                                                        : 'bg-brand-yellow text-black'
+                                                        : 'bg-brand-yellow text-[var(--text-on-brand)]'
                                                         }`}>
                                                         {blog.category}
                                                     </span>
@@ -2901,7 +2901,7 @@ More content..."
                                                     href={`/blogs/${blog.slug}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="p-2 bg-zinc-800 text-gray-400 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors"
+                                                    className="p-2 bg-zinc-800 text-gray-400 rounded-lg hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors"
                                                     title="View"
                                                 >
                                                     <Eye className="w-5 h-5" />
@@ -3030,7 +3030,7 @@ More content..."
                                 <button
                                     onClick={openSubscriberModal}
                                     disabled={loading || !notifyData.title}
-                                    className="w-full bg-brand-yellow text-black text-xl font-black uppercase py-4 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl mt-4"
+                                    className="w-full bg-brand-yellow text-[var(--text-on-brand)] text-xl font-black uppercase py-4 border-4 border-black hover:bg-white transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl mt-4"
                                 >
                                     {loading ? (
                                         <>
@@ -3070,7 +3070,7 @@ More content..."
                                     key={filter}
                                     onClick={() => setCollabFilter(filter)}
                                     className={`px-6 py-2 rounded-full font-bold uppercase transition-all duration-300 ${collabFilter === filter
-                                        ? 'bg-brand-yellow text-black'
+                                        ? 'bg-brand-yellow text-[var(--text-on-brand)]'
                                         : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700 hover:text-white'
                                         }`}
                                 >
@@ -3205,7 +3205,7 @@ More content..."
                                 <button
                                     onClick={handleSaveCollabQuestions}
                                     disabled={loading || loadingCollabQuestions}
-                                    className="bg-brand-yellow text-black px-6 py-2 rounded-xl font-bold uppercase hover:bg-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className="bg-brand-yellow text-[var(--text-on-brand)] px-6 py-2 rounded-xl font-bold uppercase hover:bg-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckSquare className="w-4 h-4" />}
                                     Save Config
@@ -4370,7 +4370,7 @@ More content..."
                             <div className="flex gap-3">
                                 <button
                                     onClick={selectAllSubscribers}
-                                    className="px-4 py-2 bg-brand-yellow text-black font-bold text-sm rounded-lg hover:bg-white transition-colors flex items-center gap-2"
+                                    className="px-4 py-2 bg-brand-yellow text-[var(--text-on-brand)] font-bold text-sm rounded-lg hover:bg-white transition-colors flex items-center gap-2"
                                 >
                                     <CheckSquare className="w-4 h-4" />
                                     Select All
@@ -4435,7 +4435,7 @@ More content..."
                                         <div className="flex items-center gap-4">
                                             {/* Checkbox */}
                                             <div className={`w-6 h-6 rounded flex items-center justify-center ${selectedSubscribers.includes(subscriber.email)
-                                                ? 'bg-brand-yellow text-black'
+                                                ? 'bg-brand-yellow text-[var(--text-on-brand)]'
                                                 : 'bg-zinc-700 border border-zinc-600'
                                                 }`}>
                                                 {selectedSubscribers.includes(subscriber.email) && (
@@ -4493,7 +4493,7 @@ More content..."
                             <button
                                 onClick={handleSendNotification}
                                 disabled={selectedSubscribers.length === 0 || loading}
-                                className="flex-1 bg-brand-yellow text-black py-3 rounded-xl font-black uppercase flex items-center justify-center gap-3 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 bg-brand-yellow text-[var(--text-on-brand)] py-3 rounded-xl font-black uppercase flex items-center justify-center gap-3 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? (
                                     <>

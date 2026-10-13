@@ -236,7 +236,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
             <button
               type="button"
               onClick={() => setShowAIHub(true)}
-              className="flex items-center gap-3 bg-brand-yellow text-black px-6 py-2 rounded-full font-black uppercase hover:bg-white transition-all transform hover:scale-105 shadow-[4px_4px_0px_white]"
+              className="flex items-center gap-3 bg-brand-yellow text-[var(--text-on-brand)] px-6 py-2 rounded-full font-black uppercase hover:bg-white transition-all transform hover:scale-105 shadow-[4px_4px_0px_white]"
             >
               <Sparkles className="w-5 h-5" />
               Magic AI Assistant
@@ -304,7 +304,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
 
           {/* Highlights */}
           <EditorSection title="✨ Highlights" section="highlights" expanded={expanded} onToggle={toggleSection}>
-            <button type="button" onClick={addHighlight} className="px-4 py-2 bg-brand-yellow text-black rounded font-bold mb-4">+ Add Highlight</button>
+            <button type="button" onClick={addHighlight} className="px-4 py-2 bg-brand-yellow text-[var(--text-on-brand)] rounded font-bold mb-4">+ Add Highlight</button>
             <div className="space-y-4">
               {form.highlights.map((h, idx) => (
                 <div key={idx} className="bg-zinc-800 p-4 rounded border border-zinc-700 relative">
@@ -321,7 +321,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
 
           {/* Zones */}
           <EditorSection title="🎯 Zones" section="zones" expanded={expanded} onToggle={toggleSection}>
-            <button type="button" onClick={addZone} className="px-4 py-2 bg-brand-yellow text-black rounded font-bold mb-4">+ Add Zone</button>
+            <button type="button" onClick={addZone} className="px-4 py-2 bg-brand-yellow text-[var(--text-on-brand)] rounded font-bold mb-4">+ Add Zone</button>
             <div className="space-y-4">
               {form.zones.map((z, idx) => (
                 <div key={idx} className="bg-zinc-800 p-4 rounded border border-zinc-700 relative">
@@ -347,7 +347,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
                 <div key={day}>
                   <div className="flex justify-between items-center mb-3">
                     <h4 className="font-bold text-lg">{day === 'day1Night' ? 'Day 1 Night' : 'Day 2'}</h4>
-                    <button type="button" onClick={() => addScheduleItem(day)} className="px-3 py-1 bg-brand-yellow text-black rounded text-sm font-bold">+ Add</button>
+                    <button type="button" onClick={() => addScheduleItem(day)} className="px-3 py-1 bg-brand-yellow text-[var(--text-on-brand)] rounded text-sm font-bold">+ Add</button>
                   </div>
                   <div className="space-y-2">
                     {(form.schedule[day] || []).map((item, idx) => (
@@ -367,7 +367,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
 
           {/* Workshops */}
           <EditorSection title="🎓 Workshops" section="workshops" expanded={expanded} onToggle={toggleSection}>
-            <button type="button" onClick={addWorkshop} className="px-4 py-2 bg-brand-yellow text-black rounded font-bold mb-4">+ Add Workshop</button>
+            <button type="button" onClick={addWorkshop} className="px-4 py-2 bg-brand-yellow text-[var(--text-on-brand)] rounded font-bold mb-4">+ Add Workshop</button>
             <div className="space-y-2">
               {form.workshops.map((w, idx) => (
                 <div key={idx} className="flex gap-2">
@@ -382,7 +382,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
 
           {/* Awards */}
           <EditorSection title="🏆 Awards" section="awards" expanded={expanded} onToggle={toggleSection}>
-            <button type="button" onClick={addAward} className="px-4 py-2 bg-brand-yellow text-black rounded font-bold mb-4">+ Add Award</button>
+            <button type="button" onClick={addAward} className="px-4 py-2 bg-brand-yellow text-[var(--text-on-brand)] rounded font-bold mb-4">+ Add Award</button>
             <div className="space-y-3">
               {form.awards.map((a, idx) => (
                 <div key={idx} className="flex gap-2 relative bg-zinc-800 p-3 rounded border border-zinc-700">
@@ -398,7 +398,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
         </div>
 
         <div className="flex gap-4 p-8 border-t border-zinc-700 flex-shrink-0 bg-black">
-          <button type="submit" disabled={loading} className="px-8 py-4 bg-brand-yellow text-black font-black text-lg rounded-lg hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2">
+          <button type="submit" disabled={loading} className="px-8 py-4 bg-brand-yellow text-[var(--text-on-brand)] font-black text-lg rounded-lg hover:bg-white transition-colors disabled:opacity-50 flex items-center gap-2">
             {loading ? '⏳ Saving...' : '✓ Save Event'}
           </button>
           <button type="button" onClick={onClose} className="px-8 py-4 bg-zinc-800 text-white font-bold text-lg rounded-lg hover:bg-zinc-700 transition-colors">Cancel</button>
@@ -447,7 +447,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
                     <button
                       type="button"
                       onClick={() => setAiModel(AI_MODELS.FLASH)}
-                      className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${aiModel === AI_MODELS.FLASH ? 'bg-brand-yellow text-black' : 'text-gray-500 hover:text-white'}`}
+                      className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${aiModel === AI_MODELS.FLASH ? 'bg-brand-yellow text-[var(--text-on-brand)]' : 'text-gray-500 hover:text-white'}`}
                     >
                       FAST
                     </button>
@@ -506,7 +506,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
                   }
                 }}
                 disabled={aiLoading}
-                className="w-full bg-black border-4 border-brand-yellow text-brand-yellow py-5 rounded-2xl font-black text-xl uppercase flex items-center justify-center gap-3 hover:bg-brand-yellow hover:text-black transition-all group"
+                className="w-full bg-black border-4 border-brand-yellow text-brand-yellow py-5 rounded-2xl font-black text-xl uppercase flex items-center justify-center gap-3 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-all group"
               >
                 {aiLoading ? (
                   <>

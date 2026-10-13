@@ -57,7 +57,7 @@ const InnovateForImpact = () => {
     };
 
     return (
-        <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans">
+        <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans">
             {/* Hero Section */}
             <section className="min-h-[80vh] flex flex-col justify-center pt-32 pb-12 relative border-b-4 border-white bg-black">
                 <div className="container mx-auto px-4 relative z-10">
@@ -75,7 +75,7 @@ const InnovateForImpact = () => {
                         className="grid lg:grid-cols-2 gap-12 items-center"
                     >
                         <div>
-                            <div className="inline-block bg-brand-yellow text-black font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
+                            <div className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
                                 BIG ANNOUNCEMENT
                             </div>
                             <h1 className="text-5xl md:text-7xl lg:text-8xl font-black mb-4 uppercase tracking-tighter leading-[0.9]">
@@ -92,7 +92,7 @@ const InnovateForImpact = () => {
                             <div className="flex flex-wrap gap-6 mb-12 items-center">
                                 <button
                                     onClick={() => document.getElementById('hall-of-fame-results')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="bg-brand-yellow text-black text-xl md:text-2xl font-black px-8 py-4 rounded-full border-4 border-white transform hover:-translate-y-1 transition-all shadow-[8px_8px_0px_white] hover:shadow-[12px_12px_0px_white] flex items-center gap-3 group"
+                                    className="bg-brand-yellow text-[var(--text-on-brand)] text-xl md:text-2xl font-black px-8 py-4 rounded-full border-4 border-white transform hover:-translate-y-1 transition-all shadow-[8px_8px_0px_white] hover:shadow-[12px_12px_0px_white] flex items-center gap-3 group"
                                 >
                                     <Trophy className="w-6 h-6 md:w-8 md:h-8 group-hover:scale-110 transition-transform" />
                                     WINNERS ANNOUNCED
@@ -166,7 +166,7 @@ const InnovateForImpact = () => {
             </section>
 
             {/* Highlights / Why Join */}
-            <section className="py-20 border-b-4 border-white bg-brand-yellow text-black relative overflow-hidden">
+            <section className="py-20 border-b-4 border-white bg-brand-yellow text-[var(--text-on-brand)] relative overflow-hidden">
                 <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20"></div>
                 <div className="container mx-auto px-4 relative z-10">
                     <div className="max-w-4xl mx-auto">

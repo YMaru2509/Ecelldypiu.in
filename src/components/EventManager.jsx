@@ -111,7 +111,7 @@ const EventManager = ({ adminKey }) => {
                 </div>
                 <button
                     onClick={() => setShowEventStartModal(true)}
-                    className="bg-brand-yellow text-black font-black uppercase px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-white transition-colors"
+                    className="bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-white transition-colors"
                 >
                     <Plus className="w-5 h-5" />
                     Create New Event

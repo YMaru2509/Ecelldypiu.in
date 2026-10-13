@@ -116,7 +116,7 @@ const FinBiz = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans">
       {/* Hero Section */}
       <section className="min-h-[60vh] md:min-h-screen flex flex-col justify-center pt-32 pb-12 relative border-b-4 border-white bg-black">
         <div className="container mx-auto px-4 relative z-10">
@@ -133,7 +133,7 @@ const FinBiz = () => {
             transition={{ duration: 0.8 }}
             className="max-w-6xl"
           >
-            <div className="inline-block bg-brand-yellow text-black font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
+            <div className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
               UPCOMING ... JUST KIDDING, COMPLETED
             </div>
             <h1 className="text-6xl md:text-8xl lg:text-[8rem] font-black mb-8 uppercase tracking-tighter leading-[0.9] break-words">
@@ -172,7 +172,7 @@ const FinBiz = () => {
       </section>
 
       {/* Registration CTA - Brutalist Style */}
-      <section id="registration" className="py-20 border-b-4 border-white bg-brand-yellow text-black overflow-hidden relative">
+      <section id="registration" className="py-20 border-b-4 border-white bg-brand-yellow text-[var(--text-on-brand)] overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-full bg-[url('/noise.svg')] opacity-10 pointer-events-none"></div>
         <div className="container mx-auto px-4 relative z-10 text-center">
           <h2 className="text-5xl md:text-7xl font-black mb-8 uppercase tracking-tighter">

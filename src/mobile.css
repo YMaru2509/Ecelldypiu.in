@@ -46,7 +46,7 @@
     position: relative;
     width: 44px;
     height: 44px;
-    background: rgba(255, 255, 255, 0.9);
+    background: color-mix(in srgb, var(--bg-card) 90%, transparent);
     border-radius: 8px;
     border: none;
     cursor: pointer;
@@ -59,7 +59,7 @@
   }
 
   .hamburger-btn:hover {
-    background: rgba(255, 255, 255, 1);
+    background: var(--bg-card);
     transform: scale(1.05);
   }
 
@@ -67,7 +67,7 @@
   .hamburger-line {
     width: 20px;
     height: 2px;
-    background-color: #000;
+    background-color: var(--text-primary);
     border-radius: 1px;
     transition: all 0.3s ease;
   }
@@ -117,7 +117,7 @@
     position: fixed;
     inset: 0;
     z-index: 60;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: color-mix(in srgb, var(--bg-primary) 80%, transparent);
     backdrop-filter: blur(12px);
     display: flex;
     flex-direction: column;
@@ -128,25 +128,25 @@
 
   /* Header Card (Logo + Close) */
   .mobile-header-card {
-    background-color: #18181b;
-    border: 1px solid #27272a;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 1.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 1rem 1.5rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-md);
   }
 
   /* Links Card */
   .mobile-links-card {
-    background-color: #18181b;
-    border: 1px solid #27272a;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 1.5rem;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
   }
 
   .mobile-nav-item {
@@ -154,11 +154,11 @@
     justify-content: space-between;
     align-items: center;
     padding: 1.25rem 1.5rem;
-    color: white;
+    color: var(--text-primary);
     font-size: 1.25rem;
     font-weight: 700;
     text-transform: uppercase;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid var(--border-color);
     transition: all 0.2s ease;
   }
 
@@ -167,12 +167,12 @@
   }
 
   .mobile-nav-item.active {
-    color: #FFB22C;
-    background-color: rgba(255, 178, 44, 0.05);
+    color: var(--primary-color);
+    background-color: color-mix(in srgb, var(--primary-color) 5%, transparent);
   }
 
   .mobile-nav-item:hover {
-    background-color: #27272a;
+    background-color: var(--bg-hover);
     padding-left: 2rem;
     /* Removed color change to keep inactive items white */
   }
@@ -182,7 +182,7 @@
     margin-top: auto;
     border-radius: 1.5rem;
     overflow: hidden;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
   }
 
   .mobile-contact-btn {
@@ -192,8 +192,8 @@
     gap: 0.5rem;
     width: 100%;
     padding: 1.25rem;
-    background-color: #FFB22C;
-    color: black;
+    background-color: var(--primary-color);
+    color: var(--text-on-brand);
     font-weight: 900;
     font-size: 1.25rem;
     text-transform: uppercase;
@@ -201,6 +201,6 @@
   }
 
   .mobile-contact-btn:hover {
-    background-color: white;
+    background-color: var(--bg-hover);
   }
 }

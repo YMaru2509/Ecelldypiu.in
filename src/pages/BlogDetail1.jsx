@@ -24,7 +24,7 @@ We also share practical insights on idea validation, building minimum viable pro
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans pt-32 pb-20">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans pt-32 pb-20">
       <div className="container mx-auto px-4 max-w-4xl">
         <Link
           to="/blogs"

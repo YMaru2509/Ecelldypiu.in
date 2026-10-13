@@ -71,7 +71,7 @@ We believe these connections will pave the way for joint workshops, mentorship p
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-black font-sans pt-32 pb-20">
+    <div className="min-h-screen bg-black text-white selection:bg-brand-yellow selection:text-[var(--text-on-brand)] font-sans pt-32 pb-20">
       <div className="container mx-auto px-4 max-w-4xl">
         <Link
           to="/blogs"
@@ -121,19 +121,19 @@ We believe these connections will pave the way for joint workshops, mentorship p
                 />
               </div>
 
-              <div className="absolute bottom-4 right-4 bg-brand-yellow text-black font-black px-3 py-1 text-sm border-2 border-black shadow-[4px_4px_0px_black]">
+              <div className="absolute bottom-4 right-4 bg-brand-yellow text-[var(--text-on-brand)] font-black px-3 py-1 text-sm border-2 border-black shadow-[4px_4px_0px_black]">
                 {currentImageIndex + 1} / {images.length}
               </div>
 
               <button
                 onClick={() => setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black text-white p-2 rounded-full border-2 border-white hover:bg-brand-yellow hover:text-black transition-colors opacity-0 group-hover:opacity-100"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black text-white p-2 rounded-full border-2 border-white hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors opacity-0 group-hover:opacity-100"
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
               <button
                 onClick={() => setCurrentImageIndex((prev) => (prev + 1) % images.length)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black text-white p-2 rounded-full border-2 border-white hover:bg-brand-yellow hover:text-black transition-colors opacity-0 group-hover:opacity-100"
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black text-white p-2 rounded-full border-2 border-white hover:bg-brand-yellow hover:text-[var(--text-on-brand)] transition-colors opacity-0 group-hover:opacity-100"
               >
                 <ArrowLeft className="w-6 h-6 rotate-180" />
               </button>

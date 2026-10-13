@@ -243,7 +243,7 @@ const GetCertificate = () => {
                     <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                     <h2 className="text-2xl font-black uppercase mb-4">Certificate Not Available</h2>
                     <p className="text-gray-400 mb-8">{error}</p>
-                    <Link to="/" className="inline-flex items-center gap-2 bg-brand-yellow text-black font-black px-6 py-3 rounded-full hover:scale-105 transition-transform">
+                    <Link to="/" className="inline-flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] font-black px-6 py-3 rounded-full hover:scale-105 transition-transform">
                         <ArrowLeft className="w-5 h-5" />
                         Back to Home
                     </Link>
@@ -258,7 +258,7 @@ const GetCertificate = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-black text-white font-sans selection:bg-brand-yellow selection:text-black">
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-brand-yellow selection:text-[var(--text-on-brand)]">
             {/* Header */}
             <section className="pt-32 pb-8 px-4 border-b-4 border-white/10">
                 <div className="container mx-auto max-w-4xl">
@@ -268,7 +268,7 @@ const GetCertificate = () => {
                     </Link>
 
                     <div className="text-center">
-                        <div className="inline-block bg-brand-yellow text-black font-black px-4 py-1 mb-4 text-sm transform -rotate-1 rounded-sm uppercase tracking-widest">
+                        <div className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-4 text-sm transform -rotate-1 rounded-sm uppercase tracking-widest">
                             Get Your Certificate
                         </div>
                         <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-2">
@@ -284,7 +284,7 @@ const GetCertificate = () => {
                     {steps.map((s, i) => (
                         <div key={s.num} className="flex items-center">
                             <div className={`flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full border-2 transition-all duration-300 ${step >= s.num
-                                ? 'bg-brand-yellow border-brand-yellow text-black'
+                                ? 'bg-brand-yellow border-brand-yellow text-[var(--text-on-brand)]'
                                 : 'border-zinc-700 text-zinc-600'
                                 }`}>
                                 {step > s.num ? (
@@ -346,7 +346,7 @@ const GetCertificate = () => {
                                 <button
                                     type="submit"
                                     disabled={stepLoading || !identifier.trim()}
-                                    className="w-full bg-brand-yellow text-black font-black text-lg py-4 rounded-xl border-4 border-white hover:shadow-[6px_6px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-wider"
+                                    className="w-full bg-brand-yellow text-[var(--text-on-brand)] font-black text-lg py-4 rounded-xl border-4 border-white hover:shadow-[6px_6px_0px_white] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-wider"
                                 >
                                     {stepLoading ? (
                                         <><Loader2 className="w-5 h-5 animate-spin" /> Searching...</>
@@ -461,7 +461,7 @@ const GetCertificate = () => {
                                 {certificateReady && (
                                     <button
                                         onClick={handleDownload}
-                                        className="bg-brand-yellow text-black font-black text-xl py-4 px-8 rounded-full border-4 border-white hover:shadow-[8px_8px_0px_white] transition-all flex items-center gap-3 uppercase tracking-wider group"
+                                        className="bg-brand-yellow text-[var(--text-on-brand)] font-black text-xl py-4 px-8 rounded-full border-4 border-white hover:shadow-[8px_8px_0px_white] transition-all flex items-center gap-3 uppercase tracking-wider group"
                                     >
                                         <Download className="w-6 h-6 group-hover:animate-bounce" />
                                         Download
@@ -529,7 +529,7 @@ const GetCertificate = () => {
                                     {/* Step 1 */}
                                     <div className="bg-black/50 p-4 rounded-xl border border-zinc-800">
                                         <div className="flex items-center gap-3 mb-2">
-                                            <div className="w-6 h-6 rounded-full bg-brand-yellow text-black font-bold flex items-center justify-center text-sm">1</div>
+                                            <div className="w-6 h-6 rounded-full bg-brand-yellow text-[var(--text-on-brand)] font-bold flex items-center justify-center text-sm">1</div>
                                             <h4 className="font-bold text-white">Download Certificate</h4>
                                         </div>
                                         <p className="text-zinc-400 text-sm mb-3 pl-9">Save the image to your device first.</p>

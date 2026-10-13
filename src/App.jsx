@@ -52,7 +52,7 @@ function App() {
           <Route
             path="/*"
             element={
-              <div className="App font-sans selection:bg-brand-yellow selection:text-black">
+              <div className="App font-sans selection:bg-brand-yellow selection:text-[var(--text-on-brand)]">
                 <Navbar />
                 <main>
                   <Routes>
