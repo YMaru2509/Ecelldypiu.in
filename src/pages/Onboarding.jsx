@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, ArrowRight, ArrowLeft, Check, Camera, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import { resizeImageWithBudget } from '../utils/imageResize';
 
 const PROGRAM_GROUPS = [
     { school: 'School of Commerce and Management (SoCM)', programs: ['BBA (Hons.)', 'M.B.A. - Digital Business', 'M.B.A. - Executive'] },
@@ -16,10 +17,6 @@ const PROGRAM_GROUPS = [
     { school: 'Centre for Interdisciplinary Studies and Research', programs: ['PhD', 'Postdoctoral Research'] },
 ];
 const YEAR_OPTIONS = ['1st', '2nd', '3rd', '4th'];
-// Firestore caps a whole document at 1MiB including every other field on the
-// member doc, so the avatar (already base64-encoded, ~37% bigger than raw
-// bytes) gets a conservative budget, not the full 1MiB.
-const MAX_PHOTO_DATA_URL_LENGTH = 700 * 1024;
 
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
@@ -49,26 +46,6 @@ function parseEventDateString(raw) {
     }
     const fallback = new Date(cleaned);
     return isNaN(fallback.getTime()) ? null : toDateOnlyString(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
-}
-
-function resizeImageToDataUrl(file, maxDim = 320) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const reader = new FileReader();
-        reader.onload = () => { img.src = reader.result; };
-        reader.onerror = () => reject(new Error('Failed to read image file'));
-        img.onload = () => {
-            const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.round(img.width * scale);
-            canvas.height = Math.round(img.height * scale);
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', 0.82));
-        };
-        img.onerror = () => reject(new Error('Failed to load image'));
-        reader.readAsDataURL(file);
-    });
 }
 
 const MultiSelectEvents = ({ events, selected, onToggle }) => (
@@ -188,18 +165,9 @@ const Onboarding = () => {
         if (!file) return;
         setPhotoError('');
         try {
-            let dataUrl = await resizeImageToDataUrl(file, 320);
-            if (dataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
-                // Retry once, smaller and more compressed, before giving up.
-                dataUrl = await resizeImageToDataUrl(file, 220);
-            }
-            if (dataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
-                setPhotoError('Photo is too large even after compression — try a different image.');
-                return;
-            }
-            setPhotoDataUrl(dataUrl);
-        } catch {
-            setPhotoError('Could not process that image. Try a different file.');
+            setPhotoDataUrl(await resizeImageWithBudget(file));
+        } catch (err) {
+            setPhotoError(err.message || 'Could not process that image. Try a different file.');
         }
     };
 

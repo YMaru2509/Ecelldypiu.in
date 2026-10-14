@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Users, LayoutDashboard, LogOut, ClipboardCheck, Layers } from 'lucide-react';
+import { Shield, Users, UserRound, LayoutDashboard, LogOut, ClipboardCheck, Layers } from 'lucide-react';
 import { adminLogout } from '../../utils/adminAuth';
 
 const NAV_ITEMS = [
     { key: 'dashboard', label: 'Dashboard', path: '/panel', icon: LayoutDashboard },
-    { key: 'users', label: 'Users & Roles', path: '/panel/users', icon: Users },
+    { key: 'team', label: 'Team Members', path: '/panel/team', icon: Users },
+    { key: 'members', label: 'Members', path: '/panel/members', icon: UserRound },
     { key: 'attendance-queue', label: 'Attendance Approvals', path: '/panel/attendance', icon: ClipboardCheck },
     { key: 'verticals', label: 'E-Cell Verticals', path: '/panel/verticals', icon: Layers },
 ];
@@ -19,7 +20,7 @@ const PanelShell = ({ children }) => {
     };
 
     return (
-        <div className="min-h-screen bg-black text-white pt-28 pb-12">
+        <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] pt-28 pb-12">
             <div className="container mx-auto px-4 flex flex-col md:flex-row gap-6">
                 <aside className="md:w-64 flex-shrink-0">
                     <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-4 md:sticky md:top-28">

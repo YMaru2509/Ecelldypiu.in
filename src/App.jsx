@@ -40,6 +40,7 @@ import Onboarding from './pages/Onboarding';
 import SetNewPassword from './pages/SetNewPassword';
 import PanelHome from './pages/Panel/PanelHome';
 import UsersRoles from './pages/Panel/UsersRoles';
+import Members from './pages/Panel/Members';
 import AttendanceQueue from './pages/Panel/AttendanceQueue';
 import Verticals from './pages/Panel/Verticals';
 import AttendanceRequestForm from './pages/AttendanceRequestForm';
@@ -127,10 +128,18 @@ function App() {
                       }
                     />
                     <Route
-                      path="/panel/users"
+                      path="/panel/team"
                       element={
                         <RequireAdminKey>
                           <UsersRoles />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/panel/members"
+                      element={
+                        <RequireAdminKey>
+                          <Members />
                         </RequireAdminKey>
                       }
                     />

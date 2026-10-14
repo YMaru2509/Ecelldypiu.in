@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Loader2, Save, ShieldCheck, UserPlus, UserMinus, UserCheck2, History, Ban, Search, X, Settings2, Upload, GripVertical, Award, CalendarDays, Globe } from 'lucide-react';
 import PanelShell from './PanelShell';
 import MailProviderSelect from '../../components/MailProviderSelect';
+import RemoveMemberFlow from './RemoveMemberFlow';
 import { MODULES, PERMISSION_LEVELS, isSystemOwner } from '../../utils/rbac';
 import { adminAuthHeaders } from '../../utils/adminAuth';
 
@@ -227,77 +228,15 @@ const InviteMemberForm = ({ onInvited }) => {
     );
 };
 
-const RemoveMemberFlow = ({ member, onDone }) => {
-    const [mode, setMode] = useState(null); // 'kick' | 'leave'
-    const [reason, setReason] = useState('');
-    const [leftAt, setLeftAt] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-
-    const submit = async () => {
-        setLoading(true);
-        setError('');
-        try {
-            const action = mode === 'kick' ? 'kick' : 'mark-left';
-            const body = mode === 'kick' ? { uid: member.uid, reason } : { uid: member.uid, leftAt };
-            const res = await fetch(`/api/panel-users?action=${action}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
-                body: JSON.stringify(body),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to update member');
-            onDone();
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (!mode) {
-        return (
-            <div className="mt-3 p-4 bg-black/40 border-2 border-dashed border-zinc-700 rounded-xl">
-                <p className="text-xs font-bold uppercase text-[var(--text-secondary)] mb-3">Is this member being kicked, or are they leaving E-Cell?</p>
-                <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setMode('kick')} className="px-3 py-1.5 rounded-lg text-xs font-black uppercase bg-[var(--danger-color)] text-white">Kicked</button>
-                    <button type="button" onClick={() => setMode('leave')} className="px-3 py-1.5 rounded-lg text-xs font-black uppercase bg-zinc-700 text-white">Leaving</button>
-                    <button type="button" onClick={onDone} className="px-3 py-1.5 rounded-lg text-xs font-black uppercase text-[var(--text-secondary)]">Cancel</button>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="mt-3 p-4 bg-black/40 border-2 border-dashed border-zinc-700 rounded-xl space-y-3">
-            {error && <p className="text-xs font-bold text-[var(--danger-color)]">{error}</p>}
-            {mode === 'kick' ? (
-                <div>
-                    <label className="block text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">Reason (required)</label>
-                    <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows="2"
-                        className="w-full bg-black border-2 border-zinc-700 p-2 text-white rounded-lg text-xs resize-none" />
-                </div>
-            ) : (
-                <div>
-                    <label className="block text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">Ending date (required)</label>
-                    <input type="date" value={leftAt} onChange={(e) => setLeftAt(e.target.value)} max={new Date().toISOString().split('T')[0]}
-                        className="w-full bg-black border-2 border-zinc-700 p-2 text-white rounded-lg text-xs" />
-                </div>
-            )}
-            <div className="flex gap-2">
-                <button type="button" disabled={loading || (mode === 'kick' ? !reason.trim() : !leftAt)} onClick={submit}
-                    className="flex items-center gap-1 bg-[var(--danger-color)] text-white px-3 py-1.5 rounded-lg text-xs font-black uppercase disabled:opacity-50">
-                    {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Confirm
-                </button>
-                <button type="button" onClick={onDone} className="px-3 py-1.5 rounded-lg text-xs font-black uppercase text-[var(--text-secondary)]">Cancel</button>
-            </div>
-        </div>
-    );
-};
-
 const fmtDate = (value) => {
     if (!value) return '';
-    const d = value?.toDate ? value.toDate() : new Date(value);
+    // A Firestore Timestamp survives the API's JSON response as a plain
+    // { _seconds, _nanoseconds } object, not a Date or a .toDate()-capable
+    // instance — new Date(value) silently produces an Invalid Date for that
+    // shape, so it needs its own branch.
+    const d = value?.toDate ? value.toDate()
+        : (value._seconds || value.seconds) ? new Date((value._seconds ?? value.seconds) * 1000)
+            : new Date(value);
     return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
@@ -745,7 +684,9 @@ const UsersRoles = () => {
             ]);
             const data = await mRes.json();
             if (!mRes.ok) throw new Error(data.error || 'Failed to load members');
-            setMembers(data.members);
+            // Team page only — regular students who just registered (memberType
+            // 'normal_member') live on the separate Members page instead.
+            setMembers((data.members || []).filter((m) => m.memberType !== 'normal_member'));
             const vData = await vRes.json();
             if (vRes.ok) setVerticals(vData.verticals || []);
             const eData = await eRes.json();
@@ -783,7 +724,7 @@ const UsersRoles = () => {
     return (
         <PanelShell>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
-                <h1 className="text-2xl md:text-3xl font-black uppercase">Users & Roles</h1>
+                <h1 className="text-2xl md:text-3xl font-black uppercase">Team Members</h1>
                 <div className="flex items-center gap-2">
                     <button
                         type="button"

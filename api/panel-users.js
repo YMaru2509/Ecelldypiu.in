@@ -56,6 +56,7 @@ export default async function handler(req, res) {
             if (action === 'kick') return await handleKick(req, res);
             if (action === 'unban') return await handleUnban(req, res);
             if (action === 'mark-left') return await handleMarkLeft(req, res);
+            if (action === 'delete') return await handleDeletePermanently(req, res);
             if (action === 'reorder') return await handleReorder(req, res);
             if (action === 'set-roster-live') return await handleSetRosterLive(req, res);
             return await handleUpdateAccess(req, res);
@@ -92,6 +93,7 @@ async function handleList(req, res) {
             year: data.year || '',
             bio: data.bio || '',
             ecellJoinDate: data.ecellJoinDate || null,
+            joinedAt: data.joinedAt || null,
             eventsAttended: Array.isArray(data.eventsAttended) ? data.eventsAttended : [],
             certificatesAsOrganiser: Array.isArray(data.certificatesAsOrganiser) ? data.certificatesAsOrganiser : [],
             certificatesAsParticipant: Array.isArray(data.certificatesAsParticipant) ? data.certificatesAsParticipant : [],
@@ -366,6 +368,44 @@ async function handleMarkLeft(req, res) {
     });
 
     return res.status(200).json({ success: true, durationDays });
+}
+
+// "Other" in the removal flow — permanently wipes the account instead of
+// banning (kick) or marking past (leave). Deliberately held to system_owner
+// only (stricter than the 'users:manage' bar everywhere else in this file):
+// unlike kick/leave, there is no undo and nothing left to look at afterward.
+// The audit log keeps only the uid for admin accountability, not the
+// member's name/email/profile data — that's what "no record" means here.
+async function handleDeletePermanently(req, res) {
+    const caller = await requireSystemOwner(req);
+    const { uid } = req.body || {};
+    if (!uid) return res.status(400).json({ error: 'Target uid is required' });
+    if (uid === caller.uid) return res.status(400).json({ error: "You can't remove your own account" });
+    if (PERMANENT_SYSTEM_OWNER_UIDS.includes(uid)) {
+        return res.status(403).json({ error: 'System owner accounts can never be removed, by anyone' });
+    }
+
+    const targetRef = db.collection('members').doc(uid);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) return res.status(404).json({ error: 'Member not found' });
+
+    await targetRef.delete();
+    await auth.deleteUser(uid).catch((err) => {
+        // Firestore doc is already gone; don't fail the request over an auth-side
+        // cleanup issue (e.g. the auth user was already removed separately).
+        console.error(`handleDeletePermanently: auth.deleteUser(${uid}) failed: ${err.message}`);
+    });
+
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: 'system_owner',
+        action: 'delete_member_permanently',
+        targetType: 'member',
+        targetId: uid,
+        metadata: {},
+    });
+
+    return res.status(200).json({ success: true });
 }
 
 async function handleUpdateAccess(req, res) {

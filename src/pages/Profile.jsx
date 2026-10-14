@@ -1,12 +1,13 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { getMembershipDuration, getMilestone } from '../utils/membershipDuration';
 import { renderCertificateToCanvas, downloadCanvasAsPng, memberToFieldValues, appreciationFieldValues } from '../utils/certificateCanvas';
+import { resizeImageWithBudget } from '../utils/imageResize';
 import {
     User, Phone, GraduationCap, Calendar, Building, Edit2, LogOut,
     CheckCircle2, Award, CalendarDays, Sparkles, Clock, Save, X, Loader2,
-    AlertCircle, ArrowRight, History
+    AlertCircle, ArrowRight, History, Camera
 } from 'lucide-react';
 
 const PROGRAM_GROUPS = [
@@ -98,6 +99,7 @@ const YEAR_OPTIONS = ['1st', '2nd', '3rd', '4th'];
 const Profile = () => {
     const { currentUser, userProfile, logout, updateProfileData } = useAuth();
     const navigate = useNavigate();
+    const fileInputRef = useRef(null);
 
     // Inline edit state
     const [isEditing, setIsEditing] = useState(false);
@@ -108,6 +110,8 @@ const Profile = () => {
         year: '1st',
         bio: ''
     });
+    const [editPhotoDataUrl, setEditPhotoDataUrl] = useState('');
+    const [photoError, setPhotoError] = useState('');
 
     const [saving, setSaving] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState('');
@@ -217,9 +221,22 @@ const Profile = () => {
             year: userProfile?.year || '1st',
             bio: userProfile?.bio || ''
         });
+        setEditPhotoDataUrl('');
+        setPhotoError('');
         setIsEditing(true);
         setSaveSuccess('');
         setSaveError('');
+    };
+
+    const handlePhotoChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setPhotoError('');
+        try {
+            setEditPhotoDataUrl(await resizeImageWithBudget(file));
+        } catch (err) {
+            setPhotoError(err.message || 'Could not process that image. Try a different file.');
+        }
     };
 
     const handleSaveProfile = async (e) => {
@@ -239,12 +256,15 @@ const Profile = () => {
         }
 
         try {
-            await updateProfileData({
+            const payload = {
                 phone: editForm.phone.replace(/\D/g, ''),
                 branch: finalBranch,
                 year: editForm.year,
                 bio: editForm.bio.trim()
-            });
+            };
+            if (editPhotoDataUrl) payload.avatarUrl = editPhotoDataUrl;
+
+            await updateProfileData(payload);
 
             setSaveSuccess('Profile updated successfully!');
             setIsEditing(false);
@@ -343,7 +363,7 @@ const Profile = () => {
                                 ) : (
                                     <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-yellow/10 border border-brand-yellow/50 rounded-full text-brand-yellow font-bold text-xs uppercase tracking-wider">
                                         <CheckCircle2 className="w-3.5 h-3.5" />
-                                        E-Cell DYPIU Member
+                                        {userProfile.memberType === 'ecell_member' ? 'Core Team Member' : 'E-Cell DYPIU Member'}
                                     </div>
                                 )}
                             </div>
@@ -433,6 +453,32 @@ const Profile = () => {
                     {isEditing ? (
                         /* Edit Mode Form */
                         <form onSubmit={handleSaveProfile} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase text-gray-300 mb-2">
+                                    Profile Photo
+                                </label>
+                                <div className="flex items-center gap-4">
+                                    <div className="w-16 h-16 rounded-xl bg-[var(--bg-secondary)] border-2 border-zinc-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                        {editPhotoDataUrl || userProfile.avatarUrl ? (
+                                            <img src={editPhotoDataUrl || userProfile.avatarUrl} alt="Preview" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <Camera className="w-6 h-6 text-zinc-600" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="bg-zinc-800 hover:bg-zinc-700 text-[var(--text-primary)] font-bold px-4 py-2 rounded-xl border-2 border-zinc-700 text-xs uppercase transition-colors"
+                                        >
+                                            {editPhotoDataUrl || userProfile.avatarUrl ? 'Change Photo' : 'Upload Photo'}
+                                        </button>
+                                        {photoError && <p className="text-xs text-[var(--danger-color)] mt-1">{photoError}</p>}
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold uppercase text-gray-300 mb-1">
