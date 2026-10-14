@@ -1,9 +1,11 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { Loader2 } from 'lucide-react';
+import { hasPermission } from '../utils/rbac';
 
-const ProtectedRoute = ({ children }) => {
-    const { currentUser, loading } = useAuth();
+// requirePermission, when passed, is { module, level } — level defaults to 'view'.
+const ProtectedRoute = ({ children, requirePermission }) => {
+    const { currentUser, userProfile, loading } = useAuth();
     const location = useLocation();
 
     if (loading) {
@@ -26,6 +28,27 @@ const ProtectedRoute = ({ children }) => {
 
     if (!currentUser) {
         return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    // mustChangePassword is set on every invited account (single or CSV) and takes
+    // priority over everything else — a temp password must be replaced before the
+    // account can do anything, including starting onboarding.
+    if (userProfile?.mustChangePassword === true && location.pathname !== '/set-password') {
+        return <Navigate to="/set-password" replace />;
+    }
+
+    // onboardingComplete === false (explicit) sends an incomplete profile to the
+    // wizard first. Existing members predate this field entirely, so a missing
+    // field is treated as complete — never force-redirect based on absence alone.
+    if (userProfile?.onboardingComplete === false && location.pathname !== '/onboarding') {
+        return <Navigate to="/onboarding" replace />;
+    }
+
+    if (
+        requirePermission &&
+        !hasPermission(userProfile, requirePermission.module, requirePermission.level || 'view')
+    ) {
+        return <Navigate to="/panel" replace />;
     }
 
     return children;

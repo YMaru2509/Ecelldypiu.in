@@ -3,6 +3,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import RequireAdminKey from './components/RequireAdminKey';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
@@ -35,6 +36,14 @@ import Redirect from './pages/Redirect';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
+import Onboarding from './pages/Onboarding';
+import SetNewPassword from './pages/SetNewPassword';
+import PanelHome from './pages/Panel/PanelHome';
+import UsersRoles from './pages/Panel/UsersRoles';
+import AttendanceQueue from './pages/Panel/AttendanceQueue';
+import Verticals from './pages/Panel/Verticals';
+import AttendanceRequestForm from './pages/AttendanceRequestForm';
+import MyAttendanceRequests from './pages/MyAttendanceRequests';
 import './App.css';
 
 function App() {
@@ -67,6 +76,22 @@ function App() {
                         </ProtectedRoute>
                       }
                     />
+                    <Route
+                      path="/onboarding"
+                      element={
+                        <ProtectedRoute>
+                          <Onboarding />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/set-password"
+                      element={
+                        <ProtectedRoute>
+                          <SetNewPassword />
+                        </ProtectedRoute>
+                      }
+                    />
                     <Route path="/about" element={<About />} />
                     <Route path="/sponsors" element={<Sponsors />} />
                     <Route path="/events" element={<Events />} />
@@ -93,6 +118,54 @@ function App() {
                     <Route path="/apply" element={<ApplyNow />} />
                     <Route path="/newsletter" element={<Newsletter />} />
                     <Route path="/admin" element={<AdminPortal />} />
+                    <Route
+                      path="/panel"
+                      element={
+                        <RequireAdminKey>
+                          <PanelHome />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/panel/users"
+                      element={
+                        <RequireAdminKey>
+                          <UsersRoles />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/panel/attendance"
+                      element={
+                        <RequireAdminKey>
+                          <AttendanceQueue />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/panel/verticals"
+                      element={
+                        <RequireAdminKey>
+                          <Verticals />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/attendance/new"
+                      element={
+                        <ProtectedRoute>
+                          <AttendanceRequestForm />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/attendance/mine"
+                      element={
+                        <ProtectedRoute>
+                          <MyAttendanceRequests />
+                        </ProtectedRoute>
+                      }
+                    />
                     {/* Backward compatibility: redirect old path */}
                     <Route path="/linktree" element={<Navigate to="/ourlinks" replace />} />
                     {/* Fallback for unknown routes */}

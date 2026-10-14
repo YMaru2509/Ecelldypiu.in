@@ -8,5 +8,11 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/attendance-sync-retry",
+      "schedule": "0 3 * * *"
+    }
   ]
 }

@@ -91,8 +91,8 @@ const Login = () => {
 
                 {/* Error Banner */}
                 {error && (
-                    <div className="bg-red-900/40 border-2 border-red-500 text-red-300 p-4 rounded-xl mb-6 flex items-center gap-3 text-sm">
-                        <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
+                    <div className="bg-[color-mix(in_srgb,var(--danger-bg)_40%,transparent)] border-2 border-red-500 text-[var(--danger-color)] p-4 rounded-xl mb-6 flex items-center gap-3 text-sm">
+                        <AlertCircle className="w-5 h-5 flex-shrink-0 text-[var(--danger-color)]" />
                         <span className="font-bold">{error}</span>
                     </div>
                 )}
@@ -202,15 +202,15 @@ const Login = () => {
                         </div>
 
                         {resetSuccess && (
-                            <div className="bg-green-900/40 border-2 border-green-500 text-green-300 p-4 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+                            <div className="bg-[color-mix(in_srgb,var(--success-bg)_40%,transparent)] border-2 border-green-500 text-[var(--success-color)] p-4 rounded-xl text-xs font-bold flex items-center gap-2">
+                                <CheckCircle2 className="w-5 h-5 text-[var(--success-color)] flex-shrink-0" />
                                 <span>{resetSuccess}</span>
                             </div>
                         )}
 
                         {resetError && (
-                            <div className="bg-red-900/40 border-2 border-red-500 text-red-300 p-4 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                            <div className="bg-[color-mix(in_srgb,var(--danger-bg)_40%,transparent)] border-2 border-red-500 text-[var(--danger-color)] p-4 rounded-xl text-xs font-bold flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5 text-[var(--danger-color)] flex-shrink-0" />
                                 <span>{resetError}</span>
                             </div>
                         )}

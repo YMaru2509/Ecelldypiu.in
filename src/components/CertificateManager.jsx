@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     Upload, Save, Loader2, AlertCircle, CheckCircle2, X,
     Plus, Trash2, Move, Type, Eye, ArrowLeft,
@@ -32,6 +32,33 @@ const CertificateManager = ({ adminKey, onBack }) => {
     const fontInputRef = useRef(null);
     const templateImgRef = useRef(null);
 
+    // Real events from the `events` Firestore collection, merged with the legacy
+    // hardcoded EVENTS list above (kept for their known attendeeCollection paths).
+    // This keeps eventIds configured here consistent with the eventIds members
+    // pick in onboarding, which is required for certificate auto-issuance to match.
+    const [dynamicEvents, setDynamicEvents] = useState([]);
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch('/api/event?action=get-events', {
+                    headers: adminKey ? { Authorization: `Bearer ${adminKey}` } : {},
+                });
+                const data = await res.json();
+                if (res.ok && Array.isArray(data)) setDynamicEvents(data);
+            } catch {
+                // Non-critical — the legacy hardcoded list still works standalone.
+            }
+        })();
+    }, [adminKey]);
+
+    const allEvents = useMemo(() => [
+        ...EVENTS,
+        ...dynamicEvents
+            .filter((de) => !EVENTS.some((se) => se.id === de.id))
+            .map((de) => ({ id: de.id, name: de.title || de.id, collection: '' })),
+        { id: '_appreciation_default', name: 'Certificate of Appreciation (default, not tied to an event)', collection: '' },
+    ], [dynamicEvents]);
+
     const [selectedEvent, setSelectedEvent] = useState('');
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -57,6 +84,9 @@ const CertificateManager = ({ adminKey, onBack }) => {
 
     // Enabled
     const [enabled, setEnabled] = useState(true);
+    // Separate from `enabled`: gates whether this certificate is also auto-issued
+    // to member profiles (vs. just the existing manual-claim page).
+    const [autoIssueToProfile, setAutoIssueToProfile] = useState(false);
 
     // Attendee collection override
     const [attendeeCollection, setAttendeeCollection] = useState('');
@@ -161,6 +191,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                     setTextFields(cfg.textFields || []);
                     setCustomFonts(cfg.customFonts || []);
                     setEnabled(cfg.enabled !== false);
+                    setAutoIssueToProfile(cfg.autoIssueToProfile === true);
                     setAttendeeCollection(cfg.attendeeCollection || '');
                     setEligibility({});
                     setEmailSubject(cfg.emailSubject || '');
@@ -172,7 +203,8 @@ const CertificateManager = ({ adminKey, onBack }) => {
                     setTextFields([]);
                     setCustomFonts([]);
                     setEnabled(true);
-                    setAttendeeCollection(EVENTS.find(e => e.id === selectedEvent)?.collection || '');
+                    setAutoIssueToProfile(false);
+                    setAttendeeCollection(allEvents.find(e => e.id === selectedEvent)?.collection || '');
                     setEligibility({});
                     setEmailSubject('');
                     setEmailHTML('');
@@ -185,7 +217,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
             }
         };
         loadConfig();
-    }, [selectedEvent]);
+    }, [selectedEvent, allEvents]);
 
     // Load custom fonts into document
     useEffect(() => {
@@ -713,7 +745,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
         setError('');
         setSuccess('');
 
-        const eventInfo = EVENTS.find(e => e.id === selectedEvent);
+        const eventInfo = allEvents.find(e => e.id === selectedEvent);
 
         try {
             const res = await fetch('/api/certificate?action=save-config', {
@@ -726,6 +758,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                     eventId: selectedEvent,
                     eventName: eventInfo?.name || selectedEvent,
                     enabled,
+                    autoIssueToProfile,
                     templateUrl,
                     textFields,
                     customFonts,
@@ -774,7 +807,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                         className="w-full bg-black border-2 border-zinc-700 p-4 text-white text-lg rounded-xl focus:border-brand-yellow focus:outline-none appearance-none cursor-pointer"
                     >
                         <option value="">-- Choose an event --</option>
-                        {EVENTS.map(event => (
+                        {allEvents.map(event => (
                             <option key={event.id} value={event.id}>{event.name}</option>
                         ))}
                     </select>
@@ -811,7 +844,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                             {/* Left Panel - Settings */}
                     <div className="lg:col-span-2 space-y-6">
                         {/* Enable/Disable */}
-                        <div className="bg-zinc-900 border-4 border-zinc-700 rounded-2xl p-6">
+                        <div className="bg-zinc-900 border-4 border-zinc-700 rounded-2xl p-6 space-y-4">
                             <div className="flex items-center justify-between">
                                 <span className="font-bold uppercase text-sm">Certificates Enabled</span>
                                 <button
@@ -819,6 +852,18 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                     className={`w-14 h-7 rounded-full transition-colors relative ${enabled ? 'bg-brand-yellow' : 'bg-zinc-700'}`}
                                 >
                                     <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${enabled ? 'left-8' : 'left-1'}`} />
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
+                                <div>
+                                    <span className="font-bold uppercase text-sm block">Auto-Issue to Member Profiles</span>
+                                    <span className="text-xs text-zinc-500">Shows automatically on a member's Profile page if they listed this event during onboarding.</span>
+                                </div>
+                                <button
+                                    onClick={() => setAutoIssueToProfile(!autoIssueToProfile)}
+                                    className={`w-14 h-7 rounded-full transition-colors relative flex-shrink-0 ${autoIssueToProfile ? 'bg-brand-yellow' : 'bg-zinc-700'}`}
+                                >
+                                    <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${autoIssueToProfile ? 'left-8' : 'left-1'}`} />
                                 </button>
                             </div>
                         </div>

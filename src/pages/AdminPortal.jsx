@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Loader2, Send, AlertCircle, CheckCircle2, Lock,
     PlusCircle, List, Bell, LogOut, Image, X, Upload,
     Calendar, Clock, Tag, User, Eye, Trash2, BookOpen,
     FileText, Users, CheckSquare, Square, Mail, Phone, Search,
     ArrowLeft, Sparkles, Archive, ArrowUpDown, UserPlus, UserMinus,
-    Award, Building, LinkIcon
+    Award, Building, LinkIcon, ClipboardCheck, ShieldCheck
 } from 'lucide-react';
 import CertificateManager from '../components/CertificateManager';
 import EventManager from '../components/EventManager';
@@ -19,6 +20,7 @@ import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const AdminPortal = () => {
+    const navigate = useNavigate();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
@@ -2254,6 +2256,28 @@ const AdminPortal = () => {
                                     <Users className="w-4 h-4 text-brand-yellow group-hover:text-black" />
                                     <span>Manage Team Members</span>
                                 </button>
+                            </div>
+
+                            {/* Attendance Management Card — launches the new RBAC-based system
+                                (real per-person login, not this shared admin key) */}
+                            <div className="bg-zinc-900 border-4 border-brand-yellow rounded-2xl p-6">
+                                <div className="flex items-center gap-4 mb-4">
+                                    <div className="w-14 h-14 bg-brand-yellow rounded-xl flex items-center justify-center">
+                                        <ClipboardCheck className="w-7 h-7 text-black" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black uppercase">Attendance Management</h3>
+                                        <p className="text-gray-400 text-sm">Roles, approvals & attendance requests</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => navigate('/panel')}
+                                    className="w-full flex items-center gap-3 p-3 bg-zinc-800 rounded-lg hover:bg-brand-yellow hover:text-black transition-colors text-left group"
+                                >
+                                    <ShieldCheck className="w-4 h-4 text-brand-yellow group-hover:text-black" />
+                                    <span>Open Attendance Management</span>
+                                </button>
+                                <p className="text-xs text-gray-500 mt-2">Opens with your own E-Cell login, not this admin key.</p>
                             </div>
                         </div>
                     </div>

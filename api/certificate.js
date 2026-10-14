@@ -273,6 +273,7 @@ async function handleGetConfig(req, res) {
             eventId: config.eventId,
             eventName: config.eventName,
             enabled: config.enabled,
+            autoIssueToProfile: config.autoIssueToProfile === true,
             templateUrl: config.templateUrl,
             textFields: config.textFields,
             imageFields: config.imageFields || [],
@@ -360,7 +361,7 @@ async function handleSaveConfig(req, res) {
     if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        const { eventId, eventName, enabled, templateUrl, textFields, imageFields, customFonts, attendeeCollection, eligibility, emailSubject, emailHTML } = req.body;
+        const { eventId, eventName, enabled, templateUrl, textFields, imageFields, customFonts, attendeeCollection, eligibility, emailSubject, emailHTML, autoIssueToProfile } = req.body;
         if (!eventId || !eventName) return res.status(400).json({ error: 'eventId and eventName are required' });
 
         const configData = {
@@ -375,6 +376,9 @@ async function handleSaveConfig(req, res) {
             eligibility: eligibility || {},
             emailSubject: emailSubject || '',
             emailHTML: emailHTML || '',
+            // Separate from `enabled` on purpose: `enabled` gates the existing manual-
+            // claim page; this gates whether it also auto-appears on member profiles.
+            autoIssueToProfile: autoIssueToProfile === true,
             updatedAt: new Date().toISOString(),
         };
 

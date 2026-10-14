@@ -81,6 +81,8 @@ export const AuthProvider = ({ children }) => {
             profileComplete: true,
             eventsAttended: [],
             certificatesEarned: [],
+            memberType: extraData.memberType === 'ecell_member' ? 'ecell_member' : 'normal_member',
+            onboardingComplete: false,
             lastUpdated: serverTimestamp()
         };
 

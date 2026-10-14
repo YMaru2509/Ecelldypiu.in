@@ -29,6 +29,8 @@
   --border-inverse: #FFFFFF;
   --danger-color: #f87171;
   --danger-bg: #7f1d1d;
+  --success-color: #4ade80;
+  --success-bg: #14532d;
   --accent-blue: #60a5fa;
   --accent-red: #ef4444;
   --accent-orange: #f97316;
@@ -93,6 +95,14 @@
   --button-color: #184E89;
   --button-text: #FFFFFF;
   --brand-accent-text: var(--icon-accent);
+  /* --danger-color/--success-color are used as banner text/icon, and --danger-bg/
+     --success-bg are composited at low opacity as banner backgrounds (see .text-stroke-
+     style theme overrides below). The dark-mode values (:root) read as light red/green
+     on a near-black panel; light mode needs the inverse (dark red/green on a pale panel). */
+  --danger-color: #B91C1C;
+  --danger-bg: #7f1d1d;
+  --success-color: #15803D;
+  --success-bg: #14532d;
 }
 
 @theme {
@@ -147,6 +157,73 @@ body {
   background-color: var(--button-color);
   color: var(--button-text);
 }
+
+/*
+ * Many pages were built with hardcoded Tailwind zinc/gray utilities for dark-mode
+ * surfaces and borders (unlike bg-black/text-white/border-white, these are not tied
+ * to --bg-primary/--text-primary). Left alone they stay dark in light mode, producing
+ * dark boxes with low/zero-contrast text. Remap them onto the theme variables so they
+ * follow the active theme; dark mode values below are chosen to match the zinc/gray
+ * shades they replace, so dark mode is visually unchanged.
+ */
+[data-theme="light"] .bg-zinc-900,
+[data-theme="light"] .bg-zinc-950 { background-color: var(--bg-card); }
+[data-theme="light"] .bg-zinc-900\/50 { background-color: color-mix(in srgb, var(--bg-card) 50%, transparent); }
+[data-theme="light"] .bg-zinc-900\/60 { background-color: color-mix(in srgb, var(--bg-card) 60%, transparent); }
+[data-theme="light"] .bg-zinc-900\/80 { background-color: color-mix(in srgb, var(--bg-card) 80%, transparent); }
+[data-theme="light"] .bg-zinc-900\/90 { background-color: color-mix(in srgb, var(--bg-card) 90%, transparent); }
+[data-theme="light"] .bg-zinc-900\/95 { background-color: color-mix(in srgb, var(--bg-card) 95%, transparent); }
+[data-theme="light"] .bg-zinc-950\/80 { background-color: color-mix(in srgb, var(--bg-card) 80%, transparent); }
+
+[data-theme="light"] .bg-zinc-800,
+[data-theme="light"] .bg-zinc-700,
+[data-theme="light"] .bg-zinc-600,
+[data-theme="light"] .bg-zinc-500,
+[data-theme="light"] .bg-gray-500,
+[data-theme="light"] .bg-gray-200 { background-color: var(--bg-hover); }
+[data-theme="light"] .bg-zinc-800\/50,
+[data-theme="light"] .bg-gray-800\/50 { background-color: color-mix(in srgb, var(--bg-hover) 50%, transparent); }
+[data-theme="light"] .bg-zinc-800\/60 { background-color: color-mix(in srgb, var(--bg-hover) 60%, transparent); }
+[data-theme="light"] .bg-zinc-800\/80 { background-color: color-mix(in srgb, var(--bg-hover) 80%, transparent); }
+
+[data-theme="light"] .hover\:bg-zinc-900:hover,
+[data-theme="light"] .hover\:bg-zinc-800:hover,
+[data-theme="light"] .hover\:bg-zinc-700:hover,
+[data-theme="light"] .hover\:bg-zinc-600:hover,
+[data-theme="light"] .hover\:bg-zinc-500:hover { background-color: var(--bg-hover); }
+[data-theme="light"] .hover\:bg-zinc-800\/50:hover,
+[data-theme="light"] .hover\:bg-zinc-800\/60:hover,
+[data-theme="light"] .hover\:bg-zinc-900\/50:hover,
+[data-theme="light"] .hover\:bg-zinc-900\/60:hover { background-color: color-mix(in srgb, var(--bg-hover) 60%, transparent); }
+
+[data-theme="light"] .border-zinc-800,
+[data-theme="light"] .border-zinc-700,
+[data-theme="light"] .border-zinc-600,
+[data-theme="light"] .border-zinc-500,
+[data-theme="light"] .border-zinc-200,
+[data-theme="light"] .border-gray-800,
+[data-theme="light"] .border-gray-700\/50 { border-color: var(--border-color); }
+[data-theme="light"] .border-zinc-800\/50,
+[data-theme="light"] .border-zinc-800\/80,
+[data-theme="light"] .border-zinc-700\/80 { border-color: color-mix(in srgb, var(--border-color) 70%, transparent); }
+
+[data-theme="light"] .hover\:border-zinc-700:hover,
+[data-theme="light"] .hover\:border-zinc-600:hover,
+[data-theme="light"] .hover\:border-zinc-500:hover,
+[data-theme="light"] .hover\:border-gray-500:hover { border-color: var(--border-color); }
+
+[data-theme="light"] .text-gray-400,
+[data-theme="light"] .text-gray-300,
+[data-theme="light"] .text-gray-500,
+[data-theme="light"] .text-gray-200,
+[data-theme="light"] .text-gray-600,
+[data-theme="light"] .text-gray-800,
+[data-theme="light"] .text-zinc-400,
+[data-theme="light"] .text-zinc-500,
+[data-theme="light"] .text-zinc-600,
+[data-theme="light"] .text-zinc-300,
+[data-theme="light"] .text-zinc-200 { color: var(--text-secondary); }
+[data-theme="light"] .hover\:text-gray-300:hover { color: var(--text-primary); }
 
 /* Mobile Interaction Improvements */
 html,

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { X, User, LogOut, UserCheck, Sun, Moon } from 'lucide-react';
+import { X, User, LogOut, UserCheck, Sun, Moon, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/useAuth';
 import { useTheme } from '../context/ThemeContext';
@@ -132,6 +132,14 @@ const Navbar = () => {
                     >
                       <User className="w-4 h-4 text-brand-yellow" />
                       My Profile
+                    </Link>
+                    <Link
+                      to="/attendance/mine"
+                      onClick={() => setShowDropdown(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase text-[var(--text-secondary)] hover:text-brand-yellow hover:bg-[var(--bg-hover)] rounded-xl transition-colors"
+                    >
+                      <ClipboardList className="w-4 h-4 text-brand-yellow" />
+                      My Attendance
                     </Link>
                     <button
                       onClick={handleLogout}
@@ -269,6 +277,17 @@ const Navbar = () => {
                     <span className="flex items-center gap-2 text-brand-yellow font-bold">
                       <UserCheck className="w-4 h-4" />
                       My Profile ({userProfile?.name?.split(' ')[0] || 'User'})
+                    </span>
+                    <span className="text-brand-yellow">→</span>
+                  </Link>
+                  <Link
+                    to="/attendance/mine"
+                    onClick={() => setIsOpen(false)}
+                    className={`mobile-nav-item ${location.pathname.startsWith('/attendance') ? 'active' : ''}`}
+                  >
+                    <span className="flex items-center gap-2 text-brand-yellow font-bold">
+                      <ClipboardList className="w-4 h-4" />
+                      My Attendance
                     </span>
                     <span className="text-brand-yellow">→</span>
                   </Link>

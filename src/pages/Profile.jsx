@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { getMembershipDuration, getMilestone } from '../utils/membershipDuration';
+import { renderCertificateToCanvas, downloadCanvasAsPng, memberToFieldValues, appreciationFieldValues } from '../utils/certificateCanvas';
 import {
     User, Phone, GraduationCap, Calendar, Building, Edit2, LogOut,
     CheckCircle2, Award, CalendarDays, Sparkles, Clock, Save, X, Loader2,
-    AlertCircle, ArrowRight
+    AlertCircle, ArrowRight, History
 } from 'lucide-react';
 
 const PROGRAM_GROUPS = [
@@ -112,15 +113,98 @@ const Profile = () => {
     const [saveSuccess, setSaveSuccess] = useState('');
     const [saveError, setSaveError] = useState('');
 
-    // Calculate live membership duration
+    // Calculate live membership duration — prefer the real E-Cell join date
+    // captured during onboarding over the account-creation timestamp.
     const membership = useMemo(() => {
-        return getMembershipDuration(userProfile?.joinedAt);
-    }, [userProfile?.joinedAt]);
+        return getMembershipDuration(userProfile?.ecellJoinDate || userProfile?.joinedAt);
+    }, [userProfile?.ecellJoinDate, userProfile?.joinedAt]);
 
     // Calculate milestone
     const milestone = useMemo(() => {
         return getMilestone(membership.totalDays);
     }, [membership.totalDays]);
+
+    const isPastMember = userProfile?.membershipStatus === 'past_member';
+
+    // Resolve event IDs (stored on the profile) into real event titles for display.
+    const [eventsById, setEventsById] = useState({});
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await fetch('/api/event?action=get-events');
+                const data = await res.json();
+                if (res.ok && Array.isArray(data)) {
+                    setEventsById(Object.fromEntries(data.map((e) => [e.id, e])));
+                }
+            } catch {
+                // Non-critical — falls back to showing raw event ids.
+            }
+        })();
+    }, []);
+
+    // Certificates eligible for auto-issuance: union of events attended/organised/
+    // participated in, each checked against its certificateConfigs doc for
+    // enabled + autoIssueToProfile. Plus the default appreciation certificate
+    // for past members.
+    const [eligibleCerts, setEligibleCerts] = useState([]);
+    const [certsLoading, setCertsLoading] = useState(true);
+    const [downloadingCertId, setDownloadingCertId] = useState(null);
+
+    useEffect(() => {
+        (async () => {
+            setCertsLoading(true);
+            const eventIds = [...new Set([
+                ...(userProfile?.eventsAttended || []),
+                ...(userProfile?.certificatesAsOrganiser || []),
+                ...(userProfile?.certificatesAsParticipant || []),
+            ])];
+
+            const found = [];
+            await Promise.all(eventIds.map(async (eventId) => {
+                try {
+                    const res = await fetch(`/api/certificate?eventId=${encodeURIComponent(eventId)}`);
+                    if (!res.ok) return;
+                    const { config } = await res.json();
+                    if (config?.enabled && config?.autoIssueToProfile) {
+                        found.push({ kind: 'event', eventId, config, label: eventsById[eventId]?.title || config.eventName || eventId });
+                    }
+                } catch {
+                    // Skip events whose config isn't reachable rather than failing the whole page.
+                }
+            }));
+
+            if (isPastMember && userProfile?.pastMemberCertificateEligible) {
+                try {
+                    const res = await fetch('/api/certificate?eventId=_appreciation_default');
+                    if (res.ok) {
+                        const { config } = await res.json();
+                        if (config?.enabled) {
+                            found.push({ kind: 'appreciation', eventId: '_appreciation_default', config, label: 'Certificate of Appreciation' });
+                        }
+                    }
+                } catch {
+                    // Non-critical.
+                }
+            }
+
+            setEligibleCerts(found);
+            setCertsLoading(false);
+        })();
+    }, [userProfile?.eventsAttended, userProfile?.certificatesAsOrganiser, userProfile?.certificatesAsParticipant, isPastMember, userProfile?.pastMemberCertificateEligible, eventsById]);
+
+    const handleDownloadCert = useCallback(async (cert) => {
+        setDownloadingCertId(cert.eventId);
+        try {
+            const canvas = document.createElement('canvas');
+            const fieldValues = cert.kind === 'appreciation' ? appreciationFieldValues(userProfile) : memberToFieldValues(userProfile);
+            await renderCertificateToCanvas(canvas, cert.config, fieldValues);
+            downloadCanvasAsPng(canvas, `Certificate_${userProfile?.name || 'member'}_${cert.label}.png`);
+        } catch (err) {
+            console.error('Certificate download failed:', err);
+        } finally {
+            setDownloadingCertId(null);
+        }
+    }, [userProfile]);
 
     const handleStartEditing = () => {
         const currentBranch = userProfile?.branch || 'B.Tech (CSE)';
@@ -251,10 +335,17 @@ const Profile = () => {
                                 <p className="text-gray-400 text-sm font-medium mb-3">
                                     {userProfile.email}
                                 </p>
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-yellow/10 border border-brand-yellow/50 rounded-full text-brand-yellow font-bold text-xs uppercase tracking-wider">
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    E-Cell DYPIU Member
-                                </div>
+                                {isPastMember ? (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-800 border border-zinc-600 rounded-full text-gray-300 font-bold text-xs uppercase tracking-wider">
+                                        <History className="w-3.5 h-3.5" />
+                                        Past E-Cell Member
+                                    </div>
+                                ) : (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-yellow/10 border border-brand-yellow/50 rounded-full text-brand-yellow font-bold text-xs uppercase tracking-wider">
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        E-Cell DYPIU Member
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -515,15 +606,20 @@ const Profile = () => {
 
                     {userProfile.eventsAttended && userProfile.eventsAttended.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {userProfile.eventsAttended.map((event, idx) => (
-                                <div key={idx} className="bg-black border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
-                                    <h4 className="font-bold text-white text-sm">{event.name || event}</h4>
-                                    <p className="text-xs text-gray-400">{event.date || 'Attended'}</p>
-                                    <span className="inline-block px-2 py-0.5 bg-green-900/40 text-green-400 border border-green-500/50 rounded-full text-[10px] font-bold uppercase">
-                                        Verified Attendee
-                                    </span>
-                                </div>
-                            ))}
+                            {userProfile.eventsAttended.map((eventId, idx) => {
+                                const event = typeof eventId === 'string' ? eventsById[eventId] : null;
+                                const title = event?.title || (typeof eventId === 'object' ? (eventId.name || eventId.id) : eventId);
+                                const date = event?.date || (typeof eventId === 'object' ? eventId.date : null) || 'Attended';
+                                return (
+                                    <div key={idx} className="bg-black border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
+                                        <h4 className="font-bold text-white text-sm">{title}</h4>
+                                        <p className="text-xs text-gray-400">{date}</p>
+                                        <span className="inline-block px-2 py-0.5 bg-green-900/40 text-green-400 border border-green-500/50 rounded-full text-[10px] font-bold uppercase">
+                                            Verified Attendee
+                                        </span>
+                                    </div>
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="py-8 text-center text-gray-500 bg-black/40 rounded-2xl border-2 border-dashed border-zinc-800 p-6 flex flex-col items-center justify-center">
@@ -550,13 +646,20 @@ const Profile = () => {
                         Your Certificates
                     </h3>
 
-                    {userProfile.certificatesEarned && userProfile.certificatesEarned.length > 0 ? (
+                    {certsLoading ? (
+                        <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-brand-yellow" /></div>
+                    ) : eligibleCerts.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {userProfile.certificatesEarned.map((cert, idx) => (
-                                <div key={idx} className="bg-black border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
+                            {eligibleCerts.map((cert) => (
+                                <div key={cert.eventId} className="bg-black border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
                                     <Award className="w-6 h-6 text-brand-yellow" />
-                                    <h4 className="font-bold text-white text-sm">{cert.name || cert}</h4>
-                                    <button className="text-xs text-brand-yellow hover:underline font-bold">
+                                    <h4 className="font-bold text-white text-sm">{cert.label}</h4>
+                                    <button
+                                        onClick={() => handleDownloadCert(cert)}
+                                        disabled={downloadingCertId === cert.eventId}
+                                        className="text-xs text-brand-yellow hover:underline font-bold disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {downloadingCertId === cert.eventId && <Loader2 className="w-3 h-3 animate-spin" />}
                                         Download Certificate
                                     </button>
                                 </div>
@@ -567,7 +670,7 @@ const Profile = () => {
                             <Award className="w-10 h-10 mx-auto text-zinc-600 mb-2" />
                             <p className="text-white font-bold text-base mb-1">No certificates unlocked</p>
                             <p className="text-xs text-gray-400 max-w-sm">
-                                You'll unlock verified certificates as you participate in E-Cell events and workshops.
+                                Certificates appear here automatically once an admin uploads a template and turns on auto-issue for an event you attended.
                             </p>
                         </div>
                     )}
@@ -591,15 +694,20 @@ const Profile = () => {
                         </div>
 
                         {/* Timeline Item: Events */}
-                        {userProfile.eventsAttended && userProfile.eventsAttended.map((event, idx) => (
-                            <div key={idx} className="relative flex items-start gap-4">
-                                <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-green-500 ring-4 ring-zinc-900" />
-                                <div>
-                                    <h4 className="font-bold text-white text-sm">Attended {event.name || event}</h4>
-                                    <p className="text-xs text-gray-400">{event.date || 'Event Day'}</p>
+                        {userProfile.eventsAttended && userProfile.eventsAttended.map((eventId, idx) => {
+                            const event = typeof eventId === 'string' ? eventsById[eventId] : null;
+                            const title = event?.title || (typeof eventId === 'object' ? (eventId.name || eventId.id) : eventId);
+                            const date = event?.date || (typeof eventId === 'object' ? eventId.date : null) || 'Event Day';
+                            return (
+                                <div key={idx} className="relative flex items-start gap-4">
+                                    <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-green-500 ring-4 ring-zinc-900" />
+                                    <div>
+                                        <h4 className="font-bold text-white text-sm">Attended {title}</h4>
+                                        <p className="text-xs text-gray-400">{date}</p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>

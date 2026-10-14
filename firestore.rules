@@ -53,19 +53,54 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // 7. MEMBERS: Member authentication & immutable joinedAt/uid/email
+    // 7. MEMBERS: Member authentication & immutable joinedAt/uid/email.
+    // roles/permissions/verticals (RBAC + attendance-vertical assignment) are also
+    // client-immutable: they may only be set/changed server-side via the Admin SDK
+    // (see api/_lib/rbac.js), never by the member themselves.
     match /members/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null 
+      allow create: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.uid == userId
-                    && request.resource.data.email == request.auth.token.email;
-      allow update: if request.auth != null 
+                    && request.resource.data.email == request.auth.token.email
+                    && request.resource.data.get('roles', []) == []
+                    && request.resource.data.get('permissions', {}) == {};
+      allow update: if request.auth != null
                     && request.auth.uid == userId
                     && request.resource.data.joinedAt == resource.data.joinedAt
                     && request.resource.data.uid == resource.data.uid
-                    && request.resource.data.email == resource.data.email;
+                    && request.resource.data.email == resource.data.email
+                    && request.resource.data.get('roles', []) == resource.data.get('roles', [])
+                    && request.resource.data.get('permissions', {}) == resource.data.get('permissions', {})
+                    && request.resource.data.get('verticals', []) == resource.data.get('verticals', []);
       allow delete: if false;
+    }
+
+    // 8. RBAC + ATTENDANCE SYSTEM: fully server-mediated via the Admin SDK
+    // (api/_lib/rbac.js, api/attendance*.js). No client ever reads or writes these
+    // directly, matching the existing ADMIN_USERS/COLLABORATIONS/CONFIG convention.
+    match /attendance_requests/{requestId} {
+      allow read, write: if false;
+
+      match /approval_history/{entryId} {
+        allow read, write: if false;
+      }
+    }
+
+    match /ecell_verticals/{verticalId} {
+      allow read, write: if false;
+    }
+
+    match /spreadsheet_sync_jobs/{jobId} {
+      allow read, write: if false;
+    }
+
+    match /audit_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read, write: if false;
     }
   }
 }

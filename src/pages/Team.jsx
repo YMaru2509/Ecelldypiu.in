@@ -1,20 +1,21 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, 
-  Search, 
-  Sparkles, 
-  Briefcase, 
-  Shield, 
-  Code2, 
-  Megaphone, 
-  Palette, 
-  Share2, 
-  DollarSign, 
+import {
+  Users,
+  Search,
+  Sparkles,
+  Briefcase,
+  Shield,
+  Code2,
+  Megaphone,
+  Palette,
+  Share2,
+  DollarSign,
   Award,
   Instagram,
   ExternalLink,
-  Calendar
+  Calendar,
+  ShieldCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -578,20 +579,71 @@ const staticImageMap = teamData.reduce((acc, m) => {
   return acc;
 }, {});
 
+const BOARD_TAB = { id: 'board', name: 'Board', icon: ShieldCheck };
+
 const Team = () => {
   const containerRef = useRef(null);
   const [selectedDept, setSelectedDept] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [teamMembers, setTeamMembers] = useState(teamData);
+  // Starts as the static roster (never empty) and legacy department tabs; both get
+  // replaced automatically, once, if real onboarded core members exist — no manual
+  // switch needed. This also means every member's own uploaded profile photo
+  // (avatarUrl) becomes their Team page image the moment they're live.
+  const [teamMembers, setTeamMembers] = useState(teamData.map((m) => ({ ...m, tabIds: [m.department] })));
+  const [activeTabs, setActiveTabs] = useState(departments);
+  // Keys the member grid so switching from the static fallback to the live
+  // roster (or vice versa) is a clean remount instead of an AnimatePresence
+  // item-by-item diff — the two datasets share no stable keys, so diffing
+  // them as "56 exits + 1 enter" is both meaningless and, under CSS grid
+  // `layout` animations, prone to never fully settling.
+  const [dataSource, setDataSource] = useState('static');
 
   useEffect(() => {
-    const fetchMembers = async () => {
+    // React StrictMode double-invokes effects in dev (mount → cleanup → mount),
+    // and with two unguarded async branches racing on setState, the slower one
+    // can win regardless of which was correct. `cancelled` makes the cleanup
+    // from the first invocation void its own in-flight writes.
+    let cancelled = false;
+
+    const fetchDynamicRoster = async () => {
+      const rosterRes = await fetch('/api/panel-users?action=public-roster');
+      const rosterData = await rosterRes.json();
+      const dynamicMembers = rosterRes.ok ? (rosterData.members || []) : [];
+      if (dynamicMembers.length === 0) return false; // not ready yet — caller falls back to legacy
+
+      const verticalsRes = await fetch('/api/attendance-admin?action=public');
+      const verticalsData = await verticalsRes.json();
+      const verticals = verticalsRes.ok ? (verticalsData.verticals || []) : [];
+
+      if (cancelled) return true;
+      setActiveTabs([
+        { id: 'all', name: 'All Members', icon: Users },
+        BOARD_TAB,
+        ...verticals.map((v) => ({ id: v.id, name: v.name, icon: Users })),
+      ]);
+      setTeamMembers(dynamicMembers.map((m) => ({
+        uid: m.uid,
+        name: m.name,
+        position: m.publicTitle,
+        image: m.avatarUrl, // the member's own onboarding-uploaded profile photo
+        tabIds: [
+          ...(m.verticals || []),
+          ...((m.roles || []).includes('board_member') || (m.roles || []).includes('system_owner') ? ['board'] : []),
+        ],
+      })));
+      setDataSource('dynamic');
+      return true;
+    };
+
+    const fetchLegacyRoster = async () => {
       try {
         const response = await fetch('/api/team');
         const data = await response.json();
+        if (cancelled) return;
         if (data.team && data.team.length > 0) {
           const enriched = data.team.map((m) => ({
             ...m,
+            tabIds: [m.department],
             image: (m.image && m.image.trim() && !m.image.includes('placeholder'))
               ? m.image
               : staticImageMap[(m.name || '').toLowerCase().trim()] || ''
@@ -599,31 +651,39 @@ const Team = () => {
 
           if (enriched.length < teamData.length) {
             const dbNames = new Set(enriched.map((m) => (m.name || '').toLowerCase().trim()));
-            const missingStatic = teamData.filter((m) => !dbNames.has(m.name.toLowerCase().trim()));
+            const missingStatic = teamData
+              .filter((m) => !dbNames.has(m.name.toLowerCase().trim()))
+              .map((m) => ({ ...m, tabIds: [m.department] }));
             setTeamMembers([...enriched, ...missingStatic]);
           } else {
             setTeamMembers(enriched);
           }
+          setDataSource('legacy');
         }
       } catch (err) {
         console.warn('Falling back to default team members:', err);
       }
     };
-    fetchMembers();
+
+    (async () => {
+      const switchedToDynamic = await fetchDynamicRoster().catch(() => false);
+      if (!switchedToDynamic && !cancelled) await fetchLegacyRoster();
+    })();
+
+    return () => { cancelled = true; };
   }, []);
 
-  // Filter members based on department and search query
+  // Filter members based on department/vertical/board tab and search query
   const filteredMembers = useMemo(() => {
     return teamMembers.filter((member) => {
-      const matchesDept = selectedDept === 'all' || member.department === selectedDept;
+      const matchesDept = selectedDept === 'all' || member.tabIds.includes(selectedDept);
       const query = searchQuery.toLowerCase().trim();
       if (!query) return matchesDept;
 
       const nameMatch = (member.name || '').toLowerCase().includes(query);
       const posMatch = (member.position || '').toLowerCase().includes(query);
-      const deptMatch = (member.department || '').toLowerCase().includes(query);
 
-      return matchesDept && (nameMatch || posMatch || deptMatch);
+      return matchesDept && (nameMatch || posMatch);
     });
   }, [teamMembers, selectedDept, searchQuery]);
 
@@ -740,11 +800,11 @@ const Team = () => {
 
             {/* Department Filter Pills */}
             <div className="hidden md:flex flex-wrap justify-center gap-2 md:gap-3 max-w-5xl mx-auto">
-              {departments.map((dept) => {
+              {activeTabs.map((dept) => {
                 const isSelected = selectedDept === dept.id;
                 const count = dept.id === 'all'
                   ? teamMembers.length
-                  : teamMembers.filter(m => m.department === dept.id).length;
+                  : teamMembers.filter(m => m.tabIds.includes(dept.id)).length;
 
                 return (
                   <button
@@ -774,7 +834,7 @@ const Team = () => {
             <div className="text-sm font-mono uppercase text-[var(--text-muted)]">
               Showing <span className="text-brand-yellow font-bold">{filteredMembers.length}</span> members
               {selectedDept !== 'all' && (
-                <span> in <span className="text-[var(--text-primary)] font-bold">{selectedDept}</span></span>
+                <span> in <span className="text-[var(--text-primary)] font-bold">{activeTabs.find((d) => d.id === selectedDept)?.name}</span></span>
               )}
               {searchQuery && (
                 <span> matching "<span className="text-brand-yellow font-bold">{searchQuery}</span>"</span>
@@ -796,12 +856,13 @@ const Team = () => {
           {/* Members Grid */}
           {filteredMembers.length > 0 ? (
             <motion.div
+              key={dataSource}
               layout
               className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 md:gap-8"
             >
               <AnimatePresence mode="popLayout">
                 {filteredMembers.map((member, index) => (
-                  <MemberCard key={`${member.department}-${member.name}`} member={member} index={index} />
+                  <MemberCard key={member.uid || member.name} member={member} index={index} />
                 ))}
               </AnimatePresence>
             </motion.div>

@@ -3,7 +3,7 @@ import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import {
     User, Mail, Lock, Phone, GraduationCap, Calendar, AlertCircle,
-    Loader2, CheckCircle2, Eye, EyeOff
+    Loader2, CheckCircle2, Eye, EyeOff, Rocket, GraduationCap as StudentIcon
 } from 'lucide-react';
 
 const PROGRAM_GROUPS = [
@@ -95,6 +95,8 @@ const Register = () => {
     const { register, currentUser } = useAuth();
     const navigate = useNavigate();
 
+    const [memberType, setMemberType] = useState(null); // 'ecell_member' | 'normal_member'
+
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -180,10 +182,11 @@ const Register = () => {
                 phone: formData.phone.replace(/\D/g, ''),
                 branch: finalBranch,
                 year: formData.year,
-                college: 'DYPIU'
+                college: 'DYPIU',
+                memberType
             });
 
-            navigate('/profile', { replace: true });
+            navigate('/onboarding', { replace: true });
         } catch (err) {
             console.error('Registration error:', err);
             let userMessage = 'Failed to create account. Please try again.';
@@ -226,12 +229,39 @@ const Register = () => {
 
                 {/* Error Banner */}
                 {error && (
-                    <div className="bg-red-900/40 border-2 border-red-500 text-red-300 p-4 rounded-xl mb-6 flex items-center gap-3 text-sm">
-                        <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
+                    <div className="bg-[color-mix(in_srgb,var(--danger-bg)_40%,transparent)] border-2 border-red-500 text-[var(--danger-color)] p-4 rounded-xl mb-6 flex items-center gap-3 text-sm">
+                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
                         <span className="font-bold">{error}</span>
                     </div>
                 )}
 
+                {!memberType ? (
+                    <div className="space-y-4">
+                        <p className="text-center text-xs font-bold uppercase text-gray-400 mb-2">Are you joining as</p>
+                        <button
+                            type="button"
+                            onClick={() => setMemberType('ecell_member')}
+                            className="w-full flex items-center gap-4 bg-black border-2 border-zinc-700 hover:border-brand-yellow p-5 rounded-xl text-left transition-colors"
+                        >
+                            <Rocket className="w-8 h-8 text-brand-yellow flex-shrink-0" />
+                            <div>
+                                <p className="font-black uppercase">E-Cell Member</p>
+                                <p className="text-xs text-gray-400">You're already part of E-Cell DYPIU's core team.</p>
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setMemberType('normal_member')}
+                            className="w-full flex items-center gap-4 bg-black border-2 border-zinc-700 hover:border-brand-yellow p-5 rounded-xl text-left transition-colors"
+                        >
+                            <StudentIcon className="w-8 h-8 text-brand-yellow flex-shrink-0" />
+                            <div>
+                                <p className="font-black uppercase">Student / Normal Member</p>
+                                <p className="text-xs text-gray-400">You're a student or visitor following E-Cell's events.</p>
+                            </div>
+                        </button>
+                    </div>
+                ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
                     {/* Full Name */}
                     <div>
@@ -455,7 +485,16 @@ const Register = () => {
                             </>
                         )}
                     </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setMemberType(null)}
+                        className="w-full text-center text-xs text-gray-400 hover:text-white font-bold uppercase"
+                    >
+                        ← Change selection
+                    </button>
                 </form>
+                )}
 
                 {/* Login Link */}
                 <div className="mt-8 pt-6 border-t border-zinc-800 text-center">

@@ -195,7 +195,7 @@ const Blogs = () => {
 
       <style>{`
         .stroke-text {
-          -webkit-text-stroke: 2px white;
+          -webkit-text-stroke: 2px var(--text-primary);
         }
       `}</style>
     </div>

@@ -6,6 +6,7 @@ import {
     Loader2, AlertCircle, Award, ChevronRight, User,
     Search, XCircle, Linkedin, Share2, Copy, Check
 } from 'lucide-react';
+import { renderCertificateToCanvas, downloadCanvasAsPng } from '../utils/certificateCanvas';
 
 const GetCertificate = () => {
     const { eventSlug } = useParams();
@@ -114,91 +115,7 @@ const GetCertificate = () => {
         }
 
         try {
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-
-            // Load custom fonts first
-            if (config.customFonts && config.customFonts.length > 0) {
-                const fontPromises = config.customFonts.map(async (font) => {
-                    try {
-                        const fontFace = new FontFace(font.name, `url(${font.url})`);
-                        const loadedFont = await fontFace.load();
-                        document.fonts.add(loadedFont);
-                    } catch (err) {
-                        console.warn(`Failed to load font ${font.name}:`, err);
-                    }
-                });
-                await Promise.all(fontPromises);
-            }
-
-            // Pre-load image fields
-            const loadedImageFields = [];
-            if (config.imageFields && config.imageFields.length > 0) {
-                const imgPromises = config.imageFields.map(async (field) => {
-                    if (!field.url) return null;
-                    return new Promise((resolve) => {
-                        const img = new Image();
-                        img.crossOrigin = 'anonymous';
-                        img.onload = () => resolve({ ...field, imgElement: img });
-                        img.onerror = () => resolve(null); // skip on error
-                        img.src = field.url;
-                    });
-                });
-                const results = await Promise.all(imgPromises);
-                loadedImageFields.push(...results.filter(r => r !== null));
-            }
-
-            // Load template image with timeout
-            await new Promise((resolve, reject) => {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-
-                // 10s timeout
-                const timer = setTimeout(() => reject(new Error('Image load timed out')), 10000);
-
-                img.onload = () => {
-                    clearTimeout(timer);
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-
-                    // Draw loaded image fields
-                    for (const field of loadedImageFields) {
-                        ctx.drawImage(
-                            field.imgElement,
-                            field.x || 0,
-                            field.y || 0,
-                            field.width || 100,
-                            field.height || 100
-                        );
-                    }
-
-                    // Draw text fields
-                    if (config.textFields) {
-                        for (const field of config.textFields) {
-                            const value = attendee[field.sourceField] || '';
-                            if (!value) continue;
-
-                            ctx.save();
-                            ctx.font = `${field.fontWeight || 'normal'} ${field.fontSize || 36}px "${field.fontFamily || 'Arial'}"`;
-                            ctx.fillStyle = field.fontColor || '#000000';
-                            ctx.textAlign = field.textAlign || 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(value, field.x || 0, field.y || 0);
-                            ctx.restore();
-                        }
-                    }
-                    resolve();
-                };
-
-                img.onerror = (e) => {
-                    clearTimeout(timer);
-                    reject(new Error('Failed to load certificate template image'));
-                };
-
-                img.src = config.templateUrl;
-            });
-
+            await renderCertificateToCanvas(canvasRef.current, config, attendee);
             setCertificateReady(true);
         } catch (err) {
             console.error('Certificate generation error:', err);
@@ -216,11 +133,7 @@ const GetCertificate = () => {
 
     // Download certificate
     const handleDownload = () => {
-        if (!canvasRef.current) return;
-        const link = document.createElement('a');
-        link.download = `Certificate_${attendee?.name || 'attendee'}_${config?.eventName || 'event'}.png`;
-        link.href = canvasRef.current.toDataURL('image/png', 1.0);
-        link.click();
+        downloadCanvasAsPng(canvasRef.current, `Certificate_${attendee?.name || 'attendee'}_${config?.eventName || 'event'}.png`);
     };
 
     // Loading state

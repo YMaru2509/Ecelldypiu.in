@@ -1,0 +1,575 @@
+import crypto from 'crypto';
+import { db, auth } from './_lib/firebaseAdmin.js';
+import { FieldValue } from 'firebase-admin/firestore';
+import { requirePermission, requireSystemOwner, isSystemOwner, MODULES, PERMISSION_LEVELS, sendRbacError, RbacError } from './_lib/rbac.js';
+import { writeAuditLog } from './_lib/auditLog.js';
+import { sendEmail } from './_lib/emailTransport.js';
+
+const ASSIGNABLE_ROLES = ['system_owner', 'vertical_head', 'board_member'];
+// system_owner is permanently capped to these two accounts — no one else may ever
+// be granted it, even by another system_owner or the admin-panel key. Hardcoded
+// deliberately rather than made configurable.
+const PERMANENT_SYSTEM_OWNER_UIDS = ['SPWSYZ3Ggid0rosU2cJ76CGIovY2', 'DjWLl7JtX9Ynxtg3sRsrzBJMqlp2'];
+const LEVEL_RANK = { none: 0, view: 1, manage: 2 };
+// Mirrors MailProviderSelect.jsx's options — the "mail bridge" an invite's
+// credential email is sent through.
+const MAIL_PROVIDERS = ['resend', 'zeptomail', 'bridge1', 'bridge2'];
+// Single doc holding whether the public Team page shows the live `members`
+// roster yet, or still the old hardcoded fallback — flipped once from the
+// panel by a system owner when the real roster is ready, not automatically.
+const TEAM_ROSTER_CONFIG_REF = db.collection('site_config').doc('team_roster');
+
+function getActiveEcellMembersSnap() {
+    return db.collection('members')
+        .where('memberType', '==', 'ecell_member')
+        .where('membershipStatus', '==', 'active')
+        .get();
+}
+
+async function sendEmailBestEffort(to, subject, html, provider) {
+    try {
+        await sendEmail(to, subject, html, provider || 'resend');
+    } catch (err) {
+        console.error(`panel-users email send failed: ${err.message}`);
+    }
+}
+
+export default async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
+    try {
+        const action = req.query?.action;
+
+        // Public, unauthenticated — the only action the live Team page may call.
+        if (req.method === 'GET' && action === 'public-roster') return await handlePublicRoster(req, res);
+        if (req.method === 'GET' && action === 'roster-status') return await handleRosterStatus(req, res);
+
+        if (req.method === 'GET') return await handleList(req, res);
+
+        if (req.method === 'POST') {
+            if (action === 'invite') return await handleInvite(req, res);
+            if (action === 'bulk-invite') return await handleBulkInvite(req, res);
+            if (action === 'kick') return await handleKick(req, res);
+            if (action === 'unban') return await handleUnban(req, res);
+            if (action === 'mark-left') return await handleMarkLeft(req, res);
+            if (action === 'reorder') return await handleReorder(req, res);
+            if (action === 'set-roster-live') return await handleSetRosterLive(req, res);
+            return await handleUpdateAccess(req, res);
+        }
+
+        return res.status(405).json({ error: 'Method not allowed' });
+    } catch (error) {
+        return sendRbacError(res, error);
+    }
+}
+
+async function handleList(req, res) {
+    const caller = await requirePermission(req, 'users', 'view');
+
+    const snap = await db.collection('members').orderBy('name').get();
+    const members = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+            uid: doc.id,
+            name: data.name || '',
+            email: data.email || '',
+            roles: Array.isArray(data.roles) ? data.roles : [],
+            permissions: data.permissions || {},
+            verticals: Array.isArray(data.verticals) ? data.verticals : [],
+            memberType: data.memberType || 'normal_member',
+            membershipStatus: data.membershipStatus || 'active',
+            bannedReason: data.bannedReason || null,
+            leftAt: data.leftAt || null,
+            onboardingComplete: data.onboardingComplete !== false,
+            mustChangePassword: data.mustChangePassword === true,
+            avatarUrl: data.avatarUrl || '',
+            phone: data.phone || '',
+            branch: data.branch || '',
+            year: data.year || '',
+            bio: data.bio || '',
+            ecellJoinDate: data.ecellJoinDate || null,
+            eventsAttended: Array.isArray(data.eventsAttended) ? data.eventsAttended : [],
+            certificatesAsOrganiser: Array.isArray(data.certificatesAsOrganiser) ? data.certificatesAsOrganiser : [],
+            certificatesAsParticipant: Array.isArray(data.certificatesAsParticipant) ? data.certificatesAsParticipant : [],
+            publicTitle: data.publicTitle || '',
+            priority: typeof data.priority === 'number' ? data.priority : 9999,
+        };
+    });
+
+    return res.status(200).json({ success: true, members, callerIsSystemOwner: isSystemOwner(caller) });
+}
+
+function generateTempPassword() {
+    return `Ecell${crypto.randomBytes(4).toString('hex')}!`;
+}
+
+function inviteEmailHtml(name, normalizedEmail, tempPassword) {
+    return `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+        <h2>Welcome to the E-Cell DYPIU team portal</h2>
+        <p>Hi ${name},</p>
+        <p>An account has been created for you. Log in with the credentials below — you'll be asked to set your own password immediately, then fill in your profile:</p>
+        <p><strong>Email:</strong> ${normalizedEmail}<br/><strong>Temporary password:</strong> ${tempPassword}</p>
+        <p><a href="${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.ecelldypiu.in'}/login">Log in here</a>.</p>
+    </div>`;
+}
+
+// Shared by the single-invite and CSV bulk-invite actions so both paths always
+// create accounts the same way. Throws { code: 'exists' } for a duplicate email
+// (caller decides whether that's a hard error or a skip) — anything else is a
+// real failure and propagates normally.
+async function createInvitedMember({ name, email, title, priority, actorUid }) {
+    const trimmedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+    const tempPassword = generateTempPassword();
+
+    let userRecord;
+    try {
+        userRecord = await auth.createUser({
+            email: normalizedEmail,
+            password: tempPassword,
+            displayName: trimmedName,
+            emailVerified: false,
+        });
+    } catch (err) {
+        if (err.code === 'auth/email-already-exists') {
+            const dupError = new Error('An account with this email already exists');
+            dupError.code = 'exists';
+            throw dupError;
+        }
+        throw err;
+    }
+
+    await db.collection('members').doc(userRecord.uid).set({
+        uid: userRecord.uid,
+        name: trimmedName,
+        email: normalizedEmail,
+        phone: '',
+        college: 'DYPIU',
+        branch: '',
+        year: '1st',
+        bio: '',
+        avatarUrl: '',
+        publicTitle: (title || '').trim(),
+        priority: typeof priority === 'number' ? priority : 9999,
+        joinedAt: FieldValue.serverTimestamp(),
+        profileComplete: false,
+        eventsAttended: [],
+        certificatesEarned: [],
+        memberType: 'ecell_member',
+        onboardingComplete: false,
+        membershipStatus: 'active',
+        mustChangePassword: true,
+        lastUpdated: FieldValue.serverTimestamp(),
+    });
+
+    await writeAuditLog({
+        actorUid,
+        actorRole: 'users:manage',
+        action: 'invite_member',
+        targetType: 'member',
+        targetId: userRecord.uid,
+        metadata: { email: normalizedEmail },
+    });
+
+    return { uid: userRecord.uid, name: trimmedName, email: normalizedEmail, tempPassword };
+}
+
+async function handleInvite(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+
+    const { name, email, title, provider } = req.body || {};
+    if (!name?.trim() || !email?.trim()) {
+        return res.status(400).json({ error: 'name and email are required' });
+    }
+    if (provider && !MAIL_PROVIDERS.includes(provider)) {
+        return res.status(400).json({ error: `Unknown mail provider "${provider}"` });
+    }
+
+    let created;
+    try {
+        created = await createInvitedMember({ name, email, title, actorUid: caller.uid });
+    } catch (err) {
+        if (err.code === 'exists') return res.status(409).json({ error: err.message });
+        throw err;
+    }
+
+    await sendEmailBestEffort(created.email, 'Your E-Cell DYPIU account is ready', inviteEmailHtml(created.name, created.email, created.tempPassword), provider);
+
+    return res.status(200).json({ success: true, uid: created.uid });
+}
+
+// Body: { members: [{ name, email, title? }, ...], provider? }. Never fails the
+// whole batch for one bad row — each row succeeds, is skipped (duplicate email),
+// or fails independently. Rows without an explicit priority are numbered in
+// upload order, so a CSV ordered by department/seniority keeps that order on
+// the public Team page without the admin having to set it by hand afterward.
+async function handleBulkInvite(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+
+    const { members: rows, provider } = req.body || {};
+    if (!Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: 'members must be a non-empty array of { name, email }' });
+    }
+    if (rows.length > 300) {
+        return res.status(400).json({ error: 'Too many rows in one upload (max 300) — split the CSV into smaller batches' });
+    }
+    if (provider && !MAIL_PROVIDERS.includes(provider)) {
+        return res.status(400).json({ error: `Unknown mail provider "${provider}"` });
+    }
+
+    const created = [];
+    const skipped = [];
+    const failed = [];
+
+    let priority = 1;
+    for (const row of rows) {
+        const name = (row?.name || '').trim();
+        const email = (row?.email || '').trim();
+        const title = (row?.title || '').trim();
+        if (!name || !email) {
+            failed.push({ name, email, error: 'Missing name or email' });
+            continue;
+        }
+        try {
+            const result = await createInvitedMember({ name, email, title, priority, actorUid: caller.uid });
+            created.push(result);
+        } catch (err) {
+            if (err.code === 'exists') {
+                skipped.push({ name, email, reason: 'Account already exists' });
+            } else {
+                failed.push({ name, email, error: err.message });
+            }
+        }
+        priority += 1;
+    }
+
+    // Best-effort, sequential — bulk rosters for a college club are small enough
+    // (capped at 300 rows above) that this doesn't need a queue/worker.
+    for (const member of created) {
+        await sendEmailBestEffort(member.email, 'Your E-Cell DYPIU account is ready', inviteEmailHtml(member.name, member.email, member.tempPassword), provider);
+    }
+
+    return res.status(200).json({
+        success: true,
+        createdCount: created.length,
+        skipped,
+        failed,
+    });
+}
+
+async function handleKick(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+    const { uid, reason } = req.body || {};
+    if (!uid) return res.status(400).json({ error: 'Target uid is required' });
+    if (!reason?.trim()) return res.status(400).json({ error: 'A reason is required to remove a member' });
+    if (uid === caller.uid) return res.status(400).json({ error: "You can't remove your own account" });
+    if (PERMANENT_SYSTEM_OWNER_UIDS.includes(uid)) {
+        return res.status(403).json({ error: 'System owner accounts can never be kicked, by anyone' });
+    }
+
+    const targetRef = db.collection('members').doc(uid);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) return res.status(404).json({ error: 'Member not found' });
+
+    await auth.updateUser(uid, { disabled: true });
+    const now = FieldValue.serverTimestamp();
+    await targetRef.update({
+        membershipStatus: 'banned',
+        bannedReason: reason.trim(),
+        bannedAt: now,
+        bannedBy: caller.uid,
+        lastUpdated: now,
+    });
+
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: isSystemOwner(caller) ? 'system_owner' : 'users:manage',
+        action: 'kick_member',
+        targetType: 'member',
+        targetId: uid,
+        metadata: { reason: reason.trim() },
+    });
+
+    return res.status(200).json({ success: true });
+}
+
+async function handleUnban(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+    const { uid } = req.body || {};
+    if (!uid) return res.status(400).json({ error: 'Target uid is required' });
+
+    const targetRef = db.collection('members').doc(uid);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) return res.status(404).json({ error: 'Member not found' });
+
+    await auth.updateUser(uid, { disabled: false });
+    const now = FieldValue.serverTimestamp();
+    await targetRef.update({
+        membershipStatus: 'active',
+        unbannedAt: now,
+        unbannedBy: caller.uid,
+        lastUpdated: now,
+    });
+
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: isSystemOwner(caller) ? 'system_owner' : 'users:manage',
+        action: 'unban_member',
+        targetType: 'member',
+        targetId: uid,
+        metadata: {},
+    });
+
+    return res.status(200).json({ success: true });
+}
+
+async function handleMarkLeft(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+    const { uid, leftAt } = req.body || {};
+    if (!uid) return res.status(400).json({ error: 'Target uid is required' });
+    if (!leftAt) return res.status(400).json({ error: 'An ending date is required' });
+    if (uid === caller.uid) return res.status(400).json({ error: "You can't remove your own account" });
+    if (PERMANENT_SYSTEM_OWNER_UIDS.includes(uid)) {
+        return res.status(403).json({ error: 'System owner accounts can never be marked as left, by anyone' });
+    }
+
+    const targetRef = db.collection('members').doc(uid);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) return res.status(404).json({ error: 'Member not found' });
+    const targetData = targetSnap.data();
+
+    const startRaw = targetData.ecellJoinDate || targetData.joinedAt;
+    const startDate = startRaw?.toDate ? startRaw.toDate() : new Date(startRaw);
+    const endDate = new Date(leftAt);
+    const durationDays = isNaN(startDate.getTime()) ? 0 : Math.max(0, Math.round((endDate - startDate) / 86400000));
+
+    const now = FieldValue.serverTimestamp();
+    await targetRef.update({
+        membershipStatus: 'past_member',
+        leftAt,
+        membershipDurationDays: durationDays,
+        pastMemberCertificateEligible: true,
+        lastUpdated: now,
+    });
+
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: isSystemOwner(caller) ? 'system_owner' : 'users:manage',
+        action: 'mark_member_left',
+        targetType: 'member',
+        targetId: uid,
+        metadata: { leftAt, durationDays },
+    });
+
+    return res.status(200).json({ success: true, durationDays });
+}
+
+async function handleUpdateAccess(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+
+    const { uid, roles, permissions, verticals, publicTitle } = req.body || {};
+    if (!uid) return res.status(400).json({ error: 'Target uid is required' });
+    if (uid === caller.uid) return res.status(400).json({ error: "You can't change your own access" });
+
+    const targetRef = db.collection('members').doc(uid);
+    const targetSnap = await targetRef.get();
+    if (!targetSnap.exists) return res.status(404).json({ error: 'Member not found' });
+    const targetData = targetSnap.data();
+
+    const update = { lastUpdated: FieldValue.serverTimestamp() };
+    const changes = {};
+
+    if (roles !== undefined) {
+        // Only a system owner may grant/revoke roles — a users:manage delegate cannot,
+        // which prevents them from promoting themselves or anyone else to system_owner.
+        if (!isSystemOwner(caller)) {
+            throw new RbacError(403, 'Only a system owner can change roles');
+        }
+        if (!Array.isArray(roles) || roles.some((r) => !ASSIGNABLE_ROLES.includes(r))) {
+            return res.status(400).json({ error: `roles must only contain: ${ASSIGNABLE_ROLES.join(', ')}` });
+        }
+        if (roles.includes('system_owner') && !PERMANENT_SYSTEM_OWNER_UIDS.includes(uid)) {
+            throw new RbacError(403, 'system_owner is permanently limited to the two founding accounts and cannot be granted to anyone else');
+        }
+        update.roles = roles;
+        changes.roles = { from: targetData.roles || [], to: roles };
+    }
+
+    if (permissions !== undefined) {
+        if (typeof permissions !== 'object' || permissions === null || Array.isArray(permissions)) {
+            return res.status(400).json({ error: 'permissions must be an object' });
+        }
+        const callerPermissions = caller.permissions || {};
+        const nextPermissions = { ...(targetData.permissions || {}) };
+
+        for (const [moduleKey, level] of Object.entries(permissions)) {
+            if (!MODULES.includes(moduleKey)) {
+                return res.status(400).json({ error: `Unknown module: ${moduleKey}` });
+            }
+            if (!PERMISSION_LEVELS.includes(level)) {
+                return res.status(400).json({ error: `Invalid level "${level}" for ${moduleKey}` });
+            }
+            // A non-system_owner delegate can never grant a level higher than their own
+            // (standard RBAC delegation safety: can't hand out more than you have).
+            if (!isSystemOwner(caller)) {
+                const callerLevel = callerPermissions[moduleKey] || 'none';
+                if (LEVEL_RANK[level] > LEVEL_RANK[callerLevel]) {
+                    throw new RbacError(403, `You can't grant ${level} on ${moduleKey} without having it yourself`);
+                }
+            }
+            nextPermissions[moduleKey] = level;
+        }
+
+        update.permissions = nextPermissions;
+        changes.permissions = { to: permissions };
+    }
+
+    if (verticals !== undefined) {
+        if (!Array.isArray(verticals) || verticals.some((v) => typeof v !== 'string')) {
+            return res.status(400).json({ error: 'verticals must be an array of vertical ids' });
+        }
+        update.verticals = verticals;
+        changes.verticals = { from: targetData.verticals || [], to: verticals };
+    }
+
+    if (publicTitle !== undefined) {
+        if (typeof publicTitle !== 'string' || publicTitle.length > 80) {
+            return res.status(400).json({ error: 'publicTitle must be a string up to 80 characters' });
+        }
+        update.publicTitle = publicTitle.trim();
+        changes.publicTitle = { from: targetData.publicTitle || '', to: update.publicTitle };
+    }
+
+    if (Object.keys(changes).length === 0) {
+        return res.status(400).json({ error: 'Nothing to update — provide roles, permissions, verticals and/or publicTitle' });
+    }
+
+    await targetRef.update(update);
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: isSystemOwner(caller) ? 'system_owner' : 'users:manage',
+        action: 'update_member_access',
+        targetType: 'member',
+        targetId: uid,
+        metadata: changes,
+    });
+
+    return res.status(200).json({ success: true });
+}
+
+// Body: { order: [{ uid, priority }, ...] }. Mirrors api/team.js's existing
+// reorder action (batch-update just the priority field) applied to members
+// instead of the legacy TEAM_MEMBERS collection.
+async function handleReorder(req, res) {
+    const caller = await requirePermission(req, 'users', 'manage');
+
+    const { order } = req.body || {};
+    if (!Array.isArray(order) || order.length === 0) {
+        return res.status(400).json({ error: 'order must be a non-empty array of { uid, priority }' });
+    }
+
+    const batch = db.batch();
+    for (const entry of order) {
+        if (!entry?.uid || typeof entry.priority !== 'number') continue;
+        batch.update(db.collection('members').doc(entry.uid), {
+            priority: entry.priority,
+            lastUpdated: FieldValue.serverTimestamp(),
+        });
+    }
+    await batch.commit();
+
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: isSystemOwner(caller) ? 'system_owner' : 'users:manage',
+        action: 'reorder_members',
+        targetType: 'member',
+        targetId: null,
+        metadata: { count: order.length },
+    });
+
+    return res.status(200).json({ success: true });
+}
+
+// Public, unauthenticated — the only data the live Team page may read. Never
+// return email/phone/PRN/permissions here, only what's safe to show visitors.
+// Returns no members at all until a system owner explicitly flips the roster
+// live (see handleSetRosterLive) — the Team page's existing fallback logic
+// then shows the old hardcoded roster on its own, with no client-side change
+// needed here.
+async function handlePublicRoster(req, res) {
+    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+
+    const configSnap = await TEAM_ROSTER_CONFIG_REF.get();
+    const live = configSnap.exists && configSnap.data().live === true;
+    if (!live) {
+        return res.status(200).json({ success: true, members: [], live: false });
+    }
+
+    const snap = await getActiveEcellMembersSnap();
+
+    const members = snap.docs
+        .map((doc) => {
+            const data = doc.data();
+            return {
+                uid: doc.id,
+                name: data.name || '',
+                avatarUrl: data.avatarUrl || '',
+                publicTitle: data.publicTitle || '',
+                roles: Array.isArray(data.roles) ? data.roles : [],
+                verticals: Array.isArray(data.verticals) ? data.verticals : [],
+                priority: typeof data.priority === 'number' ? data.priority : 9999,
+            };
+        })
+        .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+
+    return res.status(200).json({ success: true, members, live: true });
+}
+
+// Authenticated — tells the admin panel whether the public page is live yet
+// and how many real core members are ready, so "Go Live" isn't a blind leap.
+async function handleRosterStatus(req, res) {
+    await requirePermission(req, 'users', 'view');
+
+    const [configSnap, readySnap] = await Promise.all([
+        TEAM_ROSTER_CONFIG_REF.get(),
+        getActiveEcellMembersSnap(),
+    ]);
+
+    return res.status(200).json({
+        success: true,
+        live: configSnap.exists && configSnap.data().live === true,
+        readyCount: readySnap.size,
+    });
+}
+
+// System owner only — this flips what every visitor to the public site sees,
+// so it's deliberately held to a higher bar than the general 'users:manage'
+// permission used elsewhere in this file.
+async function handleSetRosterLive(req, res) {
+    const caller = await requireSystemOwner(req);
+    const { live } = req.body || {};
+    if (typeof live !== 'boolean') {
+        return res.status(400).json({ error: 'live must be true or false' });
+    }
+
+    await TEAM_ROSTER_CONFIG_REF.set({
+        live,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: caller.uid,
+    }, { merge: true });
+
+    await writeAuditLog({
+        actorUid: caller.uid,
+        actorRole: 'system_owner',
+        action: live ? 'team_roster_go_live' : 'team_roster_revert_to_static',
+        targetType: 'site_config',
+        targetId: 'team_roster',
+        metadata: { live },
+    });
+
+    return res.status(200).json({ success: true, live });
+}
