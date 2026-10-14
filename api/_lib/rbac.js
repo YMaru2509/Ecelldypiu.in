@@ -35,6 +35,22 @@ const ADMIN_PANEL_ACTOR = {
     isAdminPanelActor: true,
 };
 
+// Mirrors api/admin-users.js's isApiKeyValid: ADMIN_API_KEY may be a single
+// value or a comma-separated list, and env vars pasted into a dashboard
+// commonly pick up stray wrapping quotes or whitespace — strip both before
+// comparing. A naive `token === process.env.ADMIN_API_KEY` here previously
+// caused real admin-panel logins to fail with "Invalid or expired session"
+// whenever the raw env var carried such whitespace/quoting, even though the
+// key was "correct" and the login endpoint's own check (which already
+// normalizes) accepted it.
+function isAdminApiKey(token) {
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey || !token) return false;
+    const strip = (s) => s.trim().replace(/^["'`]|["'`]$/g, '');
+    const cleanToken = strip(token);
+    return strip(adminKey).split(',').map(strip).includes(cleanToken);
+}
+
 // Verifies the bearer credential and loads the caller's members/{uid} doc —
 // or, if the bearer token is the shared ADMIN_API_KEY, returns the synthetic
 // admin-panel actor instead. Throws RbacError(401) if the token is missing/
@@ -46,7 +62,7 @@ export async function getCallerMember(req) {
     }
     const token = authHeader.slice('Bearer '.length);
 
-    if (process.env.ADMIN_API_KEY && token === process.env.ADMIN_API_KEY) {
+    if (isAdminApiKey(token)) {
         return ADMIN_PANEL_ACTOR;
     }
 
