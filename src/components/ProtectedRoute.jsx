@@ -40,7 +40,10 @@ const ProtectedRoute = ({ children, requirePermission }) => {
     // onboardingComplete === false (explicit) sends an incomplete profile to the
     // wizard first. Existing members predate this field entirely, so a missing
     // field is treated as complete — never force-redirect based on absence alone.
-    if (userProfile?.onboardingComplete === false && location.pathname !== '/onboarding') {
+    // Every freshly-invited member has mustChangePassword AND onboardingComplete
+    // both true/false respectively at once — without this guard, this rule and
+    // the mustChangePassword rule above redirect to each other's target forever.
+    if (userProfile?.mustChangePassword !== true && userProfile?.onboardingComplete === false && location.pathname !== '/onboarding') {
         return <Navigate to="/onboarding" replace />;
     }
 
