@@ -8,7 +8,12 @@ const Login = () => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const from = location.state?.from?.pathname || '/profile';
+    // ProtectedRoute passes the full location it redirected from — rebuild the
+    // path WITH its query string (pathname alone drops e.g. the ?eventId=&
+    // token= a check-in QR link needs, silently breaking that flow for anyone
+    // not already logged in).
+    const redirectFrom = location.state?.from;
+    const from = redirectFrom ? `${redirectFrom.pathname}${redirectFrom.search || ''}` : '/profile';
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

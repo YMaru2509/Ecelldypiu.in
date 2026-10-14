@@ -656,13 +656,22 @@ const Profile = () => {
                                 const event = typeof eventId === 'string' ? eventsById[eventId] : null;
                                 const title = event?.title || (typeof eventId === 'object' ? (eventId.name || eventId.id) : eventId);
                                 const date = event?.date || (typeof eventId === 'object' ? eventId.date : null) || 'Attended';
+                                // Only a real QR check-in earns "Verified" — everything else here was
+                                // self-reported during onboarding and never independently confirmed.
+                                const isVerified = typeof eventId === 'string' && (userProfile.verifiedEventIds || []).includes(eventId);
                                 return (
                                     <div key={idx} className="bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
                                         <h4 className="font-bold text-[var(--text-primary)] text-sm">{title}</h4>
                                         <p className="text-xs text-gray-400">{date}</p>
-                                        <span className="inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--success-bg)_40%,transparent)] text-[var(--success-color)] border border-green-500/50 rounded-full text-[10px] font-bold uppercase">
-                                            Verified Attendee
-                                        </span>
+                                        {isVerified ? (
+                                            <span className="inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--success-bg)_40%,transparent)] text-[var(--success-color)] border border-green-500/50 rounded-full text-[10px] font-bold uppercase">
+                                                Verified Attendee
+                                            </span>
+                                        ) : (
+                                            <span className="inline-block px-2 py-0.5 bg-zinc-800 text-gray-400 border border-zinc-600 rounded-full text-[10px] font-bold uppercase">
+                                                Self-Reported
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })}

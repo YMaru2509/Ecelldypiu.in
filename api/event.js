@@ -1,6 +1,8 @@
+import crypto from 'crypto';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
+import { requirePermission, getCallerMember, sendRbacError } from './_lib/rbac.js';
 
 let db = null;
 
@@ -143,6 +145,8 @@ export default async function handler(req, res) {
             return await handleGetEvents(req, res);
         } else if (action === 'list-applications') {
             return await handleListApplications(req, res);
+        } else if (action === 'checkin-status') {
+            return await handleCheckinStatus(req, res);
         }
     }
 
@@ -167,6 +171,14 @@ export default async function handler(req, res) {
             return await handleUpdateEvent(req, res);
         } else if (action === 'delete-event') {
             return await handleDeleteEvent(req, res);
+        } else if (action === 'create-checkin-session') {
+            return await handleCreateCheckinSession(req, res);
+        } else if (action === 'close-checkin') {
+            return await handleCloseCheckin(req, res);
+        } else if (action === 'manual-checkin') {
+            return await handleManualCheckin(req, res);
+        } else if (action === 'scan-checkin') {
+            return await handleScanCheckin(req, res);
         }
     }
 
@@ -709,5 +721,220 @@ async function handleDeleteApplication(req, res) {
     } catch (error) {
         console.error('Error deleting application:', error);
         return res.status(500).json({ error: 'Failed to delete application' });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Event-day attendance check-in: an admin opens a short time window for an
+// event (room + duration), every active core member is emailed, a QR code
+// encoding a one-time token is displayed in the room, and members scan it
+// from their own logged-in session to be marked present. Uses the RBAC
+// chokepoint (_lib/rbac.js) rather than this file's own legacy isAuthorized()
+// for these actions specifically, since member-facing scan-checkin needs to
+// identify *which* member is scanning, not just whether a request holds the
+// shared admin key.
+// ---------------------------------------------------------------------------
+
+async function recordCheckin({ eventId, uid, memberName, verified, method, markedBy }) {
+    const scannedAt = new Date().toISOString();
+    await db.collection('event_checkins').doc(`${eventId}_${uid}`).set({
+        eventId,
+        uid,
+        memberName: memberName || '',
+        verified,
+        method,
+        scannedAt,
+        markedBy: markedBy || null,
+    });
+    await db.collection('members').doc(uid).update({
+        eventsAttended: FieldValue.arrayUnion(eventId),
+        // Only a genuine QR scan counts as verified — a manual admin fallback
+        // check-in still records attendance, but isn't held to the same bar.
+        ...(verified ? { verifiedEventIds: FieldValue.arrayUnion(eventId) } : {}),
+        lastUpdated: Timestamp.now(),
+    });
+}
+
+// Admin: opens the window and emails every active core member. Best-effort
+// on the email send — a failed send for one person never blocks activation.
+async function handleCreateCheckinSession(req, res) {
+    try {
+        const caller = await requirePermission(req, 'events', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, room, windowMinutes, provider } = req.body || {};
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+        if (!room?.trim()) return res.status(400).json({ error: 'room is required' });
+        const minutes = Number(windowMinutes) > 0 ? Number(windowMinutes) : 15;
+
+        const eventRef = db.collection('events').doc(eventId);
+        const eventSnap = await eventRef.get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+        const eventData = eventSnap.data();
+
+        const token = crypto.randomBytes(12).toString('hex');
+        const now = new Date();
+        const windowStart = now.toISOString();
+        const windowEnd = new Date(now.getTime() + minutes * 60000).toISOString();
+
+        await eventRef.update({
+            checkin: {
+                token,
+                room: room.trim(),
+                windowStart,
+                windowEnd,
+                active: true,
+                activatedBy: caller.uid,
+            },
+            updatedAt: Timestamp.now(),
+        });
+
+        const membersSnap = await db.collection('members')
+            .where('memberType', '==', 'ecell_member')
+            .where('membershipStatus', '==', 'active')
+            .get();
+
+        const eventTitle = eventData.title || eventId;
+        const subject = `Attendance check-in now open: ${eventTitle}`;
+        const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+            <h2>Attendance check-in is open</h2>
+            <p>Be in <strong>${room.trim()}</strong> now and scan the QR code shown there to be marked present for <strong>${eventTitle}</strong>.</p>
+            <p>This closes in ${minutes} minute${minutes === 1 ? '' : 's'}.</p>
+        </div>`;
+
+        let notified = 0;
+        for (const doc of membersSnap.docs) {
+            const email = doc.data().email;
+            if (!email) continue;
+            try {
+                await sendEmail(email, subject, html, provider || 'resend');
+                notified++;
+            } catch (err) {
+                console.error(`Check-in notify failed for ${email}: ${err.message}`);
+            }
+        }
+
+        return res.status(200).json({ success: true, token, windowStart, windowEnd, notified, totalMembers: membersSnap.size });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error creating checkin session:', error);
+        return res.status(500).json({ error: 'Failed to create checkin session' });
+    }
+}
+
+// Admin: live status for the panel — the session itself plus who's checked
+// in so far. 'view' permission is enough here; only activating/closing the
+// window requires 'manage'.
+async function handleCheckinStatus(req, res) {
+    try {
+        await requirePermission(req, 'events', 'view');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const eventId = req.query?.eventId;
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+
+        const checkinsSnap = await db.collection('event_checkins').where('eventId', '==', eventId).get();
+        const attendees = checkinsSnap.docs
+            .map((d) => d.data())
+            .sort((a, b) => (a.scannedAt || '').localeCompare(b.scannedAt || ''));
+
+        return res.status(200).json({ success: true, checkin: eventSnap.data().checkin || null, attendees });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error reading checkin status:', error);
+        return res.status(500).json({ error: 'Failed to read checkin status' });
+    }
+}
+
+// Admin: ends the window early (e.g. everyone's already scanned).
+async function handleCloseCheckin(req, res) {
+    try {
+        await requirePermission(req, 'events', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId } = req.body || {};
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+
+        await db.collection('events').doc(eventId).update({ 'checkin.active': false, updatedAt: Timestamp.now() });
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error closing checkin:', error);
+        return res.status(500).json({ error: 'Failed to close checkin' });
+    }
+}
+
+// Admin fallback for someone who was genuinely in the room but couldn't scan
+// (dead phone, no camera access, etc.) — recorded as unverified, distinct
+// from a real QR scan, so admins can still see who was hand-marked.
+async function handleManualCheckin(req, res) {
+    try {
+        const caller = await requirePermission(req, 'events', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, uid } = req.body || {};
+        if (!eventId || !uid) return res.status(400).json({ error: 'eventId and uid are required' });
+
+        const memberSnap = await db.collection('members').doc(uid).get();
+        if (!memberSnap.exists) return res.status(404).json({ error: 'Member not found' });
+
+        await recordCheckin({
+            eventId,
+            uid,
+            memberName: memberSnap.data().name,
+            verified: false,
+            method: 'manual',
+            markedBy: caller.uid,
+        });
+
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error recording manual checkin:', error);
+        return res.status(500).json({ error: 'Failed to record checkin' });
+    }
+}
+
+// Member-facing: the QR code's target. Verifies the scanning member's own
+// Firebase session (not the admin key), validates the token and time window
+// server-side, and records one check-in per member per event (idempotent —
+// re-scanning just confirms, never double-records).
+async function handleScanCheckin(req, res) {
+    try {
+        const member = await getCallerMember(req);
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, token } = req.body || {};
+        if (!eventId || !token) return res.status(400).json({ error: 'eventId and token are required' });
+
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+        const checkin = eventSnap.data().checkin;
+
+        if (!checkin || !checkin.active) {
+            return res.status(400).json({ error: 'Check-in is not currently open for this event' });
+        }
+        if (checkin.token !== token) {
+            return res.status(400).json({ error: 'Invalid or expired check-in code' });
+        }
+        const now = Date.now();
+        if (now < new Date(checkin.windowStart).getTime() || now > new Date(checkin.windowEnd).getTime()) {
+            return res.status(400).json({ error: 'The check-in window has closed' });
+        }
+
+        const already = await db.collection('event_checkins').doc(`${eventId}_${member.uid}`).get();
+        if (already.exists) {
+            return res.status(200).json({ success: true, alreadyCheckedIn: true });
+        }
+
+        await recordCheckin({ eventId, uid: member.uid, memberName: member.name, verified: true, method: 'qr' });
+        return res.status(200).json({ success: true, alreadyCheckedIn: false });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error scanning checkin:', error);
+        return res.status(500).json({ error: 'Failed to record checkin' });
     }
 }

@@ -37,10 +37,12 @@ import Register from './pages/Register';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Onboarding from './pages/Onboarding';
+import CheckIn from './pages/CheckIn';
 import SetNewPassword from './pages/SetNewPassword';
 import PanelHome from './pages/Panel/PanelHome';
 import UsersRoles from './pages/Panel/UsersRoles';
 import Members from './pages/Panel/Members';
+import EventsAttendance from './pages/Panel/EventsAttendance';
 import AttendanceQueue from './pages/Panel/AttendanceQueue';
 import Verticals from './pages/Panel/Verticals';
 import AttendanceRequestForm from './pages/AttendanceRequestForm';
@@ -82,6 +84,14 @@ function App() {
                       element={
                         <ProtectedRoute>
                           <Onboarding />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/checkin"
+                      element={
+                        <ProtectedRoute>
+                          <CheckIn />
                         </ProtectedRoute>
                       }
                     />
@@ -148,6 +158,14 @@ function App() {
                       element={
                         <RequireAdminKey>
                           <AttendanceQueue />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/panel/events"
+                      element={
+                        <RequireAdminKey>
+                          <EventsAttendance />
                         </RequireAdminKey>
                       }
                     />
