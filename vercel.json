@@ -11,7 +11,7 @@
   ],
   "crons": [
     {
-      "path": "/api/attendance-sync-retry",
+      "path": "/api/attendance?action=sync-retry",
       "schedule": "0 3 * * *"
     }
   ]

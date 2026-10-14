@@ -32,7 +32,7 @@ const AttendanceRequestForm = () => {
 
     const loadVerticals = useCallback(async () => {
         const token = await currentUser.getIdToken();
-        const res = await fetch('/api/attendance-admin', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch('/api/attendance?action=verticals', { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
         if (res.ok) setVerticals(data.verticals || []);
     }, [currentUser]);

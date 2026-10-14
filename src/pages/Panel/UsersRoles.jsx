@@ -739,7 +739,7 @@ const UsersRoles = () => {
         try {
             const [mRes, vRes, eRes, rRes] = await Promise.all([
                 fetch('/api/panel-users', { headers: adminAuthHeaders() }),
-                fetch('/api/attendance-admin', { headers: adminAuthHeaders() }),
+                fetch('/api/attendance?action=verticals', { headers: adminAuthHeaders() }),
                 fetch('/api/event?action=get-events'),
                 fetch('/api/panel-users?action=roster-status', { headers: adminAuthHeaders() }),
             ]);

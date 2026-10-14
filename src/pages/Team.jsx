@@ -611,7 +611,7 @@ const Team = () => {
       const dynamicMembers = rosterRes.ok ? (rosterData.members || []) : [];
       if (dynamicMembers.length === 0) return false; // not ready yet — caller falls back to legacy
 
-      const verticalsRes = await fetch('/api/attendance-admin?action=public');
+      const verticalsRes = await fetch('/api/attendance?action=verticals-public');
       const verticalsData = await verticalsRes.json();
       const verticals = verticalsRes.ok ? (verticalsData.verticals || []) : [];
 

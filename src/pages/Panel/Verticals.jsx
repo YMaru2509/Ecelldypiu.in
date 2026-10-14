@@ -18,7 +18,7 @@ const Verticals = () => {
         setError('');
         try {
             const [vRes, mRes] = await Promise.all([
-                fetch('/api/attendance-admin', { headers: adminAuthHeaders() }),
+                fetch('/api/attendance?action=verticals', { headers: adminAuthHeaders() }),
                 fetch('/api/panel-users', { headers: adminAuthHeaders() }),
             ]);
             const vData = await vRes.json();
@@ -41,7 +41,7 @@ const Verticals = () => {
         setCreating(true);
         setError('');
         try {
-            const res = await fetch('/api/attendance-admin', {
+            const res = await fetch('/api/attendance?action=verticals-create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
                 body: JSON.stringify({ name: newName.trim() }),
@@ -62,7 +62,7 @@ const Verticals = () => {
         setSavingId(vertical.id);
         setError('');
         try {
-            const res = await fetch('/api/attendance-admin', {
+            const res = await fetch('/api/attendance?action=verticals-update', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
                 body: JSON.stringify({ id: vertical.id, headUid: headUid || null }),

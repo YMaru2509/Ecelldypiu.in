@@ -20,7 +20,7 @@ const AttendanceQueue = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(`/api/attendance-approvals?action=queue&stage=${stage}`, { headers: adminAuthHeaders() });
+            const res = await fetch(`/api/attendance?action=queue&stage=${stage}`, { headers: adminAuthHeaders() });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load queue');
             setRequests(data.requests || []);
@@ -42,7 +42,7 @@ const AttendanceQueue = () => {
         setActingId(requestId);
         setError('');
         try {
-            const res = await fetch('/api/attendance-approvals?action=decide', {
+            const res = await fetch('/api/attendance?action=decide', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
                 body: JSON.stringify({ requestId, action, remarks }),
