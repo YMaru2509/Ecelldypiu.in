@@ -274,43 +274,43 @@ const Profile = () => {
 
     if (!userProfile) {
         return (
-            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
+            <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col items-center justify-center p-6 text-center">
                 <Loader2 className="w-10 h-10 text-brand-yellow animate-spin mb-4" />
-                <p className="font-bold text-white uppercase text-sm tracking-wider">Loading Profile...</p>
+                <p className="font-bold text-[var(--text-primary)] uppercase text-sm tracking-wider">Loading Profile...</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-black text-white pt-24 pb-16 px-4 md:px-8">
+        <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] pt-24 pb-16 px-4 md:px-8">
             <div className="max-w-5xl mx-auto space-y-8">
                 {/* Success/Error Alerts */}
                 {saveSuccess && (
-                    <div className="bg-green-900/40 border-2 border-green-500 text-green-300 p-4 rounded-2xl flex items-center justify-between">
+                    <div className="bg-[color-mix(in_srgb,var(--success-bg)_40%,transparent)] border-2 border-green-500 text-[var(--success-color)] p-4 rounded-2xl flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <CheckCircle2 className="w-5 h-5 text-green-400" />
+                            <CheckCircle2 className="w-5 h-5 text-[var(--success-color)]" />
                             <span className="font-bold text-sm">{saveSuccess}</span>
                         </div>
-                        <button onClick={() => setSaveSuccess('')} className="text-green-400 hover:text-white">
+                        <button onClick={() => setSaveSuccess('')} className="text-[var(--success-color)] hover:text-[var(--text-primary)]">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
                 )}
 
                 {saveError && (
-                    <div className="bg-red-900/40 border-2 border-red-500 text-red-300 p-4 rounded-2xl flex items-center justify-between">
+                    <div className="bg-[color-mix(in_srgb,var(--danger-bg)_40%,transparent)] border-2 border-red-500 text-[var(--danger-color)] p-4 rounded-2xl flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <AlertCircle className="w-5 h-5 text-red-400" />
+                            <AlertCircle className="w-5 h-5 text-[var(--danger-color)]" />
                             <span className="font-bold text-sm">{saveError}</span>
                         </div>
-                        <button onClick={() => setSaveError('')} className="text-red-400 hover:text-white">
+                        <button onClick={() => setSaveError('')} className="text-[var(--danger-color)] hover:text-[var(--text-primary)]">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
                 )}
 
                 {/* SECTION 1: HERO CARD */}
-                <div className="bg-zinc-900 border-4 border-white rounded-3xl p-6 md:p-8 shadow-[8px_8px_0px_#FFB22C] relative overflow-hidden">
+                <div className="bg-[var(--bg-card)] border-4 border-[var(--border-color)] rounded-3xl p-6 md:p-8 shadow-[8px_8px_0px_#FFB22C] relative overflow-hidden">
                     <div className="absolute -top-16 -right-16 w-64 h-64 bg-brand-yellow/10 rounded-full blur-3xl pointer-events-none" />
 
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
@@ -323,13 +323,13 @@ const Profile = () => {
                                     className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-brand-yellow object-cover"
                                 />
                             ) : (
-                                <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-brand-yellow bg-black text-brand-yellow font-black text-4xl flex items-center justify-center shadow-[4px_4px_0px_#FFB22C]">
+                                <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-brand-yellow bg-[var(--bg-secondary)] text-brand-yellow font-black text-4xl flex items-center justify-center shadow-[4px_4px_0px_#FFB22C]">
                                     {userInitial}
                                 </div>
                             )}
 
                             <div>
-                                <h1 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tight flex items-center gap-2">
+                                <h1 className="text-2xl md:text-4xl font-black text-[var(--text-primary)] uppercase tracking-tight flex items-center gap-2">
                                     {userProfile.name || 'E-Cell Member'}
                                 </h1>
                                 <p className="text-gray-400 text-sm font-medium mb-3">
@@ -354,7 +354,7 @@ const Profile = () => {
                             {!isEditing && (
                                 <button
                                     onClick={handleStartEditing}
-                                    className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-4 py-2.5 rounded-xl border-2 border-zinc-700 text-xs uppercase transition-colors"
+                                    className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-[var(--text-primary)] font-bold px-4 py-2.5 rounded-xl border-2 border-zinc-700 text-xs uppercase transition-colors"
                                 >
                                     <Edit2 className="w-4 h-4 text-brand-yellow" />
                                     Edit Profile
@@ -363,7 +363,7 @@ const Profile = () => {
 
                             <button
                                 onClick={handleLogout}
-                                className="flex items-center gap-2 bg-red-900/30 hover:bg-red-600 border-2 border-red-500/50 hover:border-red-600 text-red-300 hover:text-white font-bold px-4 py-2.5 rounded-xl text-xs uppercase transition-colors"
+                                className="flex items-center gap-2 bg-[color-mix(in_srgb,var(--danger-bg)_30%,transparent)] hover:bg-red-600 border-2 border-red-500/50 hover:border-red-600 text-[var(--danger-color)] hover:text-white font-bold px-4 py-2.5 rounded-xl text-xs uppercase transition-colors"
                             >
                                 <LogOut className="w-4 h-4" />
                                 Logout
@@ -383,7 +383,7 @@ const Profile = () => {
 
                             {/* Line 1: Member since date */}
                             <p className="text-xl md:text-2xl font-bold text-gray-200">
-                                Member since <span className="text-white font-black">{membership.joinedDate}</span>
+                                Member since <span className="text-[var(--text-primary)] font-black">{membership.joinedDate}</span>
                             </p>
 
                             {/* Line 2: Live formatted duration */}
@@ -399,7 +399,7 @@ const Profile = () => {
 
                         {/* Milestone Badge if achieved */}
                         {milestone && (
-                            <div className="bg-black border-2 border-brand-yellow p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-[4px_4px_0px_#FFB22C] min-w-[160px]">
+                            <div className="bg-[var(--bg-secondary)] border-2 border-brand-yellow p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-[4px_4px_0px_#FFB22C] min-w-[160px]">
                                 <span className="text-4xl mb-1">{milestone.emoji}</span>
                                 <span className="text-brand-yellow font-black text-sm uppercase tracking-wider">
                                     {milestone.label}
@@ -412,7 +412,7 @@ const Profile = () => {
                 {/* SECTION 3: PROFILE INFORMATION */}
                 <div className="bg-zinc-900 border-4 border-zinc-800 rounded-3xl p-6 md:p-8 space-y-6">
                     <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
-                        <h3 className="text-xl font-black uppercase text-white flex items-center gap-2">
+                        <h3 className="text-xl font-black uppercase text-[var(--text-primary)] flex items-center gap-2">
                             <User className="w-5 h-5 text-brand-yellow" />
                             Personal Details
                         </h3>
@@ -444,7 +444,7 @@ const Profile = () => {
                                         onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                                         placeholder="9876543210"
                                         required
-                                        className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
+                                        className="w-full bg-[var(--bg-secondary)] border-2 border-zinc-700 p-3 text-[var(--text-primary)] rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
                                     />
                                 </div>
 
@@ -455,7 +455,7 @@ const Profile = () => {
                                     <select
                                         value={editForm.branch}
                                         onChange={(e) => setEditForm({ ...editForm, branch: e.target.value })}
-                                        className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-xl focus:border-brand-yellow focus:outline-none text-sm truncate"
+                                        className="w-full bg-[var(--bg-secondary)] border-2 border-zinc-700 p-3 text-[var(--text-primary)] rounded-xl focus:border-brand-yellow focus:outline-none text-sm truncate"
                                     >
                                         {PROGRAM_GROUPS.map((group) => (
                                             <optgroup key={group.school} label={group.school} className="bg-zinc-900 text-brand-yellow font-bold">
@@ -481,7 +481,7 @@ const Profile = () => {
                                     <select
                                         value={editForm.year}
                                         onChange={(e) => setEditForm({ ...editForm, year: e.target.value })}
-                                        className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
+                                        className="w-full bg-[var(--bg-secondary)] border-2 border-zinc-700 p-3 text-[var(--text-primary)] rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
                                     >
                                         {YEAR_OPTIONS.map(y => (
                                             <option key={y} value={y}>{y} Year</option>
@@ -504,9 +504,9 @@ const Profile = () => {
 
                             {/* Custom Branch Input for Edit Mode */}
                             {editForm.branch === 'Other' && (
-                                <div className="bg-black/60 border-2 border-brand-yellow/50 p-4 rounded-xl space-y-2">
+                                <div className="bg-[color-mix(in_srgb,var(--bg-secondary)_60%,transparent)] border-2 border-brand-yellow/50 p-4 rounded-xl space-y-2">
                                     <label className="block text-xs font-bold uppercase text-brand-yellow mb-1">
-                                        Please specify your program <span className="text-white">*</span>
+                                        Please specify your program <span className="text-[var(--text-primary)]">*</span>
                                     </label>
                                     <input
                                         type="text"
@@ -514,7 +514,7 @@ const Profile = () => {
                                         onChange={(e) => setEditForm({ ...editForm, customBranch: e.target.value })}
                                         placeholder="Enter your degree or program name"
                                         required
-                                        className="w-full bg-black border-2 border-zinc-700 px-4 py-2.5 text-white rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
+                                        className="w-full bg-[var(--bg-secondary)] border-2 border-zinc-700 px-4 py-2.5 text-[var(--text-primary)] rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
                                     />
                                 </div>
                             )}
@@ -528,7 +528,7 @@ const Profile = () => {
                                     onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
                                     rows={3}
                                     placeholder="Tell us about yourself or your startup ideas..."
-                                    className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
+                                    className="w-full bg-[var(--bg-secondary)] border-2 border-zinc-700 p-3 text-[var(--text-primary)] rounded-xl focus:border-brand-yellow focus:outline-none text-sm"
                                 />
                             </div>
 
@@ -553,41 +553,41 @@ const Profile = () => {
                         /* Read-Only Details Grid */
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="flex items-center gap-3 bg-black border-2 border-zinc-800 p-4 rounded-2xl">
+                                <div className="flex items-center gap-3 bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl">
                                     <Phone className="w-5 h-5 text-brand-yellow flex-shrink-0" />
                                     <div>
                                         <p className="text-xs text-gray-500 uppercase font-bold">Phone Number</p>
-                                        <p className="text-sm font-bold text-white">{userProfile.phone || 'Not provided'}</p>
+                                        <p className="text-sm font-bold text-[var(--text-primary)]">{userProfile.phone || 'Not provided'}</p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 bg-black border-2 border-zinc-800 p-4 rounded-2xl min-w-0">
+                                <div className="flex items-center gap-3 bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl min-w-0">
                                     <GraduationCap className="w-5 h-5 text-brand-yellow flex-shrink-0" />
                                     <div className="min-w-0 flex-1">
                                         <p className="text-xs text-gray-500 uppercase font-bold">Branch / Program</p>
-                                        <p className="text-sm font-bold text-white break-words" title={userProfile.branch}>{userProfile.branch || 'N/A'}</p>
+                                        <p className="text-sm font-bold text-[var(--text-primary)] break-words" title={userProfile.branch}>{userProfile.branch || 'N/A'}</p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 bg-black border-2 border-zinc-800 p-4 rounded-2xl">
+                                <div className="flex items-center gap-3 bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl">
                                     <Calendar className="w-5 h-5 text-brand-yellow flex-shrink-0" />
                                     <div>
                                         <p className="text-xs text-gray-500 uppercase font-bold">Year of Study</p>
-                                        <p className="text-sm font-bold text-white">{userProfile.year ? `${userProfile.year} Year` : 'N/A'}</p>
+                                        <p className="text-sm font-bold text-[var(--text-primary)]">{userProfile.year ? `${userProfile.year} Year` : 'N/A'}</p>
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3 bg-black border-2 border-zinc-800 p-4 rounded-2xl">
+                                <div className="flex items-center gap-3 bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl">
                                     <Building className="w-5 h-5 text-brand-yellow flex-shrink-0" />
                                     <div>
                                         <p className="text-xs text-gray-500 uppercase font-bold">Institution</p>
-                                        <p className="text-sm font-bold text-white">{userProfile.college || 'DYPIU'}</p>
+                                        <p className="text-sm font-bold text-[var(--text-primary)]">{userProfile.college || 'DYPIU'}</p>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Bio Section */}
-                            <div className="bg-black border-2 border-zinc-800 p-4 rounded-2xl">
+                            <div className="bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl">
                                 <p className="text-xs text-gray-500 uppercase font-bold mb-1">Bio / Entrepreneurial Goals</p>
                                 <p className="text-sm text-gray-300 leading-relaxed italic">
                                     {userProfile.bio || 'No bio added yet. Click "Edit Profile" to add one!'}
@@ -599,7 +599,7 @@ const Profile = () => {
 
                 {/* SECTION 4: EVENTS ATTENDED */}
                 <div className="bg-zinc-900 border-4 border-zinc-800 rounded-3xl p-6 md:p-8 space-y-6">
-                    <h3 className="text-xl font-black uppercase text-white flex items-center gap-2">
+                    <h3 className="text-xl font-black uppercase text-[var(--text-primary)] flex items-center gap-2">
                         <CalendarDays className="w-5 h-5 text-brand-yellow" />
                         Events You've Attended
                     </h3>
@@ -611,10 +611,10 @@ const Profile = () => {
                                 const title = event?.title || (typeof eventId === 'object' ? (eventId.name || eventId.id) : eventId);
                                 const date = event?.date || (typeof eventId === 'object' ? eventId.date : null) || 'Attended';
                                 return (
-                                    <div key={idx} className="bg-black border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
-                                        <h4 className="font-bold text-white text-sm">{title}</h4>
+                                    <div key={idx} className="bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
+                                        <h4 className="font-bold text-[var(--text-primary)] text-sm">{title}</h4>
                                         <p className="text-xs text-gray-400">{date}</p>
-                                        <span className="inline-block px-2 py-0.5 bg-green-900/40 text-green-400 border border-green-500/50 rounded-full text-[10px] font-bold uppercase">
+                                        <span className="inline-block px-2 py-0.5 bg-[color-mix(in_srgb,var(--success-bg)_40%,transparent)] text-[var(--success-color)] border border-green-500/50 rounded-full text-[10px] font-bold uppercase">
                                             Verified Attendee
                                         </span>
                                     </div>
@@ -622,9 +622,9 @@ const Profile = () => {
                             })}
                         </div>
                     ) : (
-                        <div className="py-8 text-center text-gray-500 bg-black/40 rounded-2xl border-2 border-dashed border-zinc-800 p-6 flex flex-col items-center justify-center">
+                        <div className="py-8 text-center text-gray-500 bg-[color-mix(in_srgb,var(--bg-secondary)_40%,transparent)] rounded-2xl border-2 border-dashed border-zinc-800 p-6 flex flex-col items-center justify-center">
                             <CalendarDays className="w-10 h-10 mx-auto text-zinc-600 mb-2" />
-                            <p className="text-white font-bold text-base mb-1">No events yet</p>
+                            <p className="text-[var(--text-primary)] font-bold text-base mb-1">No events yet</p>
                             <p className="text-xs text-gray-400 mb-4 max-w-sm">
                                 Your entrepreneurial journey starts with your first event!
                             </p>
@@ -641,7 +641,7 @@ const Profile = () => {
 
                 {/* SECTION 5: CERTIFICATES */}
                 <div className="bg-zinc-900 border-4 border-zinc-800 rounded-3xl p-6 md:p-8 space-y-6">
-                    <h3 className="text-xl font-black uppercase text-white flex items-center gap-2">
+                    <h3 className="text-xl font-black uppercase text-[var(--text-primary)] flex items-center gap-2">
                         <Award className="w-5 h-5 text-brand-yellow" />
                         Your Certificates
                     </h3>
@@ -651,9 +651,9 @@ const Profile = () => {
                     ) : eligibleCerts.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {eligibleCerts.map((cert) => (
-                                <div key={cert.eventId} className="bg-black border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
+                                <div key={cert.eventId} className="bg-[var(--bg-secondary)] border-2 border-zinc-800 p-4 rounded-2xl space-y-2">
                                     <Award className="w-6 h-6 text-brand-yellow" />
-                                    <h4 className="font-bold text-white text-sm">{cert.label}</h4>
+                                    <h4 className="font-bold text-[var(--text-primary)] text-sm">{cert.label}</h4>
                                     <button
                                         onClick={() => handleDownloadCert(cert)}
                                         disabled={downloadingCertId === cert.eventId}
@@ -666,9 +666,9 @@ const Profile = () => {
                             ))}
                         </div>
                     ) : (
-                        <div className="py-8 text-center text-gray-500 bg-black/40 rounded-2xl border-2 border-dashed border-zinc-800 p-6 flex flex-col items-center justify-center">
+                        <div className="py-8 text-center text-gray-500 bg-[color-mix(in_srgb,var(--bg-secondary)_40%,transparent)] rounded-2xl border-2 border-dashed border-zinc-800 p-6 flex flex-col items-center justify-center">
                             <Award className="w-10 h-10 mx-auto text-zinc-600 mb-2" />
-                            <p className="text-white font-bold text-base mb-1">No certificates unlocked</p>
+                            <p className="text-[var(--text-primary)] font-bold text-base mb-1">No certificates unlocked</p>
                             <p className="text-xs text-gray-400 max-w-sm">
                                 Certificates appear here automatically once an admin uploads a template and turns on auto-issue for an event you attended.
                             </p>
@@ -678,7 +678,7 @@ const Profile = () => {
 
                 {/* SECTION 6: ACTIVITY TIMELINE */}
                 <div className="bg-zinc-900 border-4 border-zinc-800 rounded-3xl p-6 md:p-8 space-y-6">
-                    <h3 className="text-xl font-black uppercase text-white flex items-center gap-2">
+                    <h3 className="text-xl font-black uppercase text-[var(--text-primary)] flex items-center gap-2">
                         <Clock className="w-5 h-5 text-brand-yellow" />
                         Activity Timeline
                     </h3>
@@ -686,9 +686,9 @@ const Profile = () => {
                     <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-zinc-800">
                         {/* Timeline Item: Joined */}
                         <div className="relative flex items-start gap-4">
-                            <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-brand-yellow ring-4 ring-zinc-900" />
+                            <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-brand-yellow ring-4 ring-[var(--bg-card)]" />
                             <div>
-                                <h4 className="font-bold text-white text-sm">Joined E-Cell DYPIU</h4>
+                                <h4 className="font-bold text-[var(--text-primary)] text-sm">Joined E-Cell DYPIU</h4>
                                 <p className="text-xs text-gray-400">{membership.joinedDate}</p>
                             </div>
                         </div>
@@ -700,9 +700,9 @@ const Profile = () => {
                             const date = event?.date || (typeof eventId === 'object' ? eventId.date : null) || 'Event Day';
                             return (
                                 <div key={idx} className="relative flex items-start gap-4">
-                                    <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-green-500 ring-4 ring-zinc-900" />
+                                    <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-green-500 ring-4 ring-[var(--bg-card)]" />
                                     <div>
-                                        <h4 className="font-bold text-white text-sm">Attended {title}</h4>
+                                        <h4 className="font-bold text-[var(--text-primary)] text-sm">Attended {title}</h4>
                                         <p className="text-xs text-gray-400">{date}</p>
                                     </div>
                                 </div>
