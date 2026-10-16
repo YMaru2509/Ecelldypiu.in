@@ -70,11 +70,14 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
             toAddress = toMatch[2].trim();
         }
 
-        const formattedAttachments = (attachments || []).map(att => ({
+        // Attachments with a `cid` are inline images (referenced as cid:<id> in the HTML).
+        const toZeptoFile = (att) => ({
             content: att.content || att.base64 || att.data,
             mime_type: att.contentType || att.mimeType || att.type || 'application/octet-stream',
             name: att.filename || att.name || 'attachment'
-        }));
+        });
+        const formattedAttachments = (attachments || []).filter(att => !att.cid).map(toZeptoFile);
+        const inlineImages = (attachments || []).filter(att => att.cid).map(att => ({ ...toZeptoFile(att), cid: att.cid }));
 
         const toEmailAddress = (person) => ({
             email_address: {
@@ -105,6 +108,9 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
         }
         if (formattedAttachments.length > 0) {
             payload.attachments = formattedAttachments;
+        }
+        if (inlineImages.length > 0) {
+            payload.inline_images = inlineImages;
         }
 
         const response = await fetch(url, {

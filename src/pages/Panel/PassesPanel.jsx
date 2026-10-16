@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Loader2, Search, X, Download, Send, CheckCircle2, Ticket, Calendar } from 'lucide-react';
+import { Loader2, Search, X, Download, Send, CheckCircle2, Ticket, Calendar, Trash2 } from 'lucide-react';
 import PanelShell from './PanelShell';
 import { adminAuthHeaders } from '../../utils/adminAuth';
 import { downloadAuthenticatedFile } from '../../utils/download';
@@ -29,6 +29,7 @@ const PassesPanel = () => {
     const [notice, setNotice] = useState('');
     const [query, setQuery] = useState('');
     const [sendingId, setSendingId] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
     const [downloading, setDownloading] = useState(false);
 
     useEffect(() => {
@@ -83,6 +84,29 @@ const PassesPanel = () => {
             setError(err.message);
         } finally {
             setSendingId(null);
+        }
+    };
+
+    const remove = async (reg) => {
+        if (!window.confirm(`Delete the registration for ${reg.name} (${reg.email})? Their pass will stop working. This can't be undone.`)) return;
+        setDeletingId(reg.id);
+        setError('');
+        setNotice('');
+        try {
+            const res = await fetch('/api/event?action=delete-registration', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
+                body: JSON.stringify({ eventId, registrationId: reg.id }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to delete the registration');
+            setRegistrations((prev) => prev.filter((r) => r.id !== reg.id));
+            if (openId === reg.id) setOpenId(null);
+            setNotice(`Deleted the registration for ${reg.name}.`);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -179,11 +203,17 @@ const PassesPanel = () => {
                                                 {sendingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Resend pass
                                             </button>
                                         )}
+                                        {canManage && (
+                                            <button type="button" disabled={deletingId === r.id} onClick={() => remove(r)} aria-label={`Delete registration for ${r.name}`}
+                                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black uppercase text-red-400 hover:text-red-300 hover:bg-red-900/20 disabled:opacity-50">
+                                                {deletingId === r.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Delete
+                                            </button>
+                                        )}
                                     </div>
                                     {openId === r.id && (
                                         <dl className="basis-full grid sm:grid-cols-2 gap-x-6 gap-y-3 border-t-2 border-[var(--border-color)] pt-4 mt-1">
                                             {fields.map((f) => (
-                                                <div key={f.key} className={f.key === 'problem' || (r.answers?.[f.key] || '').length > 80 ? 'sm:col-span-2' : ''}>
+                                                <div key={f.key} className={f.type === 'textarea' || (r.answers?.[f.key] || '').length > 80 ? 'sm:col-span-2' : ''}>
                                                     <dt className="text-[10px] font-black uppercase text-[var(--text-muted)]">{f.label}</dt>
                                                     <dd className="text-sm whitespace-pre-wrap break-words">{r.answers?.[f.key] || '—'}</dd>
                                                 </div>

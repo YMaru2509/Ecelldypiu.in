@@ -1,8 +1,11 @@
 import crypto from 'crypto';
+import { promises as fsp } from 'fs';
+import nodePath from 'path';
 import QRCode from 'qrcode';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
+import { writeAuditLog } from './_lib/auditLog.js';
 import { requirePermission, requireAnyPermission, getCallerMember, hasPermission, callerCan, callerCanAny, sendRbacError } from './_lib/rbac.js';
 
 let db = null;
@@ -200,6 +203,8 @@ export default async function handler(req, res) {
             return await handleExportCheckinsSheet(req, res);
         } else if (action === 'resend-pass') {
             return await handleResendPass(req, res);
+        } else if (action === 'delete-registration') {
+            return await handleDeleteRegistration(req, res);
         }
     }
 
@@ -1242,60 +1247,165 @@ async function handleExportCheckinsSheet(req, res) {
 // their own record back; their pass only ever reaches them by email.
 // ---------------------------------------------------------------------------
 
-function buildRegistrationPassHTML(name, event) {
-    const title = (event.title || 'Event').toString().replace(/</g, '&lt;');
-    const safeName = (name || 'Guest').toString().replace(/</g, '&lt;');
+const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const siteBaseUrl = () => (process.env.NEXT_PUBLIC_BASE_URL || 'https://www.ecelldypiu.in').replace(/\/+$/, '');
+
+// The event's poster/thumbnail as an inline email image. Relative paths
+// ("/ILLUMINATE26.jpg") are read from public/ when present (local dev) and
+// otherwise fetched from the live site; any failure just means no banner.
+async function loadEventBanner(event) {
+    const src = event.image || event.thumbnail;
+    if (!src || typeof src !== 'string') return null;
+    const mimeFor = (name) => (/\.png$/i.test(name) ? 'image/png' : /\.webp$/i.test(name) ? 'image/webp' : 'image/jpeg');
+    try {
+        let buffer; let contentType;
+        if (/^https?:\/\//i.test(src)) {
+            const res = await fetch(src, { signal: AbortSignal.timeout(6000) });
+            if (!res.ok) return null;
+            buffer = Buffer.from(await res.arrayBuffer());
+            contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(src);
+        } else {
+            const rel = nodePath.normalize(src).replace(/^([/\\])+/, '');
+            if (rel.startsWith('..')) return null;
+            try {
+                buffer = await fsp.readFile(nodePath.join(process.cwd(), 'public', rel));
+                contentType = mimeFor(rel);
+            } catch {
+                const res = await fetch(`${siteBaseUrl()}/${rel.replace(/\\/g, '/')}`, { signal: AbortSignal.timeout(6000) });
+                if (!res.ok) return null;
+                buffer = Buffer.from(await res.arrayBuffer());
+                contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(rel);
+            }
+        }
+        if (!buffer.length || buffer.length > 2.5 * 1024 * 1024 || !/^image\//.test(contentType)) return null;
+        return { buffer, contentType };
+    } catch {
+        return null;
+    }
+}
+
+// The emailed pass: a ticket with the event's poster on top, event details, and
+// the QR on a perforated stub. Table layout + bgcolor attributes so it holds up
+// in Gmail/Outlook; images are inline (cid:) so nothing depends on remote loading.
+function buildRegistrationPassHTML({ name, event, registration, hasBanner, passCode }) {
+    const accent = '#FFB22C';
+    const title = escapeHtml(event.title || 'Event');
+    const subtitle = event.subtitle ? escapeHtml(event.subtitle) : '';
+    const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
+    const answers = registration?.answers || {};
+
+    const detail = (label, value) => (value ? `
+        <td valign="top" style="padding:0 12px 18px 0; width:50%;">
+            <div style="font-size:10px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase; margin-bottom:4px;">${label}</div>
+            <div style="font-size:15px; color:#ffffff; font-weight:bold; line-height:1.3;">${escapeHtml(value)}</div>
+        </td>` : '<td style="width:50%;"></td>');
+
+    const rows = [
+        [detail('Date', event.date), detail('Time', event.time)],
+        [detail('Venue', event.location), detail('Organised by', organizer)],
+    ].filter(([a, b]) => a.includes('<div') || b.includes('<div'));
+
+    const holder = (label, value) => (value ? `
+        <div style="margin-bottom:12px;">
+            <div style="font-size:10px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase;">${label}</div>
+            <div style="font-size:16px; color:#ffffff; font-weight:bold;">${escapeHtml(value)}</div>
+        </div>` : '');
+
+    const eventUrl = `${siteBaseUrl()}/events/${encodeURIComponent(event.slug || event.id || '')}`;
+
     return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Pass - ${title}</title>
+    <meta name="color-scheme" content="dark light">
+    <title>Your pass - ${title}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif; color:#ffffff;">
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
-        <tr>
-            <td align="center" style="padding:30px 10px;">
-                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
-                    <tr>
-                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
-                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px;">E-CELL DYPIU</h1>
-                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold;">YOUR EVENT PASS</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding:35px 40px; color:#ffffff; text-align:center;">
-                            <p style="font-size:17px; margin:0 0 20px 0; line-height:1.5; text-align:left;">Dear <strong>${safeName}</strong>,</p>
-                            <p style="color:#e4e4e7; font-size:15px; line-height:1.6; margin:0 0 25px 0; text-align:left;">
-                                You're registered for <strong style="color:#FFB22C;">${title}</strong>${event.date ? ` on <strong>${event.date.toString().replace(/</g, '&lt;')}</strong>` : ''}${event.location ? ` at <strong>${event.location.toString().replace(/</g, '&lt;')}</strong>` : ''}. Show the attached QR pass at the door to check in.
-                            </p>
-                            <p style="color:#71717a; font-size:12px; margin:0;">This pass is unique to you — please don't forward it.</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="background-color:#0c0c0e; padding:20px 30px; text-align:center; border-top:2px solid #27272a;">
-                            <p style="margin:0; color:#71717a; font-size:11px;">&copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.</p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
+<body style="margin:0; padding:0; background-color:#070708; font-family:Helvetica, Arial, sans-serif; color:#ffffff;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#070708" style="background-color:#070708;">
+<tr><td align="center" style="padding:28px 12px;">
+    <p style="margin:0 0 16px 0; font-size:13px; color:#a1a1aa;">Hi ${escapeHtml(name || 'there')}, you're in. Here's your pass for <strong style="color:#ffffff;">${title}</strong>.</p>
+
+    <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" bgcolor="#141416" style="width:600px; max-width:100%; background-color:#141416; border:2px solid ${accent}; border-radius:24px; overflow:hidden;">
+        ${hasBanner ? `<tr><td style="padding:0; line-height:0;"><img src="cid:eventbanner" alt="${title}" width="600" style="display:block; width:100%; height:auto; border:0;"></td></tr>` : ''}
+        <tr><td bgcolor="${accent}" style="background-color:${accent}; padding:10px 28px; font-size:11px; font-weight:900; letter-spacing:3px; color:#000000; text-transform:uppercase;">
+            E-Cell DYPIU &nbsp;&bull;&nbsp; Event Pass &nbsp;&bull;&nbsp; Admit One
+        </td></tr>
+        <tr><td style="padding:28px 28px 8px 28px;">
+            <div style="font-size:32px; line-height:1.05; font-weight:900; letter-spacing:-1px; color:#ffffff; text-transform:uppercase;">${title}</div>
+            ${subtitle ? `<div style="font-size:15px; font-weight:bold; color:${accent}; text-transform:uppercase; margin-top:6px;">${subtitle}</div>` : ''}
+        </td></tr>
+        <tr><td style="padding:20px 28px 0 28px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                ${rows.map(([a, b]) => `<tr>${a}${b}</tr>`).join('')}
+            </table>
+        </td></tr>
+        <tr><td style="padding:6px 0;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+                <td width="14" bgcolor="#070708" style="width:14px; height:28px; background-color:#070708; border-radius:0 14px 14px 0;">&nbsp;</td>
+                <td style="border-top:2px dashed #3a3a40; font-size:0; line-height:0;">&nbsp;</td>
+                <td width="14" bgcolor="#070708" style="width:14px; height:28px; background-color:#070708; border-radius:14px 0 0 14px;">&nbsp;</td>
+            </tr></table>
+        </td></tr>
+        <tr><td style="padding:18px 28px 28px 28px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+                <td valign="middle" style="padding-right:16px;">
+                    ${holder('Pass holder', registration?.name || name)}
+                    ${holder('PRN', answers.prn)}
+                    ${holder('Pass ID', passCode)}
+                </td>
+                <td valign="middle" align="right" width="190" style="width:190px;">
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="background-color:#ffffff; border-radius:16px;"><tr><td style="padding:10px; line-height:0;">
+                        <img src="cid:passqr" alt="Your entry QR code" width="170" height="170" style="display:block; width:170px; height:170px; border:0;">
+                    </td></tr></table>
+                </td>
+            </tr></table>
+        </td></tr>
+        <tr><td bgcolor="#0c0c0e" style="background-color:#0c0c0e; padding:18px 28px; border-top:1px solid #26262b;">
+            <div style="font-size:12px; color:#a1a1aa; line-height:1.6;">
+                Show this QR at the entrance &mdash; on your phone or printed. Please carry your college ID. One entry per pass; it is unique to you, so don't forward it.
+            </div>
+        </td></tr>
     </table>
+
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;"><tr>
+        <td bgcolor="${accent}" style="background-color:${accent}; border-radius:999px;">
+            <a href="${eventUrl}" style="display:inline-block; padding:12px 26px; font-size:13px; font-weight:900; letter-spacing:1px; color:#000000; text-decoration:none; text-transform:uppercase;">View event details</a>
+        </td>
+    </tr></table>
+    <p style="margin:18px 0 0 0; font-size:11px; color:#6b6b73;">The QR is also attached as pass.png in case images are blocked. &copy; ${new Date().getFullYear()} E-Cell DYPIU</p>
+</td></tr>
+</table>
 </body>
 </html>`;
 }
 
 // Emails a registrant their personal QR pass. Used when they first register and
 // again when staff resend it. Passes always go out through ZeptoMail (Zoho).
-async function sendPassEmail({ eventId, registrationId, passToken, name, email }, eventData) {
+async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers }, eventData) {
     const qrPayload = JSON.stringify({ eventId, registrationId, token: passToken });
-    const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480 });
+    const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480, margin: 1 });
+    const banner = await loadEventBanner(eventData);
+    const attachments = [
+        { filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' },
+        { filename: 'qr.png', content: qrPng.toString('base64'), contentType: 'image/png', cid: 'passqr' },
+    ];
+    if (banner) {
+        attachments.push({ filename: 'event.jpg', content: banner.buffer.toString('base64'), contentType: banner.contentType, cid: 'eventbanner' });
+    }
     await sendEmail(
         email,
-        `Your Pass: ${eventData.title || 'Event'}`,
-        buildRegistrationPassHTML(name, eventData),
+        `Your pass: ${eventData.title || 'Event'}`,
+        buildRegistrationPassHTML({
+            name,
+            event: { ...eventData, id: eventData.id || eventId },
+            registration: { name, answers: answers || {} },
+            hasBanner: Boolean(banner),
+            passCode: passToken.slice(0, 8).toUpperCase(),
+        }),
         'zeptomail',
-        [{ filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' }],
+        attachments,
     );
 }
 
@@ -1390,7 +1500,7 @@ async function handleRegisterForEvent(req, res) {
 
         // Always ZeptoMail (Zoho); a failed send is logged, the registration stands.
         try {
-            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim() }, eventData);
+            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim(), answers }, eventData);
         } catch (emailErr) {
             console.error(`Pass email failed for ${email}: ${emailErr.message}`);
         }
@@ -1487,12 +1597,44 @@ async function handleResendPass(req, res) {
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
 
         const reg = regSnap.data();
-        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email }, eventSnap.data());
+        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers }, eventSnap.data());
         return res.status(200).json({ success: true, email: reg.email });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error resending pass:', error);
         return res.status(500).json({ error: `Couldn't send the pass: ${error.message}` });
+    }
+}
+
+// passes:manage — permanently removes one registration (and with it their pass:
+// a scan of the old QR will no longer find anything).
+async function handleDeleteRegistration(req, res) {
+    try {
+        const caller = await requirePermission(req, 'passes', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, registrationId } = req.body || {};
+        if (!eventId || !registrationId) return res.status(400).json({ error: 'eventId and registrationId are required' });
+
+        const ref = db.collection('event_registrations').doc(registrationId);
+        const snap = await ref.get();
+        if (!snap.exists || snap.data().eventId !== eventId) return res.status(404).json({ error: 'Registration not found' });
+        const reg = snap.data();
+
+        await ref.delete();
+        await writeAuditLog({
+            actorUid: caller.uid,
+            actorRole: Array.isArray(caller.roles) ? caller.roles[0] : null,
+            action: 'event_registration_deleted',
+            targetType: 'event_registration',
+            targetId: registrationId,
+            metadata: { eventId, name: reg.name || '', email: reg.email || '', wasCheckedIn: reg.checkedIn === true },
+        });
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error deleting registration:', error);
+        return res.status(500).json({ error: 'Failed to delete the registration' });
     }
 }
 
