@@ -619,7 +619,10 @@ const TeamRosterControl = ({ status, onRefresh }) => {
                         {status.live ? <span className="text-green-500">Live (real roster)</span> : <span className="text-brand-yellow">Static fallback (old hardcoded roster)</span>}
                     </p>
                     <p className="text-xs text-[var(--text-secondary)] mt-1">
-                        {status.readyCount} onboarded core member{status.readyCount === 1 ? '' : 's'} ready to show live.
+                        {status.readyCount} core member{status.readyCount === 1 ? '' : 's'} with a completed profile ready to show live.
+                        {status.pendingCount > 0 && (
+                            <span className="text-[var(--text-muted)]"> {status.pendingCount} more still need to set a password, finish onboarding or complete their profile.</span>
+                        )}
                     </p>
                 </div>
 
@@ -628,7 +631,7 @@ const TeamRosterControl = ({ status, onRefresh }) => {
                         type="button"
                         disabled={!canGoLive}
                         onClick={() => setConfirming(true)}
-                        title={!canGoLive ? 'No onboarded core members yet' : undefined}
+                        title={!canGoLive ? 'No core members have a completed profile yet' : undefined}
                         className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase disabled:opacity-40 ${status.live ? 'bg-zinc-700 text-white' : 'bg-brand-yellow text-[var(--text-on-brand)]'}`}
                     >
                         {status.live ? 'Revert to Static Roster' : 'Go Live With Real Team Data'}
@@ -671,6 +674,7 @@ const UsersRoles = () => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
     const [reorderMode, setReorderMode] = useState(false);
+    const [query, setQuery] = useState('');
 
     const fetchMembers = useCallback(async () => {
         setLoading(true);
@@ -701,6 +705,16 @@ const UsersRoles = () => {
     }, []);
 
     useEffect(() => { fetchMembers(); }, [fetchMembers]);
+
+    const visibleMembers = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return members;
+        return members.filter((m) => [
+            m.name, m.email, m.publicTitle, m.branch, m.phone,
+            (m.roles || []).join(' ').replace(/_/g, ' '),
+            (m.verticals || []).join(' '),
+        ].some((field) => (field || '').toString().toLowerCase().includes(q)));
+    }, [members, query]);
 
     const unban = async (member) => {
         setUnbanningUid(member.uid);
@@ -766,7 +780,36 @@ const UsersRoles = () => {
                 <ReorderList members={members} onSaved={fetchMembers} />
             ) : (
                 <div className="space-y-2">
-                    {members.map((member) => (
+                    <div className="relative mb-4">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search team members by name, email, title, role or vertical"
+                            aria-label="Search team members"
+                            className="w-full bg-[var(--bg-card)] border-2 border-[var(--border-color)] pl-9 pr-10 py-3 text-[var(--text-primary)] rounded-xl text-sm"
+                        />
+                        {query && (
+                            <button
+                                type="button"
+                                onClick={() => setQuery('')}
+                                aria-label="Clear search"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+                    {query && (
+                        <p className="text-xs text-[var(--text-secondary)] mb-2">
+                            Showing {visibleMembers.length} of {members.length} member{members.length === 1 ? '' : 's'}
+                        </p>
+                    )}
+                    {query && visibleMembers.length === 0 && (
+                        <p className="text-sm text-[var(--text-secondary)] text-center py-10">No team members match &ldquo;{query.trim()}&rdquo;.</p>
+                    )}
+                    {visibleMembers.map((member) => (
                         <div key={member.uid} className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-4">
                             <div className="flex items-center justify-between flex-wrap gap-3">
                                 <div className="flex items-center gap-3 min-w-0">
@@ -781,6 +824,14 @@ const UsersRoles = () => {
                                     )}
                                     {member.mustChangePassword && (
                                         <span className="text-[10px] font-black uppercase text-brand-yellow whitespace-nowrap">Temp Password</span>
+                                    )}
+                                    {member.membershipStatus === 'active' && member.profileMissing?.length > 0 && (
+                                        <span
+                                            title={`Not shown on the Team page yet — missing: ${member.profileMissing.join(', ')}`}
+                                            className="text-[10px] font-black uppercase text-[var(--text-secondary)] border border-[var(--border-color)] rounded-full px-2 py-0.5 whitespace-nowrap cursor-help"
+                                        >
+                                            Profile incomplete
+                                        </span>
                                     )}
                                     {STATUS_BADGE[member.membershipStatus] && (() => {
                                         const badge = STATUS_BADGE[member.membershipStatus];

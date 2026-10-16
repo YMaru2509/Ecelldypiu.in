@@ -26,6 +26,30 @@ function getActiveEcellMembersSnap() {
         .get();
 }
 
+// What's still missing before a core member can appear on the public Team
+// page: the invite's temporary password replaced, the onboarding questions
+// finished, and the profile fields onboarding requires of core members
+// (photo, phone, branch, year) actually filled in. Empty array = ready.
+// Members who signed up before onboarding existed have no onboardingComplete
+// field at all and are treated as having finished it (same as handleList),
+// but still need the profile fields to count.
+function profileMissing(data) {
+    const missing = [];
+    if (data.mustChangePassword === true) missing.push('password not changed');
+    if (data.onboardingComplete === false) missing.push('onboarding not finished');
+    if (!data.avatarUrl) missing.push('photo');
+    if (!data.phone) missing.push('phone');
+    if (!data.branch) missing.push('branch');
+    if (!data.year) missing.push('year');
+    return missing;
+}
+
+async function getReadyEcellMembersDocs() {
+    const snap = await getActiveEcellMembersSnap();
+    const ready = snap.docs.filter((doc) => profileMissing(doc.data()).length === 0);
+    return { ready, totalActive: snap.size };
+}
+
 async function sendEmailBestEffort(to, subject, html, provider) {
     try {
         await sendEmail(to, subject, html, provider || 'resend');
@@ -87,6 +111,7 @@ async function handleList(req, res) {
             leftAt: data.leftAt || null,
             onboardingComplete: data.onboardingComplete !== false,
             mustChangePassword: data.mustChangePassword === true,
+            profileMissing: profileMissing(data),
             avatarUrl: data.avatarUrl || '',
             phone: data.phone || '',
             branch: data.branch || '',
@@ -534,7 +559,8 @@ async function handleReorder(req, res) {
     return res.status(200).json({ success: true });
 }
 
-// Public, unauthenticated — the only data the live Team page may read. Never
+// Public, unauthenticated — the only data the live Team page may read. Only
+// members whose profile is complete (see profileMissing) are listed. Never
 // return email/phone/PRN/permissions here, only what's safe to show visitors.
 // Returns no members at all until a system owner explicitly flips the roster
 // live (see handleSetRosterLive) — the Team page's existing fallback logic
@@ -549,9 +575,9 @@ async function handlePublicRoster(req, res) {
         return res.status(200).json({ success: true, members: [], live: false });
     }
 
-    const snap = await getActiveEcellMembersSnap();
+    const { ready } = await getReadyEcellMembersDocs();
 
-    const members = snap.docs
+    const members = ready
         .map((doc) => {
             const data = doc.data();
             return {
@@ -574,15 +600,16 @@ async function handlePublicRoster(req, res) {
 async function handleRosterStatus(req, res) {
     await requirePermission(req, 'users', 'view');
 
-    const [configSnap, readySnap] = await Promise.all([
+    const [configSnap, { ready, totalActive }] = await Promise.all([
         TEAM_ROSTER_CONFIG_REF.get(),
-        getActiveEcellMembersSnap(),
+        getReadyEcellMembersDocs(),
     ]);
 
     return res.status(200).json({
         success: true,
         live: configSnap.exists && configSnap.data().live === true,
-        readyCount: readySnap.size,
+        readyCount: ready.length,
+        pendingCount: totalActive - ready.length,
     });
 }
 
