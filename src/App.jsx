@@ -44,6 +44,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
 const CheckIn = lazy(() => import('./pages/CheckIn'));
+const ScanCheckIn = lazy(() => import('./pages/ScanCheckIn'));
 const SetNewPassword = lazy(() => import('./pages/SetNewPassword'));
 const PanelHome = lazy(() => import('./pages/Panel/PanelHome'));
 const UsersRoles = lazy(() => import('./pages/Panel/UsersRoles'));
@@ -109,6 +110,14 @@ function App() {
                       element={
                         <ProtectedRoute>
                           <CheckIn />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/checkin/scan"
+                      element={
+                        <ProtectedRoute>
+                          <ScanCheckIn />
                         </ProtectedRoute>
                       }
                     />

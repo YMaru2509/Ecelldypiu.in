@@ -150,6 +150,8 @@ export default async function handler(req, res) {
             return await handleCheckinStatus(req, res);
         } else if (action === 'list-registrations') {
             return await handleListRegistrations(req, res);
+        } else if (action === 'export-checkins') {
+            return await handleExportCheckins(req, res);
         }
     }
 
@@ -192,6 +194,8 @@ export default async function handler(req, res) {
             return await handleParseEventDocument(req, res);
         } else if (action === 'generate-event-content') {
             return await handleGenerateEventContent(req, res);
+        } else if (action === 'export-checkins-sheet') {
+            return await handleExportCheckinsSheet(req, res);
         }
     }
 
@@ -876,7 +880,7 @@ async function handleCreateCheckinSession(req, res) {
         const now = new Date();
         const windowStart = now.toISOString();
         const windowEnd = new Date(now.getTime() + minutes * 60000).toISOString();
-        const dayLabel = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        const dayLabel = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
         const windowRef = await db.collection('event_checkin_windows').add({
             eventId,
@@ -1045,6 +1049,7 @@ async function handleScanCheckin(req, res) {
 
         const eventSnap = await db.collection('events').doc(eventId).get();
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+        const eventTitle = eventSnap.data().title || '';
 
         const active = await getActiveWindow(eventId);
         if (!active) {
@@ -1060,15 +1065,170 @@ async function handleScanCheckin(req, res) {
 
         const already = await db.collection('event_checkins').doc(`${active.id}_${member.uid}`).get();
         if (already.exists) {
-            return res.status(200).json({ success: true, alreadyCheckedIn: true });
+            return res.status(200).json({ success: true, alreadyCheckedIn: true, eventTitle, room: active.room });
         }
 
         await recordCheckin({ eventId, windowId: active.id, uid: member.uid, memberName: member.name, verified: true, method: 'qr' });
-        return res.status(200).json({ success: true, alreadyCheckedIn: false });
+        return res.status(200).json({ success: true, alreadyCheckedIn: false, eventTitle, room: active.room });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error scanning checkin:', error);
         return res.status(500).json({ error: 'Failed to record checkin' });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Attendance export: the core-team check-ins for an event as a sheet — one row
+// per active core member, one column per attendance window (day/session), so
+// absentees are as visible as attendees. Served as a CSV download, or written
+// into a tab of the connected Google Sheet.
+// ---------------------------------------------------------------------------
+
+const IST = 'Asia/Kolkata';
+const istTime = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: IST });
+
+async function buildAttendanceReport(eventId, windowId) {
+    const eventSnap = await db.collection('events').doc(eventId).get();
+    if (!eventSnap.exists) return { status: 404, error: 'Event not found' };
+    const event = { id: eventId, title: eventSnap.data().title || eventId };
+
+    const windowsSnap = await db.collection('event_checkin_windows').where('eventId', '==', eventId).get();
+    let windows = windowsSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.windowStart || '').localeCompare(b.windowStart || ''));
+    if (windowId) {
+        windows = windows.filter((w) => w.id === windowId);
+        if (windows.length === 0) return { status: 404, error: 'Attendance window not found' };
+    }
+    if (windows.length === 0) return { status: 404, error: 'No attendance has been opened for this event yet' };
+
+    const windowIds = new Set(windows.map((w) => w.id));
+    const checkinsSnap = await db.collection('event_checkins').where('eventId', '==', eventId).get();
+    const checkins = checkinsSnap.docs.map((d) => d.data()).filter((c) => windowIds.has(c.windowId));
+    const byUidWindow = new Map(checkins.map((c) => [`${c.uid}|${c.windowId}`, c]));
+
+    const membersSnap = await db.collection('members')
+        .where('memberType', '==', 'ecell_member')
+        .where('membershipStatus', '==', 'active')
+        .get();
+    const people = new Map(membersSnap.docs.map((d) => [d.id, { uid: d.id, ...d.data() }]));
+
+    // Anyone who checked in but isn't an active core member today (e.g. a
+    // member who has since left) still belongs in the record.
+    const extraUids = [...new Set(checkins.map((c) => c.uid))].filter((uid) => !people.has(uid));
+    if (extraUids.length > 0) {
+        const extraDocs = await db.getAll(...extraUids.map((uid) => db.collection('members').doc(uid)));
+        extraDocs.forEach((doc, i) => {
+            const fallbackName = checkins.find((c) => c.uid === extraUids[i])?.memberName || extraUids[i];
+            people.set(extraUids[i], doc.exists ? { uid: doc.id, ...doc.data() } : { uid: extraUids[i], name: fallbackName });
+        });
+    }
+
+    const windowLabel = (w) => `${w.dayLabel || ''} · ${w.room || ''} (${istTime(w.windowStart)}–${istTime(w.windowEnd)})`.trim();
+    const header = ['Name', 'Email', 'Branch', 'Year', ...windows.map(windowLabel), 'Days Present', 'Total Days'];
+
+    const presentTotals = windows.map(() => 0);
+    const rows = [...people.values()]
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .map((person) => {
+            let daysPresent = 0;
+            const marks = windows.map((w, i) => {
+                const hit = byUidWindow.get(`${person.uid}|${w.id}`);
+                if (!hit) return 'Absent';
+                daysPresent++;
+                presentTotals[i]++;
+                return `Present (${hit.method === 'qr' ? 'QR' : 'Manual'}, ${istTime(hit.scannedAt)})`;
+            });
+            return [person.name || '', person.email || '', person.branch || '', person.year || '', ...marks, String(daysPresent), String(windows.length)];
+        });
+
+    const summary = ['Total present', '', '', '', ...presentTotals.map(String), '', ''];
+    return { event, windows, header, rows, summary };
+}
+
+// A leading = + - @ makes spreadsheet apps treat a cell as a formula; names
+// come from user-editable profiles, so neutralise that in the CSV.
+const csvCell = (value) => {
+    let text = String(value ?? '');
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+const toCsv = (rows) => '﻿' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+
+const safeFilePart = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'event';
+
+// events:view — downloads the attendance sheet as CSV (all days, or one window).
+async function handleExportCheckins(req, res) {
+    try {
+        await requirePermission(req, 'events', 'view');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, windowId } = req.query || {};
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+
+        const report = await buildAttendanceReport(eventId, windowId);
+        if (report.error) return res.status(report.status).json({ error: report.error });
+
+        const csv = toCsv([report.header, ...report.rows, report.summary]);
+        const scope = windowId ? safeFilePart(report.windows[0].dayLabel || 'day') : 'all-days';
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="attendance-${safeFilePart(report.event.title)}-${scope}.csv"`);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).end(csv);
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error exporting checkins:', error);
+        return res.status(500).json({ error: 'Failed to export attendance' });
+    }
+}
+
+// events:manage — writes the same sheet into a tab of the connected Google
+// Sheet (created on first export, replaced on later ones) and returns its URL.
+async function handleExportCheckinsSheet(req, res) {
+    try {
+        await requirePermission(req, 'events', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, windowId } = req.body || {};
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+
+        // Loaded on demand: googleapis is heavy and this function also serves
+        // the public events list, which shouldn't pay for it on every cold start.
+        const sheets = await import('./_lib/sheetsSync.js');
+        if (!sheets.isSheetsSyncConfigured()) {
+            return res.status(503).json({ error: "Google Sheets isn't connected yet. Set GOOGLE_SHEETS_CLIENT_EMAIL, GOOGLE_SHEETS_PRIVATE_KEY and GOOGLE_SHEETS_SPREADSHEET_ID, and share the spreadsheet with that service account. Use Download CSV in the meantime." });
+        }
+
+        const report = await buildAttendanceReport(eventId, windowId);
+        if (report.error) return res.status(report.status).json({ error: report.error });
+
+        const stamp = new Date().toLocaleString('en-GB', { timeZone: IST, dateStyle: 'medium', timeStyle: 'short' });
+        const values = [
+            ['Event', report.event.title],
+            ['Event ID', report.event.id],
+            ['Exported', `${stamp} IST`],
+            [],
+            report.header,
+            ...report.rows,
+            report.summary,
+        ];
+        // Tab titles may not contain []*?:/\ and max out at 100 characters.
+        const tabName = `Attendance - ${report.event.title.replace(/[[\]*?:/\\]/g, '-').slice(0, 60)} - ${eventId.slice(-6)}`;
+
+        try {
+            const { url } = await sheets.writeValuesToTab(tabName, values);
+            return res.status(200).json({ success: true, url, tabName });
+        } catch (sheetErr) {
+            console.error('Sheets export failed:', sheetErr.message);
+            if (sheetErr.code === 403 || /permission/i.test(sheetErr.message)) {
+                return res.status(502).json({ error: `Google denied access to the spreadsheet — share it (as Editor) with ${process.env.GOOGLE_SHEETS_CLIENT_EMAIL}.` });
+            }
+            return res.status(502).json({ error: `Google Sheets rejected the export: ${sheetErr.message}` });
+        }
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error exporting checkins to sheet:', error);
+        return res.status(500).json({ error: 'Failed to export attendance' });
     }
 }
 

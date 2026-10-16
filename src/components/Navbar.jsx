@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { X, User, LogOut, UserCheck, Sun, Moon, ClipboardList, ShieldCheck } from 'lucide-react';
+import { X, User, LogOut, UserCheck, Sun, Moon, ClipboardList, ShieldCheck, ScanLine } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/useAuth';
 import { useTheme } from '../context/ThemeContext';
@@ -27,6 +27,8 @@ const Navbar = () => {
   // UI hint only: shows the Staff Panel button to members whose roles/permissions
   // open at least one panel module. The panel re-validates with the server on entry.
   const showStaffPanel = !!currentUser && hasStaffAccess(userProfile);
+  // Active core members can mark attendance by scanning the room QR in-app.
+  const showScanner = !!currentUser && userProfile?.memberType === 'ecell_member' && userProfile?.membershipStatus !== 'past_member';
 
   if (location.pathname === '/ourlinks' || location.pathname.startsWith('/s/')) return null;
 
@@ -149,6 +151,16 @@ const Navbar = () => {
                       <User className="w-4 h-4 text-brand-yellow" />
                       My Profile
                     </Link>
+                    {showScanner && (
+                      <Link
+                        to="/checkin/scan"
+                        onClick={() => setShowDropdown(false)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase text-[var(--text-secondary)] hover:text-brand-yellow hover:bg-[var(--bg-hover)] rounded-xl transition-colors"
+                      >
+                        <ScanLine className="w-4 h-4 text-brand-yellow" />
+                        Scan Attendance
+                      </Link>
+                    )}
                     <Link
                       to="/attendance/mine"
                       onClick={() => setShowDropdown(false)}
@@ -296,6 +308,19 @@ const Navbar = () => {
                     </span>
                     <span className="text-brand-yellow">→</span>
                   </Link>
+                  {showScanner && (
+                    <Link
+                      to="/checkin/scan"
+                      onClick={() => setIsOpen(false)}
+                      className={`mobile-nav-item ${location.pathname === '/checkin/scan' ? 'active' : ''}`}
+                    >
+                      <span className="flex items-center gap-2 text-brand-yellow font-bold">
+                        <ScanLine className="w-4 h-4" />
+                        Scan Attendance
+                      </span>
+                      <span className="text-brand-yellow">→</span>
+                    </Link>
+                  )}
                   {showStaffPanel && (
                     <Link
                       to="/panel"

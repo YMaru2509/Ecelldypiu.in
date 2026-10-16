@@ -7,7 +7,7 @@ import { resizeImageWithBudget } from '../utils/imageResize';
 import {
     User, Phone, GraduationCap, Calendar, Building, Edit2, LogOut,
     CheckCircle2, Award, CalendarDays, Sparkles, Clock, Save, X, Loader2,
-    AlertCircle, ArrowRight, History, Camera
+    AlertCircle, ArrowRight, History, Camera, ScanLine
 } from 'lucide-react';
 
 const PROGRAM_GROUPS = [
@@ -370,7 +370,16 @@ const Profile = () => {
                         </div>
 
                         {/* Right: Actions */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                            {userProfile.memberType === 'ecell_member' && !isPastMember && (
+                                <Link
+                                    to="/checkin/scan"
+                                    className="flex items-center gap-2 bg-brand-yellow hover:bg-[var(--bg-hover)] text-[var(--text-on-brand)] font-black px-4 py-2.5 rounded-xl border-2 border-brand-yellow text-xs uppercase transition-colors"
+                                >
+                                    <ScanLine className="w-4 h-4" />
+                                    Scan Attendance
+                                </Link>
+                            )}
                             {!isEditing && (
                                 <button
                                     onClick={handleStartEditing}

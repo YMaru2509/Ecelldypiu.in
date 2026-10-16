@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import QRCode from 'qrcode';
-import { Loader2, QrCode, Users, Clock, CheckCircle2, Search, UserPlus, ArrowLeft, Calendar, Power, History } from 'lucide-react';
+import { Loader2, QrCode, Users, Clock, CheckCircle2, Search, UserPlus, ArrowLeft, Calendar, Power, History, Download, Table2, ExternalLink } from 'lucide-react';
 import PanelShell from './PanelShell';
 import MailProviderSelect from '../../components/MailProviderSelect';
 import { adminAuthHeaders } from '../../utils/adminAuth';
 import { db } from '../../firebaseConfig';
+import { usePanelAccess } from '../../context/panelAccessContext';
+import { hasPermission } from '../../utils/rbac';
 
 const fmtTime = (iso) => {
     const d = new Date(iso);
@@ -62,13 +64,119 @@ const AttendanceToggle = ({ event, enabled, onChanged }) => {
     );
 };
 
-const WindowHistory = ({ windows }) => {
+// Downloads the attendance sheet through the authenticated API (a plain link
+// can't carry the Authorization header), then hands it to the browser as a file.
+const downloadAttendanceCsv = async (eventId, windowId) => {
+    const params = new URLSearchParams({ action: 'export-checkins', eventId });
+    if (windowId) params.set('windowId', windowId);
+    const res = await fetch(`/api/event?${params}`, { headers: adminAuthHeaders() });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Download failed');
+    }
+    const blob = await res.blob();
+    const fileName = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'attendance.csv';
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};
+
+const ExportPanel = ({ event, canManage }) => {
+    const [busy, setBusy] = useState('');
+    const [message, setMessage] = useState(null);
+
+    const downloadCsv = async () => {
+        setBusy('csv');
+        setMessage(null);
+        try {
+            await downloadAttendanceCsv(event.id);
+        } catch (err) {
+            setMessage({ ok: false, text: err.message });
+        } finally {
+            setBusy('');
+        }
+    };
+
+    const openSheet = async () => {
+        setBusy('sheet');
+        setMessage(null);
+        try {
+            const res = await fetch('/api/event?action=export-checkins-sheet', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
+                body: JSON.stringify({ eventId: event.id }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Could not export to Google Sheets');
+            window.open(data.url, '_blank', 'noopener');
+            setMessage({ ok: true, text: `Sent to the “${data.tabName}” tab.`, url: data.url });
+        } catch (err) {
+            setMessage({ ok: false, text: err.message });
+        } finally {
+            setBusy('');
+        }
+    };
+
+    return (
+        <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-5">
+            <h3 className="font-black uppercase text-xs mb-1 flex items-center gap-2">
+                <Table2 className="w-4 h-4 text-brand-yellow" /> Export Attendance
+            </h3>
+            <p className="text-[11px] text-[var(--text-secondary)] mb-4">
+                One row per active core member and one column per day, so absentees show too.
+            </p>
+            <div className="flex flex-wrap gap-3">
+                <button type="button" onClick={downloadCsv} disabled={!!busy}
+                    className="flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-4 py-2.5 rounded-xl text-xs font-black uppercase disabled:opacity-50">
+                    {busy === 'csv' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Download CSV
+                </button>
+                {canManage && (
+                    <button type="button" onClick={openSheet} disabled={!!busy}
+                        className="flex items-center gap-2 border-2 border-brand-yellow text-brand-yellow hover:bg-brand-yellow hover:text-[var(--text-on-brand)] px-4 py-2.5 rounded-xl text-xs font-black uppercase disabled:opacity-50 transition-colors">
+                        {busy === 'sheet' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                        Open in Google Sheets
+                    </button>
+                )}
+            </div>
+            {message && (
+                <p className={`text-xs font-bold mt-3 ${message.ok ? 'text-[var(--success-color)]' : 'text-[var(--danger-color)]'}`}>
+                    {message.text}{' '}
+                    {message.url && <a href={message.url} target="_blank" rel="noopener noreferrer" className="underline">Open sheet</a>}
+                </p>
+            )}
+        </div>
+    );
+};
+
+const WindowHistory = ({ windows, eventId }) => {
+    const [downloadingId, setDownloadingId] = useState(null);
+    const [error, setError] = useState('');
     if (!windows || windows.length === 0) return null;
+
+    const download = async (windowId) => {
+        setDownloadingId(windowId);
+        setError('');
+        try {
+            await downloadAttendanceCsv(eventId, windowId);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
     return (
         <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-5">
             <h3 className="font-black uppercase text-xs mb-3 flex items-center gap-2">
                 <History className="w-4 h-4 text-brand-yellow" /> Attendance Window History
             </h3>
+            {error && <p className="text-xs font-bold text-[var(--danger-color)] mb-2">{error}</p>}
             <div className="space-y-1 max-h-56 overflow-y-auto">
                 {windows.map((w) => (
                     <div key={w.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[var(--bg-secondary)]">
@@ -76,9 +184,16 @@ const WindowHistory = ({ windows }) => {
                             <p className="text-xs font-bold truncate">{w.dayLabel || fmtTime(w.windowStart)} · {w.room}</p>
                             <p className="text-[10px] text-[var(--text-secondary)]">{fmtTime(w.windowStart)} – {fmtTime(w.windowEnd)}</p>
                         </div>
-                        <span className="text-[10px] font-black uppercase text-[var(--text-muted)] flex-shrink-0">
-                            {w.active ? <span className="text-brand-yellow">Open</span> : `${w.attendeeCount} checked in`}
-                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-[10px] font-black uppercase text-[var(--text-muted)]">
+                                {w.active ? <span className="text-brand-yellow">Open</span> : `${w.attendeeCount} checked in`}
+                            </span>
+                            <button type="button" onClick={() => download(w.id)} disabled={downloadingId === w.id}
+                                title="Download this day as CSV" aria-label={`Download ${w.dayLabel || 'this day'} as CSV`}
+                                className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] disabled:opacity-50">
+                                {downloadingId === w.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -219,6 +334,11 @@ const ManualCheckin = ({ event, allMembers, checkedInUids, onMarked }) => {
 };
 
 const EventDetail = ({ event, onBack }) => {
+    // Viewing attendance needs events:view; opening/closing windows, toggling
+    // the feature, manual marks and the Sheets export need events:manage. The
+    // server enforces it — this just avoids showing buttons that would 403.
+    const { profile } = usePanelAccess();
+    const canManage = hasPermission(profile, 'events', 'manage');
     const [checkinData, setCheckinData] = useState(null);
     const [liveAttendees, setLiveAttendees] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -308,16 +428,20 @@ const EventDetail = ({ event, onBack }) => {
                 <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-brand-yellow" /></div>
             ) : (
                 <div className="space-y-6">
-                    <AttendanceToggle event={event} enabled={attendanceEnabled}
-                        onChanged={(next) => setCheckinData((prev) => ({ ...prev, attendanceEnabled: next }))} />
+                    {canManage && (
+                        <AttendanceToggle event={event} enabled={attendanceEnabled}
+                            onChanged={(next) => setCheckinData((prev) => ({ ...prev, attendanceEnabled: next }))} />
+                    )}
 
                     {!attendanceEnabled && (
                         <p className="text-xs font-bold text-[var(--text-secondary)] bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-4">
-                            Turn on Team Attendance above before opening a check-in window for this event.
+                            {canManage
+                                ? 'Turn on Team Attendance above before opening a check-in window for this event.'
+                                : 'Team Attendance isn\'t enabled for this event.'}
                         </p>
                     )}
 
-                    {attendanceEnabled && !activeWindow && (
+                    {canManage && attendanceEnabled && !activeWindow && (
                         <ActivateForm event={event} onActivated={(result) => { setActivationNote(result); fetchStatus(); }} />
                     )}
 
@@ -337,13 +461,15 @@ const EventDetail = ({ event, onBack }) => {
                                 )}
                                 <p className="text-xs font-bold mt-3">{activeWindow.room}</p>
                                 <p className="text-[10px] text-[var(--text-secondary)]">Open {fmtTime(activeWindow.windowStart)} – {fmtTime(activeWindow.windowEnd)}</p>
-                                <button type="button" disabled={closing} onClick={closeWindow}
-                                    className="mt-4 flex items-center gap-2 mx-auto bg-[var(--danger-color)] text-white px-4 py-2 rounded-xl text-xs font-black uppercase disabled:opacity-50">
-                                    {closing && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Close Window Now
-                                </button>
+                                {canManage && (
+                                    <button type="button" disabled={closing} onClick={closeWindow}
+                                        className="mt-4 flex items-center gap-2 mx-auto bg-[var(--danger-color)] text-white px-4 py-2 rounded-xl text-xs font-black uppercase disabled:opacity-50">
+                                        {closing && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Close Window Now
+                                    </button>
+                                )}
                             </div>
 
-                            <ManualCheckin event={event} allMembers={allMembers} checkedInUids={checkedInUids} onMarked={fetchStatus} />
+                            {canManage && <ManualCheckin event={event} allMembers={allMembers} checkedInUids={checkedInUids} onMarked={fetchStatus} />}
                         </div>
                     )}
 
@@ -364,7 +490,9 @@ const EventDetail = ({ event, onBack }) => {
                         </div>
                     </div>
 
-                    <WindowHistory windows={windowsWithLiveCounts} />
+                    {windowsWithLiveCounts.length > 0 && <ExportPanel event={event} canManage={canManage} />}
+
+                    <WindowHistory windows={windowsWithLiveCounts} eventId={event.id} />
                 </div>
             )}
         </div>

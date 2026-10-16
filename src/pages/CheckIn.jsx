@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle, PartyPopper } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
+import { submitCheckin } from '../utils/checkin';
 
 // The QR code's scan target. eventId + token come from the URL (encoded into
 // the QR shown in the room); the member's own logged-in session is what
@@ -15,6 +16,7 @@ const CheckIn = () => {
 
     const [status, setStatus] = useState('checking'); // 'checking' | 'success' | 'already' | 'error'
     const [error, setError] = useState('');
+    const [info, setInfo] = useState(null);
 
     useEffect(() => {
         (async () => {
@@ -24,14 +26,8 @@ const CheckIn = () => {
                 return;
             }
             try {
-                const idToken = await currentUser.getIdToken();
-                const res = await fetch('/api/event?action=scan-checkin', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-                    body: JSON.stringify({ eventId, token }),
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Check-in failed');
+                const data = await submitCheckin(currentUser, { eventId, token });
+                setInfo({ eventTitle: data.eventTitle, room: data.room });
                 setStatus(data.alreadyCheckedIn ? 'already' : 'success');
             } catch (err) {
                 setStatus('error');
@@ -53,7 +49,7 @@ const CheckIn = () => {
                     <>
                         <PartyPopper className="w-14 h-14 text-brand-yellow mx-auto mb-4" />
                         <h1 className="text-2xl font-black uppercase mb-2">You're checked in!</h1>
-                        <p className="text-sm text-[var(--text-secondary)]">Your attendance has been recorded and verified.</p>
+                        <p className="text-sm text-[var(--text-secondary)]">{info?.eventTitle ? `${info.eventTitle}${info.room ? ` · ${info.room}` : ''}` : 'Your attendance has been recorded and verified.'}</p>
                     </>
                 )}
                 {status === 'already' && (

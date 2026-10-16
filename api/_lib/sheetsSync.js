@@ -117,4 +117,42 @@ export async function syncRequestToSheet(request, history) {
     return { rowNumber: match ? Number(match[1]) : null };
 }
 
+// Writes a grid of values onto a worksheet tab of the configured spreadsheet:
+// creates the tab on first use and replaces its contents on every later
+// export, so re-exporting an event never stacks duplicate rows. RAW input
+// stores everything as literal text, so a name like "=HYPERLINK(...)" can
+// never run as a formula. `sheets` is injectable for tests.
+export async function writeTab(sheets, spreadsheetId, tabName, values) {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(sheetId,title)' });
+    let sheet = meta.data.sheets?.find((s) => s.properties.title === tabName);
+    if (!sheet) {
+        const created = await sheets.spreadsheets.batchUpdate({
+            spreadsheetId,
+            requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+        });
+        sheet = { properties: created.data.replies[0].addSheet.properties };
+    }
+
+    const range = `'${tabName.replace(/'/g, "''")}'`;
+    await sheets.spreadsheets.values.clear({ spreadsheetId, range });
+    await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${range}!A1`,
+        valueInputOption: 'RAW',
+        requestBody: { values },
+    });
+
+    return {
+        tabName,
+        url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheet.properties.sheetId}`,
+    };
+}
+
+export async function writeValuesToTab(tabName, values) {
+    if (!isConfigured()) {
+        throw new Error('Google Sheets is not connected yet (missing GOOGLE_SHEETS_* env vars)');
+    }
+    return writeTab(getSheetsClient(), process.env.GOOGLE_SHEETS_SPREADSHEET_ID, tabName, values);
+}
+
 export { isConfigured as isSheetsSyncConfigured };
