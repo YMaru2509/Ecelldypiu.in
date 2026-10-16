@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Users, UserRound, LayoutDashboard, LogOut, ClipboardCheck, Layers, QrCode } from 'lucide-react';
+import { Shield, Users, UserRound, LayoutDashboard, LogOut, ClipboardCheck, Layers, QrCode, ScanLine } from 'lucide-react';
 import { adminLogout } from '../../utils/adminAuth';
 
 const NAV_ITEMS = [
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
     { key: 'team', label: 'Team Members', path: '/panel/team', icon: Users },
     { key: 'members', label: 'Members', path: '/panel/members', icon: UserRound },
     { key: 'events', label: 'Event Attendance', path: '/panel/events', icon: QrCode },
+    { key: 'door-checkin', label: 'Door Check-In', path: '/panel/door-checkin', icon: ScanLine },
     { key: 'attendance-queue', label: 'Attendance Approvals', path: '/panel/attendance', icon: ClipboardCheck },
     { key: 'verticals', label: 'E-Cell Verticals', path: '/panel/verticals', icon: Layers },
 ];

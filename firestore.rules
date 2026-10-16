@@ -120,5 +120,16 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+
+    // 10. PUBLIC EVENT REGISTRATION: a different audience from section 9 —
+    // general-public registrants, not logged-in core members. Fully
+    // server-mediated (api/event.js, Admin SDK): registration is created by
+    // the public register-for-event action, read by the admin door-scan
+    // panel via an authenticated GET action, and never read back by the
+    // registrant client-side (their pass arrives only by email), so unlike
+    // event_checkins this needs no public read exception.
+    match /event_registrations/{registrationId} {
+      allow read, write: if false;
+    }
   }
 }

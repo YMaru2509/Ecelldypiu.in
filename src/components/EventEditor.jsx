@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { X, Trash2, ChevronDown, ChevronUp, Sparkles, Wand2, Settings2, Loader2, AlertCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, Trash2, ChevronDown, ChevronUp, Sparkles, Wand2, Settings2, Loader2, AlertCircle, FileUp } from 'lucide-react';
 import { generateEventContent, AI_MODELS, VIBES } from '../utils/aiService';
 import { DEFAULT_EVENT_FORM } from '../utils/eventTemplates';
+import { adminAuthHeaders } from '../utils/adminAuth';
 
 const TEAM_EVENT_KEYWORDS = ['hackathon', 'competition', 'contest', 'challenge', 'pitch', 'ideathon'];
 
@@ -91,6 +92,65 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
   const [aiModel, setAiModel] = useState(AI_MODELS.THINKING);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
+  const [docParsing, setDocParsing] = useState(false);
+  const [docError, setDocError] = useState(null);
+  const docInputRef = useRef(null);
+
+  // Shared by both the theme-based AI assist and the document-upload assist —
+  // both produce the same `content` shape, so both merge into the form the
+  // same way (overwrites text fields, always keeps the admin's own images).
+  const applyAIContent = (content, fallbackTitle = '') => {
+    setForm(prev => ({
+      ...prev,
+      ...content,
+      title: content.title || prev.title || fallbackTitle,
+      slug: content.slug || slugify(content.title || prev.title || fallbackTitle),
+      date: content.date || prev.date,
+      time: content.time || prev.time,
+      location: content.location || prev.location,
+      participants: content.participants || prev.participants,
+      category: content.category || prev.category,
+      teamBased: typeof content.teamBased === 'boolean' ? content.teamBased : inferTeamBasedEvent(content),
+      description: content.description || prev.description,
+      thumbnail: prev.thumbnail,
+      image: prev.image,
+      highlights: content.highlights || prev.highlights,
+      zones: content.zones || prev.zones,
+      schedule: { ...prev.schedule, ...(content.schedule || {}) },
+      workshops: content.workshops || prev.workshops,
+      awards: content.awards || prev.awards
+    }));
+    setActiveSections(prev => getSectionStateFromContent(content, prev));
+  };
+
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setDocParsing(true);
+    setDocError(null);
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const fileBase64 = dataUrl.split(',')[1];
+      const res = await fetch('/api/event?action=parse-event-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
+        body: JSON.stringify({ fileBase64, mimeType: file.type }),
+      });
+      const content = await res.json();
+      if (!res.ok) throw new Error(content.error || 'Failed to read document');
+      applyAIContent(content);
+    } catch (err) {
+      setDocError(err.message);
+    } finally {
+      setDocParsing(false);
+    }
+  };
 
   useEffect(() => {
     const normalized = normalizeEventForm(event);
@@ -241,11 +301,28 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
               <Sparkles className="w-5 h-5" />
               Magic AI Assistant
             </button>
+            <button
+              type="button"
+              onClick={() => docInputRef.current?.click()}
+              disabled={docParsing}
+              className="flex items-center gap-3 bg-zinc-800 border-2 border-zinc-700 text-white px-6 py-2 rounded-full font-black uppercase hover:border-brand-yellow transition-all disabled:opacity-50"
+            >
+              {docParsing ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileUp className="w-5 h-5" />}
+              {docParsing ? 'Reading Document...' : 'Upload Approval Doc'}
+            </button>
+            <input ref={docInputRef} type="file" accept="application/pdf,image/*" onChange={handleDocumentUpload} className="hidden" />
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X className="w-8 h-8" />
           </button>
         </div>
+
+        {docError && (
+          <div className="mx-8 mt-4 bg-red-900/40 border-2 border-red-500 p-4 rounded-xl flex items-center gap-3 text-red-400 flex-shrink-0">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="text-sm font-bold">{docError}</p>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto overscroll-contain p-8 space-y-4 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }} data-lenis-prevent>
 
@@ -477,27 +554,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
                   setAiError(null);
                   try {
                     const content = await generateEventContent(aiTheme, aiVibe, aiModel);
-                    setForm(prev => ({
-                      ...prev,
-                      ...content,
-                      title: content.title || prev.title || aiTheme.trim(),
-                      slug: content.slug || slugify(content.title || prev.title || aiTheme),
-                      date: content.date || prev.date,
-                      time: content.time || prev.time,
-                      location: content.location || prev.location,
-                      participants: content.participants || prev.participants,
-                      category: content.category || prev.category,
-                      teamBased: typeof content.teamBased === 'boolean' ? content.teamBased : inferTeamBasedEvent(content),
-                      description: content.description || prev.description,
-                      thumbnail: prev.thumbnail,
-                      image: prev.image,
-                      highlights: content.highlights || prev.highlights,
-                      zones: content.zones || prev.zones,
-                      schedule: { ...prev.schedule, ...(content.schedule || {}) },
-                      workshops: content.workshops || prev.workshops,
-                      awards: content.awards || prev.awards
-                    }));
-                    setActiveSections(prev => getSectionStateFromContent(content, prev));
+                    applyAIContent(content, aiTheme.trim());
                     setShowAIHub(false);
                   } catch (err) {
                     setAiError(err.message);

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import QRCode from 'qrcode';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
@@ -147,6 +148,8 @@ export default async function handler(req, res) {
             return await handleListApplications(req, res);
         } else if (action === 'checkin-status') {
             return await handleCheckinStatus(req, res);
+        } else if (action === 'list-registrations') {
+            return await handleListRegistrations(req, res);
         }
     }
 
@@ -181,6 +184,12 @@ export default async function handler(req, res) {
             return await handleManualCheckin(req, res);
         } else if (action === 'scan-checkin') {
             return await handleScanCheckin(req, res);
+        } else if (action === 'register-for-event') {
+            return await handleRegisterForEvent(req, res);
+        } else if (action === 'checkin-registration') {
+            return await handleCheckinRegistration(req, res);
+        } else if (action === 'parse-event-document') {
+            return await handleParseEventDocument(req, res);
         }
     }
 
@@ -582,6 +591,25 @@ async function handleGetEvents(req, res) {
     try {
         const authHeader = req.headers.authorization;
         const isAdmin = isAuthorized(authHeader);
+        const { slug } = req.query || {};
+
+        // Single-event lookup for the public event detail page — docId is
+        // the slug for events created via the editor (see handleCreateEvent),
+        // so try a direct doc read first before falling back to a query for
+        // older/imported events whose docId diverged from their slug field.
+        if (slug) {
+            let doc = await db.collection('events').doc(slug).get();
+            if (!doc.exists) {
+                const bySlug = await db.collection('events').where('slug', '==', slug).limit(1).get();
+                if (!bySlug.empty) doc = bySlug.docs[0];
+            }
+            if (!doc.exists) return res.status(404).json({ error: 'Event not found' });
+            const data = doc.data();
+            if (!isAdmin && data.internalOnly) return res.status(404).json({ error: 'Event not found' });
+            if (data.createdAt && data.createdAt.toDate) data.createdAt = data.createdAt.toDate().toISOString();
+            if (data.updatedAt && data.updatedAt.toDate) data.updatedAt = data.updatedAt.toDate().toISOString();
+            return res.status(200).json({ id: doc.id, ...data });
+        }
 
         const snapshot = await db.collection('events').orderBy('createdAt', 'desc').get();
         let events = [];
@@ -1020,5 +1048,260 @@ async function handleScanCheckin(req, res) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error scanning checkin:', error);
         return res.status(500).json({ error: 'Failed to record checkin' });
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Public event registration + door check-in: a second, separate audience from
+// the section above — the general public, not logged-in core members. Anyone
+// registers with no account via register-for-event, gets emailed a personal
+// QR "pass" (a one-time token distinct from the room-wide rotating QR used
+// for members), and an admin/volunteer at the door scans each pass with
+// checkin-registration to mark it used. event_registrations is fully
+// server-mediated (see firestore.rules section 10) — registrants never read
+// their own record back; their pass only ever reaches them by email.
+// ---------------------------------------------------------------------------
+
+function buildRegistrationPassHTML(name, event) {
+    const title = (event.title || 'Event').toString().replace(/</g, '&lt;');
+    const safeName = (name || 'Guest').toString().replace(/</g, '&lt;');
+    return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Pass - ${title}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#000000; font-family:Arial, sans-serif; color:#ffffff;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#000000;">
+        <tr>
+            <td align="center" style="padding:30px 10px;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color:#18181b; border:4px solid #ffffff; border-radius:20px; overflow:hidden; max-width:600px; width:100%;">
+                    <tr>
+                        <td style="background-color:#FFB22C; padding:25px 30px; text-align:center;">
+                            <h1 style="margin:0; color:#000000; font-size:26px; font-weight:900; text-transform:uppercase; letter-spacing:-1px;">E-CELL DYPIU</h1>
+                            <p style="margin:5px 0 0 0; color:#000000; font-size:13px; font-weight:bold;">YOUR EVENT PASS</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:35px 40px; color:#ffffff; text-align:center;">
+                            <p style="font-size:17px; margin:0 0 20px 0; line-height:1.5; text-align:left;">Dear <strong>${safeName}</strong>,</p>
+                            <p style="color:#e4e4e7; font-size:15px; line-height:1.6; margin:0 0 25px 0; text-align:left;">
+                                You're registered for <strong style="color:#FFB22C;">${title}</strong>${event.date ? ` on <strong>${event.date.toString().replace(/</g, '&lt;')}</strong>` : ''}${event.location ? ` at <strong>${event.location.toString().replace(/</g, '&lt;')}</strong>` : ''}. Show the attached QR pass at the door to check in.
+                            </p>
+                            <p style="color:#71717a; font-size:12px; margin:0;">This pass is unique to you — please don't forward it.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#0c0c0e; padding:20px 30px; text-align:center; border-top:2px solid #27272a;">
+                            <p style="margin:0; color:#71717a; font-size:11px;">&copy; ${new Date().getFullYear()} E-Cell DYPIU. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>`;
+}
+
+function normalizeEmailForId(email) {
+    return (email || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Public: no auth required — anyone can register for any non-internal event.
+async function handleRegisterForEvent(req, res) {
+    try {
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, name, email, phone, provider } = req.body || {};
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+        if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+        if (!email?.trim()) return res.status(400).json({ error: 'email is required' });
+
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+        const eventData = eventSnap.data();
+        if (eventData.internalOnly) return res.status(404).json({ error: 'Event not found' });
+
+        const normalizedEmail = normalizeEmailForId(email);
+        if (!normalizedEmail) return res.status(400).json({ error: 'A valid email is required' });
+        const registrationId = `${eventId}_${normalizedEmail}`;
+        const passToken = crypto.randomBytes(16).toString('hex');
+
+        try {
+            await db.collection('event_registrations').doc(registrationId).create({
+                eventId,
+                eventTitle: eventData.title || eventId,
+                name: name.trim(),
+                email: email.trim(),
+                phone: phone?.trim() || '',
+                passToken,
+                registeredAt: Timestamp.now(),
+                checkedIn: false,
+                checkedInAt: null,
+                checkedInBy: null,
+            });
+        } catch (createErr) {
+            if (createErr.code === 6 || /already exists/i.test(createErr.message || '')) {
+                return res.status(409).json({ error: "You're already registered for this event" });
+            }
+            throw createErr;
+        }
+
+        const qrPayload = JSON.stringify({ eventId, registrationId, token: passToken });
+        const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480 });
+
+        try {
+            await sendEmail(
+                email.trim(),
+                `Your Pass: ${eventData.title || 'Event'}`,
+                buildRegistrationPassHTML(name.trim(), eventData),
+                provider || 'resend',
+                [{ filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' }],
+            );
+        } catch (emailErr) {
+            console.error(`Pass email failed for ${email}: ${emailErr.message}`);
+        }
+
+        return res.status(200).json({ success: true, registrationId });
+    } catch (error) {
+        console.error('Error registering for event:', error);
+        return res.status(500).json({ error: 'Failed to register' });
+    }
+}
+
+// Admin/operator (door volunteer): scans a registrant's emailed pass.
+// Idempotent — rescanning an already-checked-in pass confirms rather than errors.
+async function handleCheckinRegistration(req, res) {
+    try {
+        const caller = await requirePermission(req, 'registrations', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, registrationId, token } = req.body || {};
+        if (!eventId || !registrationId || !token) {
+            return res.status(400).json({ error: 'eventId, registrationId and token are required' });
+        }
+
+        const ref = db.collection('event_registrations').doc(registrationId);
+        const snap = await ref.get();
+        if (!snap.exists) return res.status(404).json({ error: 'Pass not found' });
+        const reg = snap.data();
+
+        if (reg.eventId !== eventId || reg.passToken !== token) {
+            return res.status(400).json({ error: 'Invalid pass for this event' });
+        }
+
+        if (reg.checkedIn) {
+            return res.status(200).json({ success: true, alreadyCheckedIn: true, name: reg.name, email: reg.email });
+        }
+
+        await ref.update({ checkedIn: true, checkedInAt: Timestamp.now(), checkedInBy: caller.uid });
+        return res.status(200).json({ success: true, alreadyCheckedIn: false, name: reg.name, email: reg.email });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error checking in registration:', error);
+        return res.status(500).json({ error: 'Failed to check in' });
+    }
+}
+
+// Admin: list registrations for an event, for the door-scan panel's
+// registered/checked-in counts.
+async function handleListRegistrations(req, res) {
+    try {
+        await requirePermission(req, 'registrations', 'view');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const eventId = req.query?.eventId;
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+
+        const snap = await db.collection('event_registrations').where('eventId', '==', eventId).get();
+        const registrations = snap.docs
+            .map((d) => {
+                const data = d.data();
+                if (data.registeredAt?.toDate) data.registeredAt = data.registeredAt.toDate().toISOString();
+                if (data.checkedInAt?.toDate) data.checkedInAt = data.checkedInAt.toDate().toISOString();
+                return { id: d.id, ...data, passToken: undefined };
+            })
+            .sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
+
+        return res.status(200).json({ success: true, registrations, total: registrations.length, checkedIn: registrations.filter((r) => r.checkedIn).length });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error listing registrations:', error);
+        return res.status(500).json({ error: 'Failed to list registrations' });
+    }
+}
+
+const EVENT_CONTENT_SHAPE_PROMPT = `You are reading an event approval document (a letter, memo, or form approving a college club event). Extract the event details and respond with ONLY a single JSON object, no markdown fences, no commentary, matching exactly this shape (omit fields you can't find rather than guessing):
+{
+  "title": string,
+  "slug": string (url-safe, lowercase, hyphenated, derived from title),
+  "date": string (human-readable, e.g. "15th March 2026"),
+  "time": string,
+  "location": string,
+  "participants": string,
+  "category": string,
+  "teamBased": boolean,
+  "description": string (2-4 sentences),
+  "highlights": string[],
+  "zones": string[],
+  "schedule": { "day1": [{ "time": string, "event": string }] },
+  "workshops": string[],
+  "awards": string[]
+}`;
+
+// Admin-only: parses an uploaded approval document (PDF or image) via Gemini
+// and returns the same content shape EventEditor.jsx's existing theme-based
+// AI assist produces, so the frontend can reuse its existing apply-to-form
+// logic unchanged. Requires GEMINI_API_KEY — a separate key from the one
+// used by the external generate-content Cloud Function the theme-based
+// assist calls, since that Cloud Function lives outside this repo.
+async function handleParseEventDocument(req, res) {
+    const authHeader = req.headers.authorization;
+    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server' });
+        }
+        const { fileBase64, mimeType } = req.body || {};
+        if (!fileBase64 || !mimeType) return res.status(400).json({ error: 'fileBase64 and mimeType are required' });
+
+        const geminiRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: EVENT_CONTENT_SHAPE_PROMPT },
+                            { inlineData: { mimeType, data: fileBase64 } },
+                        ],
+                    }],
+                    generationConfig: { temperature: 0.2 },
+                }),
+            },
+        );
+        const geminiData = await geminiRes.json();
+        if (!geminiRes.ok) {
+            console.error('Gemini error:', JSON.stringify(geminiData));
+            return res.status(502).json({ error: geminiData.error?.message || 'AI document parsing failed' });
+        }
+
+        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+        let content;
+        try {
+            content = JSON.parse(cleaned);
+        } catch {
+            return res.status(502).json({ error: 'AI could not read this document — try a clearer file or fill the form manually' });
+        }
+
+        return res.status(200).json(content);
+    } catch (error) {
+        console.error('Error parsing event document:', error);
+        return res.status(500).json({ error: 'Failed to parse document' });
     }
 }

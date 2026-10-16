@@ -48,8 +48,10 @@ const PanelHome = lazy(() => import('./pages/Panel/PanelHome'));
 const UsersRoles = lazy(() => import('./pages/Panel/UsersRoles'));
 const Members = lazy(() => import('./pages/Panel/Members'));
 const EventsAttendance = lazy(() => import('./pages/Panel/EventsAttendance'));
+const PublicCheckin = lazy(() => import('./pages/Panel/PublicCheckin'));
 const AttendanceQueue = lazy(() => import('./pages/Panel/AttendanceQueue'));
 const Verticals = lazy(() => import('./pages/Panel/Verticals'));
+const EventDetailPage = lazy(() => import('./pages/EventDetailPage'));
 const AttendanceRequestForm = lazy(() => import('./pages/AttendanceRequestForm'));
 const MyAttendanceRequests = lazy(() => import('./pages/MyAttendanceRequests'));
 import './App.css';
@@ -128,6 +130,7 @@ function App() {
                     <Route path="/events/finbiz" element={<FinBiz />} />
                     <Route path="/events/innovate-for-impact" element={<InnovateForImpact />} />
                     <Route path="/events/:eventSlug/certificate" element={<GetCertificate />} />
+                    <Route path="/events/:slug" element={<EventDetailPage />} />
                     <Route path="/team" element={<Team />} />
                     <Route path="/blogs" element={<Blogs />} />
                     <Route path="/blogs/where-ideas-meet-impact" element={<BlogDetail1 />} />
@@ -186,6 +189,14 @@ function App() {
                       element={
                         <RequireAdminKey>
                           <Verticals />
+                        </RequireAdminKey>
+                      }
+                    />
+                    <Route
+                      path="/panel/door-checkin"
+                      element={
+                        <RequireAdminKey>
+                          <PublicCheckin />
                         </RequireAdminKey>
                       }
                     />
