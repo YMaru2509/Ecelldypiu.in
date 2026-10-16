@@ -1,6 +1,4 @@
 import crypto from 'crypto';
-import { promises as fsp } from 'fs';
-import nodePath from 'path';
 import QRCode from 'qrcode';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
@@ -1252,35 +1250,35 @@ const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace
 
 const siteBaseUrl = () => (process.env.NEXT_PUBLIC_BASE_URL || 'https://www.ecelldypiu.in').replace(/\/+$/, '');
 
-// The event's poster/thumbnail as an inline email image. Relative paths
-// ("/ILLUMINATE26.jpg") are read from public/ when present (local dev) and
-// otherwise fetched from the live site; any failure just means no banner.
-async function loadEventBanner(event) {
+// The origin this request was served from, if it is one of our own hosts. Used to
+// fetch the event poster from the same deployment that serves it (so a poster
+// added in this release works immediately). Anything else falls back to the site URL.
+function trustedRequestOrigin(req) {
+    const host = String(req?.headers?.host || '').toLowerCase();
+    if (!/^(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|([a-z0-9-]+\.)*ecelldypiu\.in|[a-z0-9-]+\.vercel\.app)$/.test(host)) return '';
+    return `${/^(localhost|127\.)/.test(host) ? 'http' : 'https'}://${host}`;
+}
+
+// The event's poster/thumbnail for the PDF pass. Fetched over HTTP (never read
+// from disk: a filesystem read here makes Vercel bundle the whole project into
+// the function). Any failure just means the pass has no poster.
+async function loadEventBanner(event, origin) {
     const src = event.image || event.thumbnail;
     if (!src || typeof src !== 'string') return null;
     const mimeFor = (name) => (/\.png$/i.test(name) ? 'image/png' : /\.webp$/i.test(name) ? 'image/webp' : 'image/jpeg');
-    try {
-        let buffer; let contentType;
-        if (/^https?:\/\//i.test(src)) {
-            const res = await fetch(src, { signal: AbortSignal.timeout(6000) });
-            if (!res.ok) return null;
-            buffer = Buffer.from(await res.arrayBuffer());
-            contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(src);
-        } else {
-            const rel = nodePath.normalize(src).replace(/^([/\\])+/, '');
-            if (rel.startsWith('..')) return null;
-            try {
-                buffer = await fsp.readFile(nodePath.join(process.cwd(), 'public', rel));
-                contentType = mimeFor(rel);
-            } catch {
-                const res = await fetch(`${siteBaseUrl()}/${rel.replace(/\\/g, '/')}`, { signal: AbortSignal.timeout(6000) });
-                if (!res.ok) return null;
-                buffer = Buffer.from(await res.arrayBuffer());
-                contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(rel);
-            }
-        }
+    const attempt = async (url) => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (!res.ok) return null;
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(url);
         if (!buffer.length || buffer.length > 2.5 * 1024 * 1024 || !/^image\//.test(contentType)) return null;
         return { buffer, contentType };
+    };
+    try {
+        if (/^https?:\/\//i.test(src)) return await attempt(src);
+        const rel = `/${src.replace(/^\/+/, '')}`;
+        if (rel.includes('..')) return null;
+        return (origin && await attempt(`${origin}${rel}`)) || await attempt(`${siteBaseUrl()}${rel}`);
     } catch {
         return null;
     }
@@ -1505,11 +1503,11 @@ async function buildPassPdf({ event, name, answers, passCode, qrPng, banner }) {
 // Emails a registrant a confirmation message with their pass as the one and
 // only attachment (a mobile-sized PDF). Used when they first register and again
 // when staff resend it. Always sent through ZeptoMail (Zoho).
-async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers }, eventData) {
+async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers, origin }, eventData) {
     const event = { ...eventData, id: eventData.id || eventId };
     const passCode = passToken.slice(0, 8).toUpperCase();
     const qrPng = await QRCode.toBuffer(JSON.stringify({ eventId, registrationId, token: passToken }), { errorCorrectionLevel: 'H', width: 600, margin: 1 });
-    const pdf = await buildPassPdf({ event, name, answers, passCode, qrPng, banner: await loadEventBanner(eventData) });
+    const pdf = await buildPassPdf({ event, name, answers, passCode, qrPng, banner: await loadEventBanner(eventData, origin) });
     const fileName = `${(event.title || 'Event').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'Event'}-Pass.pdf`;
     await sendEmail(
         email,
@@ -1611,7 +1609,7 @@ async function handleRegisterForEvent(req, res) {
 
         // Always ZeptoMail (Zoho); a failed send is logged, the registration stands.
         try {
-            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim(), answers }, eventData);
+            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim(), answers, origin: trustedRequestOrigin(req) }, eventData);
         } catch (emailErr) {
             console.error(`Pass email failed for ${email}: ${emailErr.message}`);
         }
@@ -1708,7 +1706,7 @@ async function handleResendPass(req, res) {
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
 
         const reg = regSnap.data();
-        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers }, eventSnap.data());
+        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers, origin: trustedRequestOrigin(req) }, eventSnap.data());
         return res.status(200).json({ success: true, email: reg.email });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
