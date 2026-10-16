@@ -55,6 +55,16 @@ function generateOTP() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function normaliseCertificateAudience(audience) {
+    return audience === 'organisers' ? 'organisers' : 'participants';
+}
+
+function getCertificateConfigId(eventId, audience) {
+    return normaliseCertificateAudience(audience) === 'organisers'
+        ? `${eventId}__organisers`
+        : eventId;
+}
+
 async function sendEmail(to, subject, html, provider = 'resend', attachments = []) {
     if (provider === 'bridge1' || provider === 'bridge2') {
         const url = provider === 'bridge1' ? process.env.MAIL_BRIDGE_1 : process.env.MAIL_BRIDGE_2;
@@ -210,6 +220,9 @@ export default async function handler(req, res) {
         if (actionQuery === 'templates') {
             return await handleListTemplates(req, res);
         }
+        if (actionQuery === 'team-members') {
+            return await handleListTeamMembers(req, res);
+        }
         return await handleGetConfig(req, res);
     }
 
@@ -246,15 +259,20 @@ async function handleGetConfig(req, res) {
     try {
         const url = new URL(req.url, 'http://localhost');
         const eventId = req.query?.eventId || url.searchParams.get('eventId');
-        const isAdmin = req.query?.admin === 'true' || url.searchParams.get('admin') === 'true';
+        const adminViewRequested = req.query?.admin === 'true' || url.searchParams.get('admin') === 'true';
+        // The shared admin key and signed-in staff with certificate access can
+        // both manage configs from the panel. Public requests remain unprivileged.
+        const isAdmin = adminViewRequested && await callerCan(req, 'certificates', 'view');
+        const audience = normaliseCertificateAudience(req.query?.audience || url.searchParams.get('audience'));
 
         if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+        if (adminViewRequested && !isAdmin) return res.status(401).json({ error: 'Unauthorized' });
 
         let config = null;
 
         if (db) {
             try {
-                const docRef = db.collection('certificateConfigs').doc(eventId);
+                const docRef = db.collection('certificateConfigs').doc(getCertificateConfigId(eventId, audience));
                 const doc = await docRef.get();
                 if (doc.exists) config = doc.data();
             } catch (fbErr) {
@@ -264,15 +282,19 @@ async function handleGetConfig(req, res) {
 
         if (!config) {
             const localConfigs = readLocalConfigs();
-            config = localConfigs[eventId] || null;
+            config = localConfigs[getCertificateConfigId(eventId, audience)] || null;
         }
 
         if (!config) return res.status(404).json({ error: 'No certificate config found for this event' });
+        if (!isAdmin && audience === 'organisers') {
+            return res.status(404).json({ error: 'Certificate not available' });
+        }
         if (!config.enabled) return res.status(404).json({ error: 'Certificates are not enabled for this event' });
 
         const publicConfig = {
             eventId: config.eventId,
             eventName: config.eventName,
+            audience,
             enabled: config.enabled,
             autoIssueToProfile: config.autoIssueToProfile === true,
             templateUrl: config.templateUrl,
@@ -357,17 +379,19 @@ async function handleSaveConfig(req, res) {
 
     try {
         const { eventId, eventName, enabled, templateUrl, textFields, imageFields, customFonts, attendeeCollection, eligibility, emailSubject, emailHTML, autoIssueToProfile } = req.body;
+        const audience = normaliseCertificateAudience(req.body?.audience);
         if (!eventId || !eventName) return res.status(400).json({ error: 'eventId and eventName are required' });
 
         const configData = {
             eventId,
             eventName,
+            audience,
             enabled: enabled !== false,
             templateUrl: templateUrl || '',
             textFields: textFields || [],
             imageFields: imageFields || [],
             customFonts: customFonts || [],
-            attendeeCollection: attendeeCollection || `events/${eventId}/attendees`,
+            attendeeCollection: attendeeCollection || (audience === 'organisers' ? 'members' : `events/${eventId}/attendees`),
             eligibility: eligibility || {},
             emailSubject: emailSubject || '',
             emailHTML: emailHTML || '',
@@ -383,7 +407,7 @@ async function handleSaveConfig(req, res) {
             try {
                 const fbData = { ...configData };
                 if (Timestamp) fbData.updatedAt = Timestamp.now();
-                const docRef = db.collection('certificateConfigs').doc(eventId);
+                const docRef = db.collection('certificateConfigs').doc(getCertificateConfigId(eventId, audience));
                 const existing = await docRef.get();
                 if (existing.exists) {
                     await docRef.update(fbData);
@@ -399,7 +423,7 @@ async function handleSaveConfig(req, res) {
 
         if (!savedToFirebase) {
             const localConfigs = readLocalConfigs();
-            localConfigs[eventId] = configData;
+            localConfigs[getCertificateConfigId(eventId, audience)] = configData;
             writeLocalConfigs(localConfigs);
         }
 
@@ -411,6 +435,35 @@ async function handleSaveConfig(req, res) {
     } catch (error) {
         console.error('Error saving config:', error);
         return res.status(500).json({ error: 'Failed to save certificate config', details: error.message });
+    }
+}
+
+async function handleListTeamMembers(req, res) {
+    if (!(await callerCan(req, 'certificates', 'manage'))) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (!db) return res.status(503).json({ error: 'Database connection not available' });
+
+    try {
+        const snapshot = await db.collection('members').get();
+        const members = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name || data.displayName || '',
+                email: data.email || '',
+                college: data.college || '',
+                phone: data.phone || '',
+                role: Array.isArray(data.roles) ? data.roles.join(', ') : (data.role || ''),
+                source: 'members'
+            };
+        }).filter(member => member.name || member.email)
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        return res.status(200).json({ success: true, count: members.length, members });
+    } catch (error) {
+        console.error('Error listing team members:', error);
+        return res.status(500).json({ error: 'Failed to load team members', details: error.message });
     }
 }
 
@@ -601,15 +654,16 @@ async function handleDispatchCertificates(req, res) {
 
     try {
         const { eventId, provider, eligibility: reqEligibility } = req.body;
+        const audience = normaliseCertificateAudience(req.body?.audience);
         if (!eventId) return res.status(400).json({ error: 'eventId is required' });
 
         if (!db) return res.status(500).json({ error: 'Database connection not available' });
 
-        const configDoc = await db.collection('certificateConfigs').doc(eventId).get();
+        const configDoc = await db.collection('certificateConfigs').doc(getCertificateConfigId(eventId, audience)).get();
         if (!configDoc.exists || !configDoc.data().enabled) return res.status(404).json({ error: 'Certificate config not found or disabled' });
 
         const config = configDoc.data();
-        const attendeeCollection = config.attendeeCollection || `events/${eventId}/attendees`;
+        const attendeeCollection = config.attendeeCollection || (audience === 'organisers' ? 'members' : `events/${eventId}/attendees`);
         const eligibility = reqEligibility || config.eligibility || {};
 
         const attendeesSnapshot = await db.collection(attendeeCollection).get();
@@ -678,9 +732,18 @@ async function handleDispatchCertificates(req, res) {
             try {
                 // Assuming protocol is https unless localhost
                 const host = req.headers.origin || (req.headers.host ? `https://${req.headers.host}` : 'https://ecelldypiu.in');
-                const certLink = `${host}/events/${eventId}/certificate?email=${encodeURIComponent(attendee.email)}`;
-                const subjectTemplate = config.emailSubject || `Your Certificate for ${config.eventName} is Ready!`;
-                const htmlTemplate = config.emailHTML || `
+                const certLink = audience === 'organisers'
+                    ? ''
+                    : `${host}/events/${eventId}/certificate?email=${encodeURIComponent(attendee.email)}`;
+                const subjectTemplate = config.emailSubject || (audience === 'organisers'
+                    ? `Your Organising Team Certificate for ${config.eventName}`
+                    : `Your Certificate for ${config.eventName} is Ready!`);
+                const htmlTemplate = config.emailHTML || (audience === 'organisers' ? `
+                    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #000; color: #fff; border-radius: 16px; overflow: hidden; border: 2px solid #333;">
+                        <div style="background: #FFB22C; padding: 24px 32px; text-align: center;"><h1 style="margin: 0; color: #000; font-size: 24px; font-weight: 900;">E-CELL DYPIU</h1></div>
+                        <div style="padding: 32px;"><p style="color: #ccc; font-size: 15px; line-height: 1.6;">Hi <strong style="color: #fff;">{{attendee_name}}</strong>,</p><p style="color: #ccc; font-size: 15px; line-height: 1.6;">Thank you for your contribution to <strong style="color: #FFB22C;">{{event_name}}</strong> as an organising team member. Your certificate is attached to this email.</p></div>
+                    </div>
+                ` : `
                     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #000; color: #fff; border-radius: 16px; overflow: hidden; border: 2px solid #333;">
                         <div style="background: #FFB22C; padding: 24px 32px; text-align: center;">
                             <h1 style="margin: 0; color: #000; font-size: 24px; font-weight: 900; letter-spacing: 1px;">E-CELL DYPIU</h1>
@@ -695,7 +758,7 @@ async function handleDispatchCertificates(req, res) {
                             <p style="color: #888; font-size: 13px; text-align: center;">If the button doesn't work, copy this link:<br/><a href="{{cert_link}}" style="color: #FFB22C;">{{cert_link}}</a></p>
                         </div>
                     </div>
-                `;
+                `);
 
                 // Replace placeholders
                 const finalSubject = subjectTemplate

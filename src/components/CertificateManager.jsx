@@ -16,6 +16,24 @@ const EVENTS = [
     { id: 'sih', name: "SIH'25", collection: 'events/sih/attendees' },
 ];
 
+const CERTIFICATE_AUDIENCES = {
+    participants: {
+        label: 'Participants',
+        collection: null,
+        emailSubject: 'Your Certificate for {{event_name}} is Ready!',
+    },
+    organisers: {
+        label: 'Organising Team',
+        collection: 'members',
+        emailSubject: 'Your Organising Team Certificate for {{event_name}}',
+    }
+};
+
+const ORGANISER_EMAIL_HTML = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 2px solid #E5E7EB; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+  <div style="background-color: #FFB22C; padding: 24px; text-align: center;"><h1 style="color: #000000; font-size: 28px; font-weight: 900; margin: 0; text-transform: uppercase;">E-CELL DYPIU</h1><p style="color: #000000; font-size: 16px; margin: 8px 0 0;">Organising Team Certificate</p></div>
+  <div style="background-color: #000000; padding: 32px; color: #FFFFFF;"><p style="font-size: 16px; line-height: 1.5;">Hi <strong style="color: #FFB22C;">{{attendee_name}}</strong>,<br><br>Thank you for your contribution to <strong style="color: #FFB22C;">{{event_name}}</strong> as a member of the organising team.</p><p style="font-size: 14px; color: #D1D5DB;">Your certificate is attached to this email.</p></div>
+</div>`;
+
 const ATTENDEE_FIELDS = ['name', 'email', 'team', 'teamName', 'college', 'phone', 'role'];
 
 const DEFAULT_FONTS = [
@@ -66,6 +84,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
     ], [dynamicEvents]);
 
     const [selectedEvent, setSelectedEvent] = useState('');
+    const [certificateAudience, setCertificateAudience] = useState('participants');
     const [config, setConfig] = useState(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -189,7 +208,9 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
             setLoading(true);
             setError('');
             try {
-                const res = await fetch(`/api/certificate?eventId=${selectedEvent}&admin=true`);
+                const res = await fetch(`/api/certificate?eventId=${selectedEvent}&admin=true&audience=${certificateAudience}`, {
+                    headers: { 'Authorization': `Bearer ${adminKey}` }
+                });
                 if (res.ok) {
                     const data = await res.json();
                     const cfg = data.config;
@@ -198,10 +219,10 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                     setCustomFonts(cfg.customFonts || []);
                     setEnabled(cfg.enabled !== false);
                     setAutoIssueToProfile(cfg.autoIssueToProfile === true);
-                    setAttendeeCollection(cfg.attendeeCollection || '');
+                    setAttendeeCollection(cfg.attendeeCollection || CERTIFICATE_AUDIENCES[certificateAudience].collection || '');
                     setEligibility({});
-                    setEmailSubject(cfg.emailSubject || '');
-                    setEmailHTML(cfg.emailHTML || '');
+                    setEmailSubject(cfg.emailSubject || CERTIFICATE_AUDIENCES[certificateAudience].emailSubject);
+                    setEmailHTML(cfg.emailHTML || (certificateAudience === 'organisers' ? ORGANISER_EMAIL_HTML : ''));
                     setConfig(cfg);
                 } else {
                     // No config yet, start fresh
@@ -210,10 +231,10 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                     setCustomFonts([]);
                     setEnabled(true);
                     setAutoIssueToProfile(false);
-                    setAttendeeCollection(allEvents.find(e => e.id === selectedEvent)?.collection || '');
+                    setAttendeeCollection(CERTIFICATE_AUDIENCES[certificateAudience].collection || allEvents.find(e => e.id === selectedEvent)?.collection || '');
                     setEligibility({});
-                    setEmailSubject('');
-                    setEmailHTML('');
+                    setEmailSubject(CERTIFICATE_AUDIENCES[certificateAudience].emailSubject);
+                    setEmailHTML(certificateAudience === 'organisers' ? ORGANISER_EMAIL_HTML : '');
                     setConfig(null);
                 }
             } catch (err) {
@@ -223,7 +244,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
             }
         };
         loadConfig();
-    }, [selectedEvent, allEvents]);
+    }, [selectedEvent, certificateAudience, allEvents]);
 
     // Load custom fonts into document
     useEffect(() => {
@@ -543,12 +564,16 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
         if (!selectedEvent) return;
         setLoadingAttendees(true);
         try {
-            const res = await fetch(`/api/event?action=list-attendees&eventId=${selectedEvent}`, {
+            const endpoint = certificateAudience === 'organisers'
+                ? '/api/certificate?action=team-members'
+                : `/api/event?action=list-attendees&eventId=${selectedEvent}`;
+            const res = await fetch(endpoint, {
                 headers: { 'Authorization': `Bearer ${adminKey}` }
             });
             const data = await res.json();
-            if (res.ok && data.attendees) {
-                setEventAttendees(data.attendees);
+            const recipients = certificateAudience === 'organisers' ? data.members : data.attendees;
+            if (res.ok && recipients) {
+                setEventAttendees(recipients);
             }
         } catch (err) {
             console.warn('Could not fetch attendees:', err);
@@ -559,6 +584,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
 
     const handleAddManualAttendee = async (e) => {
         e.preventDefault();
+        if (certificateAudience === 'organisers') return;
         if (!selectedEvent) return;
         setLoadingAttendees(true);
         try {
@@ -592,6 +618,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
 
     const handleImportCSV = async (e) => {
         const file = e.target.files?.[0];
+        if (certificateAudience === 'organisers') return;
         if (!file || !selectedEvent) return;
         setLoadingAttendees(true);
         try {
@@ -729,7 +756,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${adminKey}`
                 },
-                body: JSON.stringify({ eventId: selectedEvent, provider: emailProvider, eligibility })
+                body: JSON.stringify({ eventId: selectedEvent, provider: emailProvider, eligibility, audience: certificateAudience })
             });
 
             const data = await res.json();
@@ -771,7 +798,8 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                     attendeeCollection: attendeeCollection || eventInfo?.collection,
                     eligibility,
                     emailSubject,
-                    emailHTML
+                    emailHTML,
+                    audience: certificateAudience
                 })
             });
 
@@ -805,9 +833,28 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                 Certificate <span className="text-brand-yellow">Manager</span>
             </h2>
 
+            <div className="grid sm:grid-cols-2 gap-3 mb-6">
+                {Object.entries(CERTIFICATE_AUDIENCES).map(([audience, details]) => (
+                    <button
+                        key={audience}
+                        onClick={() => {
+                            setCertificateAudience(audience);
+                            setEventAttendees([]);
+                            setEligibility({});
+                            setShowAddAttendee(false);
+                            setManagerTab('design');
+                        }}
+                        className={`rounded-2xl border-4 p-5 text-left transition-colors ${certificateAudience === audience ? 'border-brand-yellow bg-zinc-800 text-white' : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-600'}`}
+                    >
+                        <span className="block font-black uppercase text-lg">{details.label}</span>
+                        <span className="block text-sm mt-1">{audience === 'participants' ? 'Public event attendee certificates' : 'Private certificates for E-Cell organisers'}</span>
+                    </button>
+                ))}
+            </div>
+
             {/* Event Selector */}
             <div className="bg-zinc-900 border-4 border-zinc-700 rounded-2xl p-6 mb-6">
-                <label className="block text-sm font-bold uppercase mb-3 text-gray-400">Select Event</label>
+                <label className="block text-sm font-bold uppercase mb-3 text-gray-400">Select Event for {CERTIFICATE_AUDIENCES[certificateAudience].label}</label>
                 <div className="relative">
                     <select
                         value={selectedEvent}
@@ -1471,28 +1518,30 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-lg font-black uppercase flex items-center gap-2">
                                     <Users className="w-5 h-5 text-brand-yellow" />
-                                    Attendee Eligibility
+                                    {certificateAudience === 'organisers' ? 'Organiser Eligibility' : 'Attendee Eligibility'}
                                 </h3>
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setShowAddAttendee(true)}
-                                        className="bg-zinc-800 text-white font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-zinc-700 transition-colors"
-                                    >
-                                        <Plus className="w-4 h-4" /> Add Manual
-                                    </button>
-                                    <button
-                                        onClick={() => csvInputRef.current?.click()}
-                                        className="bg-zinc-800 text-white font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-zinc-700 transition-colors"
-                                    >
-                                        <Upload className="w-4 h-4" /> Import CSV
-                                    </button>
-                                    <input
-                                        type="file"
-                                        accept=".csv"
-                                        className="hidden"
-                                        ref={csvInputRef}
-                                        onChange={handleImportCSV}
-                                    />
+                                    {certificateAudience === 'participants' && <>
+                                        <button
+                                            onClick={() => setShowAddAttendee(true)}
+                                            className="bg-zinc-800 text-white font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-zinc-700 transition-colors"
+                                        >
+                                            <Plus className="w-4 h-4" /> Add Manual
+                                        </button>
+                                        <button
+                                            onClick={() => csvInputRef.current?.click()}
+                                            className="bg-zinc-800 text-white font-bold px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:bg-zinc-700 transition-colors"
+                                        >
+                                            <Upload className="w-4 h-4" /> Import CSV
+                                        </button>
+                                        <input
+                                            type="file"
+                                            accept=".csv"
+                                            className="hidden"
+                                            ref={csvInputRef}
+                                            onChange={handleImportCSV}
+                                        />
+                                    </>}
                                     <button
                                         onClick={fetchAttendees}
                                         disabled={loadingAttendees}
@@ -1501,14 +1550,16 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
                                         {loadingAttendees ? (
                                             <><Loader2 className="w-4 h-4 animate-spin" /> Loading...</>
                                         ) : (
-                                            <><Users className="w-4 h-4" /> Fetch Attendees</>
+                                            <><Users className="w-4 h-4" /> {certificateAudience === 'organisers' ? 'Fetch Team Members' : 'Fetch Attendees'}</>
                                         )}
                                     </button>
                                 </div>
                             </div>
 
                             <p className="text-zinc-500 text-sm mb-4">
-                                Fetch attendees from all event subcollections. Uncheck anyone who should not receive a certificate and enter a reason.
+                                {certificateAudience === 'organisers'
+                                    ? 'Fetch members from the E-Cell team. Select only the organisers who should receive this certificate.'
+                                    : 'Fetch attendees from all event subcollections. Uncheck anyone who should not receive a certificate and enter a reason.'}
                             </p>
 
                             {eventAttendees.length > 0 && (
