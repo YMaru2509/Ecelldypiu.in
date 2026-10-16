@@ -2,12 +2,16 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowDown } from 'lucide-react';
 
-const statTiles = (event) => [
-    ['DATE', event.date],
-    ['DURATION', event.time],
-    ['VENUE', event.location],
-    ['PARTICIPANTS', event.participants],
-].filter(([, value]) => value);
+// Events can define their own tiles (event.stats = [{label, value}]) — e.g.
+// "Organised by" — otherwise they're built from the standard fields.
+const statTiles = (event) => (Array.isArray(event.stats) && event.stats.length > 0
+    ? event.stats.map((t) => [String(t.label || '').toUpperCase(), t.value])
+    : [
+        ['DATE', event.date],
+        ['DURATION', event.time],
+        ['VENUE', event.location],
+        ['PARTICIPANTS', event.participants],
+    ]).filter(([, value]) => value);
 
 const Tag = ({ children }) => (
     <span className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-6 text-xl transform -rotate-1 rounded-sm">
@@ -100,6 +104,11 @@ const EventHero = ({ event, showRegister }) => {
                     {tiles.length > 0 && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {tiles.map(([label, value]) => <StatTile key={label} label={label} value={value} big />)}
+                        </div>
+                    )}
+                    {image && (
+                        <div className="mt-12 border-4 border-white bg-zinc-900 p-2 rounded-[2rem] shadow-[12px_12px_0px_var(--primary-color)]">
+                            <img src={image} alt={event.title} className="w-full h-auto rounded-[1.5rem] object-cover" />
                         </div>
                     )}
                 </div>

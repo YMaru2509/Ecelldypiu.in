@@ -50,6 +50,7 @@ const normalizeEventForm = (event = {}) => ({
   featured: !!event.featured,
   teamBased: inferTeamBasedEvent(event),
   internalOnly: event.internalOnly === true,
+  upcoming: event.upcoming === true,
   activeSections: {
     ...defaultActiveSections(),
     ...(event.activeSections || {})
@@ -376,6 +377,10 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
               <div className="flex items-center gap-2 bg-zinc-800 p-3 rounded text-white">
                 <input type="checkbox" checked={form.teamBased || false} onChange={(e) => updateField('teamBased', e.target.checked)} className="w-5 h-5 accent-brand-yellow" id="team-based-checkbox" />
                 <label htmlFor="team-based-checkbox" className="font-bold cursor-pointer">Team-based Event</label>
+              </div>
+              <div className="flex items-center gap-2 bg-zinc-800 p-3 rounded text-white border border-brand-yellow/30">
+                <input type="checkbox" checked={form.upcoming || false} onChange={(e) => updateField('upcoming', e.target.checked)} className="w-5 h-5 accent-brand-yellow" id="upcoming-checkbox" />
+                <label htmlFor="upcoming-checkbox" className="font-bold cursor-pointer">Upcoming — show under "What's Next"</label>
               </div>
               <div className="flex items-center gap-2 bg-zinc-800 p-3 rounded text-white border border-brand-yellow/30">
                 <input type="checkbox" checked={form.internalOnly || false} onChange={(e) => updateField('internalOnly', e.target.checked)} className="w-5 h-5 accent-brand-yellow" id="internal-only-checkbox" />

@@ -61,6 +61,15 @@ const EventDetailPage = () => {
             });
     }, [event]);
 
+    // Deep links like /events/illuminate-26#register: the sections only exist
+    // after the event loads, so scroll once they're on the page.
+    useEffect(() => {
+        if (!loading && event && window.location.hash) {
+            const el = document.getElementById(window.location.hash.slice(1));
+            if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        }
+    }, [loading, event]);
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[var(--bg-primary)]">

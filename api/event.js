@@ -1303,20 +1303,64 @@ function normalizeEmailForId(email) {
     return (email || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Checks a registrant's answers against the event's own form definition
+// (event.registrationFields) and returns the cleaned answers, or an error
+// message. name/email/phone are just fields whose keys the pass email uses.
+function validateRegistrationAnswers(fields, raw) {
+    const answers = {};
+    for (const field of fields) {
+        const value = String(raw?.[field.key] ?? '').trim();
+        if (!value) {
+            if (field.required) return { error: `${field.label} is required` };
+            continue;
+        }
+        if (value.length > 2000) return { error: `${field.label} is too long` };
+        if (field.type === 'email' && !/^\S+@\S+\.\S+$/.test(value)) return { error: `${field.label} must be a valid email` };
+        if (field.type === 'select') {
+            const options = Array.isArray(field.options) ? field.options : [];
+            const isOther = field.allowOther && /^Other: \S/.test(value);
+            if (!options.includes(value) && !isOther) return { error: `Pick a valid option for ${field.label}` };
+        }
+        if (field.maxWords && value.split(/\s+/).length > field.maxWords) {
+            return { error: `${field.label} must be ${field.maxWords} words or fewer` };
+        }
+        answers[field.key] = value;
+    }
+    return { answers };
+}
+
 // Public: no auth required — anyone can register for any non-internal event.
+// Events can define their own form (registrationFields); otherwise it's the
+// plain name / email / phone form.
 async function handleRegisterForEvent(req, res) {
     try {
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
-        const { eventId, name, email, phone, provider } = req.body || {};
-        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
-        if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
-        if (!email?.trim()) return res.status(400).json({ error: 'email is required' });
+        const body = req.body || {};
+        if (!body.eventId) return res.status(400).json({ error: 'eventId is required' });
+        const eventId = body.eventId;
 
         const eventSnap = await db.collection('events').doc(eventId).get();
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
         const eventData = eventSnap.data();
         if (eventData.internalOnly) return res.status(404).json({ error: 'Event not found' });
+
+        const customFields = Array.isArray(eventData.registrationFields) && eventData.registrationFields.length > 0
+            ? eventData.registrationFields
+            : null;
+
+        let name; let email; let phone; let answers = {};
+        if (customFields) {
+            const checked = validateRegistrationAnswers(customFields, body.answers);
+            if (checked.error) return res.status(400).json({ error: checked.error });
+            answers = checked.answers;
+            name = answers.name; email = answers.email; phone = answers.phone || '';
+            if (!name || !email) return res.status(500).json({ error: 'This event\'s form is missing a name or email field' });
+        } else {
+            ({ name, email, phone } = body);
+        }
+        if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+        if (!email?.trim()) return res.status(400).json({ error: 'email is required' });
 
         const normalizedEmail = normalizeEmailForId(email);
         if (!normalizedEmail) return res.status(400).json({ error: 'A valid email is required' });
@@ -1330,6 +1374,7 @@ async function handleRegisterForEvent(req, res) {
                 name: name.trim(),
                 email: email.trim(),
                 phone: phone?.trim() || '',
+                answers,
                 passToken,
                 registeredAt: Timestamp.now(),
                 checkedIn: false,
@@ -1343,8 +1388,9 @@ async function handleRegisterForEvent(req, res) {
             throw createErr;
         }
 
+        // Public callers can't choose the mail provider — always the default.
         try {
-            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim() }, eventData, provider);
+            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim() }, eventData);
         } catch (emailErr) {
             console.error(`Pass email failed for ${email}: ${emailErr.message}`);
         }
@@ -1410,7 +1456,12 @@ async function handleListRegistrations(req, res) {
             })
             .sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
 
-        return res.status(200).json({ success: true, registrations, total: registrations.length, checkedIn: registrations.filter((r) => r.checkedIn).length });
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        const fields = eventSnap.exists && Array.isArray(eventSnap.data().registrationFields)
+            ? eventSnap.data().registrationFields.map(({ key, label }) => ({ key, label }))
+            : [];
+
+        return res.status(200).json({ success: true, registrations, fields, total: registrations.length, checkedIn: registrations.filter((r) => r.checkedIn).length });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error listing registrations:', error);
@@ -1459,12 +1510,22 @@ async function handleExportRegistrations(req, res) {
 
         const snap = await db.collection('event_registrations').where('eventId', '==', eventId).get();
         const istStamp = (ts) => (ts?.toDate ? ts.toDate().toLocaleString('en-GB', { timeZone: IST, dateStyle: 'medium', timeStyle: 'short' }) : '');
+        // Questions beyond name/email/phone that this event's form asked.
+        const extraFields = (Array.isArray(eventSnap.data().registrationFields) ? eventSnap.data().registrationFields : [])
+            .filter((f) => !['name', 'email', 'phone'].includes(f.key));
         const rows = snap.docs
             .map((d) => d.data())
             .sort((a, b) => (a.registeredAt?.toMillis?.() || 0) - (b.registeredAt?.toMillis?.() || 0))
-            .map((r) => [r.name || '', r.email || '', r.phone || '', istStamp(r.registeredAt), r.checkedIn ? 'Yes' : 'No', istStamp(r.checkedInAt)]);
+            .map((r) => [
+                r.name || '', r.email || '', r.phone || '',
+                ...extraFields.map((f) => r.answers?.[f.key] || ''),
+                istStamp(r.registeredAt), r.checkedIn ? 'Yes' : 'No', istStamp(r.checkedInAt),
+            ]);
 
-        const csv = toCsv([['Name', 'Email', 'Phone', 'Registered (IST)', 'Checked In', 'Checked In At (IST)'], ...rows]);
+        const csv = toCsv([
+            ['Name', 'Email', 'Phone', ...extraFields.map((f) => f.label), 'Registered (IST)', 'Checked In', 'Checked In At (IST)'],
+            ...rows,
+        ]);
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="registrations-${safeFilePart(eventSnap.data().title || eventId)}.csv"`);
         res.setHeader('Cache-Control', 'no-store');
@@ -1538,7 +1599,13 @@ const buildThemePrompt = (theme, vibe) => `You are drafting a web page for a col
 ${EVENT_JSON_SHAPE}
 Fill the content sections that suit this event type (highlights, schedule, workshops, awards and so on) but leave "winners" and "people" empty arrays and "gallery"-style data out entirely, because those require real facts.`;
 
-async function callOpenRouter(content, { thinking = false } = {}) {
+// PDFs: OpenRouter's default parser is a paid OCR engine that refuses to run
+// below a $0.50 balance. "native" hands the PDF straight to the model (billed
+// as ordinary input tokens, and handles scanned pages via the model's vision);
+// "cloudflare-ai" is free but text-only. Override with OPENROUTER_PDF_ENGINE.
+const PDF_ENGINE = process.env.OPENROUTER_PDF_ENGINE || 'native';
+
+async function callOpenRouter(content, { thinking = false, pdfEngine } = {}) {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
         const err = new Error('OPENROUTER_API_KEY is not configured on the server');
@@ -1549,7 +1616,7 @@ async function callOpenRouter(content, { thinking = false } = {}) {
         || process.env.OPENROUTER_MODEL
         || 'google/gemini-2.5-flash';
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const send = (engine) => fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -1560,10 +1627,23 @@ async function callOpenRouter(content, { thinking = false } = {}) {
         body: JSON.stringify({
             model,
             temperature: 0.2,
+            // The drafted event is a few thousand tokens at most. Without a cap
+            // OpenRouter reserves the model's full output limit (65k+) against the
+            // account balance, which fails on small balances.
+            max_tokens: Number(process.env.OPENROUTER_MAX_TOKENS) || 6000,
             messages: [{ role: 'user', content }],
+            ...(engine ? { plugins: [{ id: 'file-parser', pdf: { engine } }] } : {}),
         }),
     });
-    const data = await response.json().catch(() => ({}));
+
+    let response = await send(pdfEngine);
+    let data = await response.json().catch(() => ({}));
+    // A model without native file input rejects "native" — fall back to the
+    // free text parser rather than failing the whole upload.
+    if (!response.ok && pdfEngine === 'native' && /native|file input|not support/i.test(data.error?.message || '')) {
+        response = await send('cloudflare-ai');
+        data = await response.json().catch(() => ({}));
+    }
     if (!response.ok) {
         console.error('OpenRouter error:', response.status, JSON.stringify(data));
         const err = new Error(data.error?.message || `OpenRouter request failed (${response.status})`);
@@ -1665,24 +1745,39 @@ async function handleParseEventDocument(req, res) {
     if (!(await callerCan(req, 'events', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        const { fileBase64, mimeType, fileName } = req.body || {};
-        if (!fileBase64 || !mimeType) return res.status(400).json({ error: 'fileBase64 and mimeType are required' });
-        // Vercel rejects request bodies over 4.5MB; base64 adds ~33%.
-        if (fileBase64.length > 4_300_000) {
-            return res.status(413).json({ error: 'File is too large — keep approval documents under 3 MB' });
-        }
+        const { fileBase64, mimeType, fileName, images } = req.body || {};
 
-        const dataUrl = `data:${mimeType};base64,${fileBase64}`;
-        let filePart;
-        if (mimeType === 'application/pdf') {
-            filePart = { type: 'file', file: { filename: str(fileName) || 'approval.pdf', file_data: dataUrl } };
-        } else if (mimeType.startsWith('image/')) {
-            filePart = { type: 'image_url', image_url: { url: dataUrl } };
+        // Preferred: the browser sends the document as page images (PDF pages
+        // are rendered client-side), which any OpenRouter balance can read.
+        // A single raw file is still accepted for direct API callers.
+        let fileParts;
+        if (Array.isArray(images) && images.length > 0) {
+            if (images.length > 4) return res.status(400).json({ error: 'Send at most 4 pages' });
+            const total = images.reduce((sum, img) => sum + (img?.base64?.length || 0), 0);
+            // Vercel rejects request bodies over 4.5MB; base64 adds ~33%.
+            if (total > 4_300_000) return res.status(413).json({ error: 'The document is too large — try a smaller file' });
+            if (images.some((img) => !img?.base64 || !/^image\/(png|jpe?g|webp)$/.test(img.mimeType || ''))) {
+                return res.status(400).json({ error: 'Pages must be PNG, JPG or WebP images' });
+            }
+            fileParts = images.map((img) => ({ type: 'image_url', image_url: { url: `data:${img.mimeType};base64,${img.base64}` } }));
         } else {
-            return res.status(400).json({ error: 'Upload a PDF or an image (PNG/JPG) of the approval document' });
+            if (!fileBase64 || !mimeType) return res.status(400).json({ error: 'fileBase64 and mimeType are required' });
+            if (fileBase64.length > 4_300_000) {
+                return res.status(413).json({ error: 'File is too large — keep approval documents under 3 MB' });
+            }
+            const dataUrl = `data:${mimeType};base64,${fileBase64}`;
+            if (mimeType === 'application/pdf') {
+                fileParts = [{ type: 'file', file: { filename: str(fileName) || 'approval.pdf', file_data: dataUrl } }];
+            } else if (mimeType.startsWith('image/')) {
+                fileParts = [{ type: 'image_url', image_url: { url: dataUrl } }];
+            } else {
+                return res.status(400).json({ error: 'Upload a PDF or an image (PNG/JPG) of the approval document' });
+            }
         }
 
-        const text = await callOpenRouter([{ type: 'text', text: DOCUMENT_PROMPT }, filePart]);
+        const text = await callOpenRouter([{ type: 'text', text: DOCUMENT_PROMPT }, ...fileParts], {
+            pdfEngine: fileParts[0].type === 'file' ? PDF_ENGINE : undefined,
+        });
         const parsed = extractJsonObject(text);
         if (!parsed) {
             return res.status(502).json({ error: 'AI could not read this document — try a clearer file or fill the form manually' });

@@ -51,15 +51,29 @@ export const parseApprovalDocument = async (file) => {
     if (file.size > MAX_APPROVAL_DOC_BYTES) {
         throw new Error('File is too large — keep approval documents under 3 MB.');
     }
-    const dataUrl = await new Promise((resolve, reject) => {
+
+    const readAsBase64 = (blob) => new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
         reader.onerror = () => reject(new Error('Could not read that file.'));
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(blob);
     });
+
+    // PDFs are rendered to page images here in the browser (see utils/pdfPages.js).
+    if (file.type === 'application/pdf') {
+        let images;
+        try {
+            const { pdfToImages } = await import('./pdfPages');
+            images = await pdfToImages(file);
+        } catch (err) {
+            console.error('PDF render failed:', err);
+            throw new Error('Could not open that PDF. Try exporting it again, or upload a photo/screenshot of the letter instead.');
+        }
+        if (images.length === 0) throw new Error('That PDF has no pages.');
+        return postAI('parse-event-document', { images });
+    }
+
     return postAI('parse-event-document', {
-        fileBase64: dataUrl.split(',')[1],
-        mimeType: file.type,
-        fileName: file.name
+        images: [{ mimeType: file.type, base64: await readAsBase64(file) }]
     });
 };

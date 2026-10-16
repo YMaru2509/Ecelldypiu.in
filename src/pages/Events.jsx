@@ -69,6 +69,11 @@ const Events = () => {
   const [events, setEvents] = useState(defaultEvents);
   const [loading, setLoading] = useState(true);
 
+  // Events flagged "upcoming" in the editor are promoted into "What's Next"
+  // (with a Register button) and leave the past-highlights grid.
+  const upcomingEvents = events.filter((e) => e.upcoming === true);
+  const pastEvents = events.filter((e) => e.upcoming !== true);
+
   useEffect(() => {
     if (!window.location.hash) {
       window.scrollTo(0, 0);
@@ -147,14 +152,55 @@ const Events = () => {
             WHAT'S <span className="text-brand-yellow">NEXT?</span>
           </h2>
 
-          {/* Innovate For Impact Card - Moved to Past Highlights */}
-          <div className="flex flex-col items-center justify-center py-12 border-4 border-dashed border-[var(--border-color)] rounded-[2rem] text-center">
-            <div className="bg-[var(--bg-card)] p-6 rounded-full mb-6">
-              <Rocket className="w-12 h-12 text-[var(--text-muted)]" />
+          {upcomingEvents.length > 0 ? (
+            <div className={`grid gap-10 ${upcomingEvents.length === 1 ? 'grid-cols-1 max-w-4xl mx-auto' : 'grid-cols-1 lg:grid-cols-2'}`}>
+              {upcomingEvents.map((event) => (
+                <motion.div
+                  key={event.id}
+                  whileHover={{ y: -8 }}
+                  className="bg-[var(--bg-card)] border-4 border-brand-yellow rounded-[2rem] overflow-hidden flex flex-col shadow-[10px_10px_0px_var(--primary-color)]"
+                >
+                  {(event.image || event.thumbnail) && (
+                    <Link to={`/events/${event.slug || event.id}`} className="block bg-[var(--bg-secondary)] border-b-4 border-brand-yellow">
+                      <img src={event.image || event.thumbnail} alt={event.title} className="w-full h-auto object-cover" />
+                    </Link>
+                  )}
+                  <div className="p-6 md:p-8 flex flex-col flex-1">
+                    <span className="inline-block self-start bg-brand-yellow text-[var(--text-on-brand)] font-black px-3 py-1 text-xs uppercase mb-4 -rotate-1">
+                      Registrations Open
+                    </span>
+                    <h3 className="text-3xl md:text-4xl font-black uppercase mb-2">{event.title}</h3>
+                    {event.subtitle && <p className="text-brand-yellow font-bold uppercase mb-3">{event.subtitle}</p>}
+                    <p className="font-mono text-sm text-[var(--text-secondary)] mb-6">
+                      {[event.date, event.time, event.location].filter(Boolean).join(' · ')}
+                    </p>
+                    <div className="flex flex-wrap gap-3 mt-auto">
+                      <Link
+                        to={`/events/${event.slug || event.id}#register`}
+                        className="bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase px-6 py-3 rounded-full border-4 border-white shadow-[6px_6px_0px_var(--text-primary)] hover:-translate-y-1 transition-all inline-flex items-center gap-2"
+                      >
+                        Register Now <ArrowRight className="w-5 h-5" />
+                      </Link>
+                      <Link
+                        to={`/events/${event.slug || event.id}`}
+                        className="font-black uppercase px-6 py-3 rounded-full border-4 border-[var(--border-color)] hover:border-brand-yellow transition-colors"
+                      >
+                        Details
+                      </Link>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
-            <h3 className="text-3xl font-black uppercase text-[var(--text-secondary)] mb-2">More Events Coming Soon</h3>
-            <p className="text-[var(--text-secondary)] max-w-md">We are cooking up something big! Stay tuned for the next wave of innovation.</p>
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 border-4 border-dashed border-[var(--border-color)] rounded-[2rem] text-center">
+              <div className="bg-[var(--bg-card)] p-6 rounded-full mb-6">
+                <Rocket className="w-12 h-12 text-[var(--text-muted)]" />
+              </div>
+              <h3 className="text-3xl font-black uppercase text-[var(--text-secondary)] mb-2">More Events Coming Soon</h3>
+              <p className="text-[var(--text-secondary)] max-w-md">We are cooking up something big! Stay tuned for the next wave of innovation.</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -172,12 +218,12 @@ const Events = () => {
               <div className="col-span-1 md:col-span-2 lg:col-span-3 flex justify-center py-20">
                 <Loader2 className="w-12 h-12 text-brand-yellow animate-spin" />
               </div>
-            ) : events.length === 0 ? (
+            ) : pastEvents.length === 0 ? (
               <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-20">
                 <p className="text-xl text-[var(--text-muted)]">No events found.</p>
               </div>
             ) : (
-              events.map((event, index) => (
+              pastEvents.map((event, index) => (
                 <motion.div
                   key={index}
                   whileHover={{ y: -10 }}

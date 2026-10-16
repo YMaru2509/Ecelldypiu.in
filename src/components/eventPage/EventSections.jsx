@@ -31,7 +31,10 @@ export const HighlightsSection = ({ event, heading }) => (
 
 export const ProcessSection = ({ event, heading }) => (
     <>
-        <Heading text={heading} />
+        <Heading text={heading} className={event.sectionIntros?.process ? '!mb-6' : ''} />
+        {event.sectionIntros?.process && (
+            <p className="max-w-3xl mx-auto text-center text-gray-300 font-mono leading-relaxed mb-12 whitespace-pre-wrap">{event.sectionIntros.process}</p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {event.process.map((raw, i) => {
                 const item = asItem(raw, 'title');
@@ -280,6 +283,6 @@ export const RegisterSection = ({ event, heading }) => (
             </p>
             <p className="font-mono text-sm opacity-70">One pass per email address. Check your spam folder if it doesn't arrive within a few minutes.</p>
         </div>
-        <EventRegistrationForm eventId={event.id} />
+        <EventRegistrationForm eventId={event.id} fields={event.registrationFields} notice={event.registrationNotice} />
     </div>
 );

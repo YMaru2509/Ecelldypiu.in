@@ -21,6 +21,8 @@ const PassesPanel = () => {
     const [events, setEvents] = useState([]);
     const [eventId, setEventId] = useState('');
     const [registrations, setRegistrations] = useState([]);
+    const [fields, setFields] = useState([]);
+    const [openId, setOpenId] = useState(null);
     const [loadingEvents, setLoadingEvents] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -46,6 +48,7 @@ const PassesPanel = () => {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load registrations');
             setRegistrations(data.registrations || []);
+            setFields((data.fields || []).filter((f) => !['name', 'email', 'phone'].includes(f.key)));
         } catch (err) {
             setError(err.message);
         } finally {
@@ -58,7 +61,7 @@ const PassesPanel = () => {
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
         if (!q) return registrations;
-        return registrations.filter((r) => [r.name, r.email, r.phone].some((f) => (f || '').toLowerCase().includes(q)));
+        return registrations.filter((r) => [r.name, r.email, r.phone, ...Object.values(r.answers || {})].some((f) => (f || '').toLowerCase().includes(q)));
     }, [registrations, query]);
 
     const checkedIn = registrations.filter((r) => r.checkedIn).length;
@@ -140,7 +143,7 @@ const PassesPanel = () => {
                         <div className="relative mb-4">
                             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                             <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-                                placeholder="Search by name, email or phone" aria-label="Search registrations"
+                                placeholder="Search by name, email, phone, PRN or anything they answered" aria-label="Search registrations"
                                 className="w-full bg-[var(--bg-card)] border-2 border-[var(--border-color)] pl-9 pr-10 py-3 text-[var(--text-primary)] rounded-xl text-sm" />
                             {query && (
                                 <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
@@ -155,6 +158,12 @@ const PassesPanel = () => {
                                         <p className="font-bold truncate">{r.name}</p>
                                         <p className="text-xs text-[var(--text-secondary)] truncate">{[r.email, r.phone].filter(Boolean).join(' · ')}</p>
                                         <p className="text-[11px] text-[var(--text-muted)]">Registered {fmt(r.registeredAt)}</p>
+                                        {fields.length > 0 && (
+                                            <button type="button" onClick={() => setOpenId(openId === r.id ? null : r.id)}
+                                                className="text-[11px] font-black uppercase text-brand-yellow mt-1 hover:underline">
+                                                {openId === r.id ? 'Hide answers' : 'View answers'}
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         {r.checkedIn ? (
@@ -171,6 +180,16 @@ const PassesPanel = () => {
                                             </button>
                                         )}
                                     </div>
+                                    {openId === r.id && (
+                                        <dl className="basis-full grid sm:grid-cols-2 gap-x-6 gap-y-3 border-t-2 border-[var(--border-color)] pt-4 mt-1">
+                                            {fields.map((f) => (
+                                                <div key={f.key} className={f.key === 'problem' || (r.answers?.[f.key] || '').length > 80 ? 'sm:col-span-2' : ''}>
+                                                    <dt className="text-[10px] font-black uppercase text-[var(--text-muted)]">{f.label}</dt>
+                                                    <dd className="text-sm whitespace-pre-wrap break-words">{r.answers?.[f.key] || '—'}</dd>
+                                                </div>
+                                            ))}
+                                        </dl>
+                                    )}
                                 </div>
                             ))}
                             {visible.length === 0 && (
