@@ -53,12 +53,29 @@ const EventsAttendance = lazy(() => import('./pages/Panel/EventsAttendance'));
 const PublicCheckin = lazy(() => import('./pages/Panel/PublicCheckin'));
 const BlogsPanel = lazy(() => import('./pages/Panel/BlogsPanel'));
 const SubscribersPanel = lazy(() => import('./pages/Panel/SubscribersPanel'));
+const PassesPanel = lazy(() => import('./pages/Panel/PassesPanel'));
+const AuditPanel = lazy(() => import('./pages/Panel/AuditPanel'));
+const SettingsPanel = lazy(() => import('./pages/Panel/SettingsPanel'));
+const CertificatesPanel = lazy(() => import('./pages/Panel/CertificatesPanel'));
+const LinksPanel = lazy(() => import('./pages/Panel/LinksPanel'));
+const ManageEventsPanel = lazy(() => import('./pages/Panel/ManageEventsPanel'));
+const EmbeddedToolPanel = lazy(() => import('./pages/Panel/EmbeddedToolPanel'));
 const AttendanceQueue = lazy(() => import('./pages/Panel/AttendanceQueue'));
 const Verticals = lazy(() => import('./pages/Panel/Verticals'));
 const EventDetailPage = lazy(() => import('./pages/EventDetailPage'));
 const AttendanceRequestForm = lazy(() => import('./pages/AttendanceRequestForm'));
 const MyAttendanceRequests = lazy(() => import('./pages/MyAttendanceRequests'));
 import './App.css';
+
+// Admin-portal tools hosted inside the staff panel (see EmbeddedToolPanel).
+const COLLAB_TABS = [{ key: 'manage-collaborations', label: 'Collaborations' }];
+const BLOG_TABS = [{ key: 'create-blog', label: 'Write Blog' }];
+const MAIL_TABS = [
+  { key: 'mailer-announcement', label: 'Announcement' },
+  { key: 'mailer-event', label: 'Event Mail' },
+  { key: 'mailer-generic', label: 'Compose' },
+  { key: 'email-logs', label: 'Send Log' },
+];
 
 const RouteFallback = () => (
   <div className="flex items-center justify-center py-32">
@@ -163,6 +180,15 @@ function App() {
                       <Route path="members" element={<RequirePanelModule module="members"><Members /></RequirePanelModule>} />
                       <Route path="blogs" element={<RequirePanelModule module="blogs"><BlogsPanel /></RequirePanelModule>} />
                       <Route path="subscribers" element={<RequirePanelModule module="subscribers"><SubscribersPanel /></RequirePanelModule>} />
+                      <Route path="write-blog" element={<RequirePanelModule module="blog-editor"><EmbeddedToolPanel title="Write Blog" module="blogs" label="blogs" tabs={BLOG_TABS} /></RequirePanelModule>} />
+                      <Route path="manage-events" element={<RequirePanelModule module="event-manager"><ManageEventsPanel /></RequirePanelModule>} />
+                      <Route path="passes" element={<RequirePanelModule module="passes"><PassesPanel /></RequirePanelModule>} />
+                      <Route path="certificates" element={<RequirePanelModule module="certificates"><CertificatesPanel /></RequirePanelModule>} />
+                      <Route path="collaborations" element={<RequirePanelModule module="collaborations"><EmbeddedToolPanel title="Collaborations" module="collaborations" label="collaborations" tabs={COLLAB_TABS} /></RequirePanelModule>} />
+                      <Route path="mass-mail" element={<RequirePanelModule module="mass-mail"><EmbeddedToolPanel title="Mass Mail" module="mass-mail" label="mass mail" tabs={MAIL_TABS} /></RequirePanelModule>} />
+                      <Route path="links" element={<RequirePanelModule module="links"><LinksPanel /></RequirePanelModule>} />
+                      <Route path="audit" element={<RequirePanelModule module="audit"><AuditPanel /></RequirePanelModule>} />
+                      <Route path="settings" element={<RequirePanelModule module="settings"><SettingsPanel /></RequirePanelModule>} />
                       <Route path="attendance" element={<RequirePanelModule module="attendance-queue"><AttendanceQueue /></RequirePanelModule>} />
                       <Route path="events" element={<RequirePanelModule module="events"><EventsAttendance /></RequirePanelModule>} />
                       <Route path="door-checkin" element={<RequirePanelModule module="door-checkin"><PublicCheckin /></RequirePanelModule>} />

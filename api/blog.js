@@ -423,21 +423,9 @@ async function handleGetBlogs(req, res) {
     }
 }
 
-function isAuthorized(authHeader) {
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || !authHeader) return false;
-    const token = authHeader.replace(/^Bearer\s+/, '').trim().replace(/^["'`]|["'`]$/g, '');
-    const cleanAdminKey = adminKey.trim().replace(/^["'`]|["'`]$/g, '');
-    if (token === cleanAdminKey) return true;
-    const validKeys = cleanAdminKey.split(',').map(k => k.trim().replace(/^["'`]|["'`]$/g, ''));
-    return validKeys.includes(token);
-}
-
 async function handleCreateBlog(req, res) {
-    // Verify admin API key
-    const authHeader = req.headers.authorization;
-
-    if (!isAuthorized(authHeader)) {
+    // Shared admin key, or a staff member with manage access to blogs
+    if (!(await callerCan(req, 'blogs', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

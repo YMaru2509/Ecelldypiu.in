@@ -1,4 +1,5 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { callerCan } from './_lib/rbac.js';
 import { getFirestore, Timestamp as FirestoreTimestamp } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
@@ -319,13 +320,8 @@ async function handleListTemplates(req, res) {
 
 async function handleDeleteTemplate(req, res) {
     try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        if (!(await callerCan(req, 'certificates', 'manage'))) {
             return res.status(401).json({ error: 'Unauthorized' });
-        }
-        const token = authHeader.split('Bearer ')[1];
-        if (token !== process.env.ADMIN_API_KEY) {
-            return res.status(403).json({ error: 'Invalid admin key' });
         }
 
         const url = new URL(req.url, 'http://localhost');
@@ -356,9 +352,8 @@ async function handleDeleteTemplate(req, res) {
 }
 
 async function handleSaveConfig(req, res) {
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    // Shared admin key, or a staff member with manage access to certificates
+    if (!(await callerCan(req, 'certificates', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { eventId, eventName, enabled, templateUrl, textFields, imageFields, customFonts, attendeeCollection, eligibility, emailSubject, emailHTML, autoIssueToProfile } = req.body;
@@ -561,9 +556,8 @@ async function handleVerifyOtp(req, res) {
 }
 
 async function handleUploadTemplate(req, res) {
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    // Shared admin key, or a staff member with manage access to certificates
+    if (!(await callerCan(req, 'certificates', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { filename, imageData } = req.body;
@@ -602,9 +596,8 @@ async function handleUploadTemplate(req, res) {
 }
 
 async function handleDispatchCertificates(req, res) {
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    // Shared admin key, or a staff member with manage access to certificates
+    if (!(await callerCan(req, 'certificates', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { eventId, provider, eligibility: reqEligibility } = req.body;

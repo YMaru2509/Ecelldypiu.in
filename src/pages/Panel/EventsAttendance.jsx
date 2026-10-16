@@ -6,6 +6,7 @@ import PanelShell from './PanelShell';
 import MailProviderSelect from '../../components/MailProviderSelect';
 import { adminAuthHeaders } from '../../utils/adminAuth';
 import { db } from '../../firebaseConfig';
+import { downloadAuthenticatedFile } from '../../utils/download';
 import { usePanelAccess } from '../../context/panelAccessContext';
 import { hasPermission } from '../../utils/rbac';
 
@@ -64,26 +65,10 @@ const AttendanceToggle = ({ event, enabled, onChanged }) => {
     );
 };
 
-// Downloads the attendance sheet through the authenticated API (a plain link
-// can't carry the Authorization header), then hands it to the browser as a file.
-const downloadAttendanceCsv = async (eventId, windowId) => {
+const downloadAttendanceCsv = (eventId, windowId) => {
     const params = new URLSearchParams({ action: 'export-checkins', eventId });
     if (windowId) params.set('windowId', windowId);
-    const res = await fetch(`/api/event?${params}`, { headers: adminAuthHeaders() });
-    if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Download failed');
-    }
-    const blob = await res.blob();
-    const fileName = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'attendance.csv';
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    return downloadAuthenticatedFile(`/api/event?${params}`, 'attendance.csv');
 };
 
 const ExportPanel = ({ event, canManage }) => {

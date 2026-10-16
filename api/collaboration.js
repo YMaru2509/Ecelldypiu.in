@@ -1,4 +1,5 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { callerCan } from './_lib/rbac.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
 
@@ -112,8 +113,11 @@ async function handleGetQuestions(req, res) {
 
 async function handleGetCollaborations(req, res) {
     try {
-        const authHeader = req.headers.authorization;
-        const isAdminRequest = authHeader && authHeader.startsWith('Bearer ') && authHeader.split('Bearer ')[1] === process.env.ADMIN_API_KEY;
+        // Staff (shared admin key, or a member with collaborations access) see
+        // every submission; everyone else only sees approved ones.
+        const isAdminRequest = req.headers.authorization?.startsWith('Bearer ')
+            ? await callerCan(req, 'collaborations', 'view')
+            : false;
 
         let query = db.collection('COLLABORATIONS');
         if (!isAdminRequest) {
@@ -200,10 +204,7 @@ async function handleSubmitCollaboration(req, res) {
 }
 
 async function handleManageQuestions(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
-    const token = authHeader.split('Bearer ')[1];
-    if (token !== process.env.ADMIN_API_KEY) return res.status(403).json({ error: 'Invalid admin key' });
+    if (!(await callerCan(req, 'collaborations', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { questions } = req.body;
@@ -220,8 +221,7 @@ async function handleManageQuestions(req, res) {
 }
 
 async function handleManageCollaboration(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split('Bearer ')[1] !== process.env.ADMIN_API_KEY) {
+    if (!(await callerCan(req, 'collaborations', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -326,8 +326,7 @@ async function handleManageCollaboration(req, res) {
 }
 
 async function handleDeleteCollaboration(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split('Bearer ')[1] !== process.env.ADMIN_API_KEY) {
+    if (!(await callerCan(req, 'collaborations', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

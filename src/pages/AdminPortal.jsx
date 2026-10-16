@@ -19,12 +19,15 @@ import TeamManager from '../components/TeamManager';
 import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 
-const AdminPortal = () => {
+// `embedded` renders one tool (initialTab) without the portal's own login,
+// header or dashboard, so the staff panel can host it with the signed-in
+// member's credential. Standalone (/admin) behaviour is unchanged.
+const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = '' }) => {
     const navigate = useNavigate();
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(embedded);
     const [adminEmail, setAdminEmail] = useState('');
     const [adminPassword, setAdminPassword] = useState('');
-    const [adminKey, setAdminKey] = useState('');
+    const [adminKey, setAdminKey] = useState(embedded ? credential : '');
     const [adminRole, setAdminRole] = useState('super_admin');
     const [adminPermissions, setAdminPermissions] = useState(['blogs', 'events', 'subscribers', 'certificates', 'passes', 'collaborations', 'mass-mail', 'registrations', 'team', 'users', 'links', 'settings']);
     const [adminUsers, setAdminUsers] = useState([]);
@@ -34,7 +37,12 @@ const AdminPortal = () => {
     const [editingUserId, setEditingUserId] = useState(null);
     const [editingPermissions, setEditingPermissions] = useState([]);
     const [editingDisplayName, setEditingDisplayName] = useState('');
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [activeTab, setActiveTabRaw] = useState(initialTab);
+    // Embedded tools have no dashboard of their own to go "back" to.
+    const setActiveTab = (tab) => {
+        if (embedded && tab === 'dashboard') navigate('/panel');
+        else setActiveTabRaw(tab);
+    };
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
@@ -147,7 +155,9 @@ const AdminPortal = () => {
     const [mailerTo, setMailerTo] = useState('all'); // 'all', 'selected', 'manual'
     const [mailerManualEmails, setMailerManualEmails] = useState('');
     const [mailerSubject, setMailerSubject] = useState('');
-    const [mailerType, setMailerType] = useState('announcement'); // 'announcement', 'event', 'generic'
+    const [mailerType, setMailerType] = useState(
+        initialTab === 'mailer-event' ? 'event' : initialTab === 'mailer-generic' ? 'generic' : 'announcement'
+    ); // 'announcement', 'event', 'generic'
     const [mailerProvider, setMailerProvider] = useState('zeptomail'); // mail bridge used by announcement/event/composer mailers
 
     // Direct Custom Composer: Gmail-style recipient picker state
@@ -721,8 +731,13 @@ const AdminPortal = () => {
                 }
             }
         };
-        verifyAndRestoreSession();
-    }, []);
+        if (!embedded) verifyAndRestoreSession();
+    }, [embedded]);
+
+    // Embedded: keep the bearer token current as the member's ID token rotates.
+    useEffect(() => {
+        if (embedded) setAdminKey(credential);
+    }, [embedded, credential]);
 
     // Prevent body scroll and pause Lenis smooth scroll when any modal is open
     useEffect(() => {
@@ -1869,9 +1884,9 @@ const AdminPortal = () => {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white pt-20">
+        <div className={embedded ? 'text-white' : 'min-h-screen bg-black text-white pt-20'}>
             {/* Header */}
-            <div className="bg-zinc-900 border-b-4 border-white">
+            {!embedded && <div className="bg-zinc-900 border-b-4 border-white">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <h1 className="text-xl font-black uppercase">
                         ADMIN <span className="text-brand-yellow">PORTAL</span>
@@ -1884,7 +1899,7 @@ const AdminPortal = () => {
                         Logout
                     </button>
                 </div>
-            </div>
+            </div>}
 
             {/* Main Content */}
             <div className="container mx-auto px-4 py-8">

@@ -1,5 +1,6 @@
 /* global process */
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { callerCan } from './_lib/rbac.js';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin (only once)
@@ -108,11 +109,10 @@ export default async function handler(req, res) {
         return await handleTrackEvent(req, res);
     }
 
-    // All other actions require admin authorization
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
+    // All other actions need the shared admin key or a staff member with links
+    // access: listing needs view, anything that changes a link needs manage.
+    const level = action === 'list' ? 'view' : 'manage';
+    if (!(await callerCan(req, 'links', level))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

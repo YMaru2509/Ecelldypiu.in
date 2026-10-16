@@ -26,7 +26,13 @@ const DEFAULT_FONTS = [
     'Dancing Script', 'Great Vibes', 'Pacifico', 'Satisfy'
 ];
 
-const CertificateManager = ({ adminKey, onBack }) => {
+// verifyPassword(typed) confirms a bulk dispatch. The admin portal compares the
+// typed value to the shared admin password; the staff panel passes a check that
+// re-authenticates the signed-in member instead. onBack is optional — the
+// panel has its own navigation, so it omits the "Back to Dashboard" button.
+const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 'Admin Password' }) => {
+    const checkPassword = verifyPassword || (async (typed) => typed === adminKey);
+
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
     const fontInputRef = useRef(null);
@@ -785,13 +791,15 @@ const CertificateManager = ({ adminKey, onBack }) => {
 
     return (
         <div className="max-w-6xl mx-auto">
-            <button
-                onClick={onBack}
-                className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
-            >
-                <ArrowLeft className="w-5 h-5" />
-                <span>Back to Dashboard</span>
-            </button>
+            {onBack && (
+                <button
+                    onClick={onBack}
+                    className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                    <span>Back to Dashboard</span>
+                </button>
+            )}
 
             <h2 className="text-3xl font-black uppercase mb-6">
                 Certificate <span className="text-brand-yellow">Manager</span>
@@ -1335,7 +1343,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                         
                         <div className="mb-4">
                             <label className="block text-sm font-bold uppercase mb-2 text-zinc-400">
-                                Enter Admin Password to Confirm
+                                Enter {passwordLabel} to Confirm
                             </label>
                             <input
                                 type="password"
@@ -1345,7 +1353,7 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                     setDispatchPasswordError('');
                                 }}
                                 className={`w-full bg-black border-2 p-3 text-white rounded-lg focus:outline-none ${dispatchPasswordError ? 'border-red-500 focus:border-red-500' : 'border-zinc-700 focus:border-brand-yellow'}`}
-                                placeholder="Admin Password"
+                                placeholder={passwordLabel}
                             />
                             {dispatchPasswordError && (
                                 <p className="text-red-500 text-xs font-bold mt-1">{dispatchPasswordError}</p>
@@ -1364,9 +1372,9 @@ const CertificateManager = ({ adminKey, onBack }) => {
                                 Cancel
                             </button>
                             <button
-                                onClick={() => {
-                                    if (dispatchPassword !== adminKey) {
-                                        setDispatchPasswordError('Incorrect admin password');
+                                onClick={async () => {
+                                    if (!(await checkPassword(dispatchPassword))) {
+                                        setDispatchPasswordError('Incorrect password');
                                         return;
                                     }
                                     setShowDispatchConfirm(false);

@@ -73,6 +73,7 @@ export default async function handler(req, res) {
         if (req.method === 'GET' && action === 'roster-status') return await handleRosterStatus(req, res);
         if (req.method === 'GET' && action === 'whoami') return await handleWhoami(req, res);
         if (req.method === 'GET' && action === 'member-directory') return await handleMemberDirectory(req, res);
+        if (req.method === 'GET' && action === 'audit-logs') return await handleAuditLogs(req, res);
 
         if (req.method === 'GET') return await handleList(req, res);
 
@@ -92,6 +93,41 @@ export default async function handler(req, res) {
     } catch (error) {
         return sendRbacError(res, error);
     }
+}
+
+// audit:view — the append-only trail of privileged actions, newest first, with
+// actor and member-target names resolved so it reads as people, not uids.
+async function handleAuditLogs(req, res) {
+    await requirePermission(req, 'audit', 'view');
+
+    const limit = Math.min(Math.max(parseInt(req.query?.limit, 10) || 100, 1), 300);
+    const snap = await db.collection('audit_logs').orderBy('createdAt', 'desc').limit(limit).get();
+    const entries = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    const uids = new Set();
+    entries.forEach((e) => {
+        if (e.actorUid && e.actorUid !== 'admin-panel') uids.add(e.actorUid);
+        if (e.targetType === 'member' && e.targetId) uids.add(e.targetId);
+    });
+    const names = new Map();
+    if (uids.size > 0) {
+        const docs = await db.getAll(...[...uids].map((uid) => db.collection('members').doc(uid)));
+        docs.forEach((d) => { if (d.exists) names.set(d.id, d.data().name || d.data().email || d.id); });
+    }
+
+    const logs = entries.map((e) => ({
+        id: e.id,
+        action: e.action || '',
+        actorUid: e.actorUid || '',
+        actorName: e.actorUid === 'admin-panel' ? 'Admin (shared password)' : (names.get(e.actorUid) || e.actorUid || 'Unknown'),
+        actorRole: e.actorRole || '',
+        targetType: e.targetType || '',
+        targetId: e.targetId || '',
+        targetName: e.targetType === 'member' ? (names.get(e.targetId) || '') : '',
+        metadata: e.metadata || {},
+        createdAt: e.createdAt?.toDate ? e.createdAt.toDate().toISOString() : null,
+    }));
+    return res.status(200).json({ success: true, logs });
 }
 
 // Staff panel entry check: validates the caller's own login (or the shared
@@ -650,7 +686,7 @@ async function handlePublicRoster(req, res) {
 // Authenticated — tells the admin panel whether the public page is live yet
 // and how many real core members are ready, so "Go Live" isn't a blind leap.
 async function handleRosterStatus(req, res) {
-    await requirePermission(req, 'users', 'view');
+    await requireAnyPermission(req, [['users', 'view'], ['settings', 'view']]);
 
     const [configSnap, { ready, totalActive }] = await Promise.all([
         TEAM_ROSTER_CONFIG_REF.get(),
@@ -669,7 +705,10 @@ async function handleRosterStatus(req, res) {
 // so it's deliberately held to a higher bar than the general 'users:manage'
 // permission used elsewhere in this file.
 async function handleSetRosterLive(req, res) {
-    const caller = await requireSystemOwner(req);
+    // Flips what every visitor sees, so it needs the 'settings' permission
+    // (system owners and the admin-panel key always hold it) — not merely
+    // the general 'users' one.
+    const caller = await requireAnyPermission(req, [['settings', 'manage']]);
     const { live } = req.body || {};
     if (typeof live !== 'boolean') {
         return res.status(400).json({ error: 'live must be true or false' });
@@ -683,7 +722,7 @@ async function handleSetRosterLive(req, res) {
 
     await writeAuditLog({
         actorUid: caller.uid,
-        actorRole: 'system_owner',
+        actorRole: isSystemOwner(caller) ? 'system_owner' : 'settings:manage',
         action: live ? 'team_roster_go_live' : 'team_roster_revert_to_static',
         targetType: 'site_config',
         targetId: 'team_roster',

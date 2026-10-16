@@ -14,10 +14,14 @@ import ProtectedRoute from './ProtectedRoute';
 // api/_lib/rbac.js).
 const ADMIN_PROFILE = { roles: ['system_owner'], permissions: {} };
 
-const buildAccess = (mode, profile, name) => ({
+// `credential` is the bearer string for the active session. Embedded legacy
+// tools (certificates, links, …) take it as a prop and put it in their own
+// request headers, so it has to follow the member's rotating ID token.
+const buildAccess = (mode, profile, name, credential) => ({
     mode,
     profile,
     name,
+    credential,
     canAccess: (key) => PANEL_MODULES.some((m) => m.key === key && m.access(profile)),
 });
 
@@ -47,6 +51,7 @@ const Denied = ({ title, message, action }) => (
 const MemberGate = () => {
     const { currentUser } = useAuth();
     const [state, setState] = useState({ status: 'loading' });
+    const [token, setToken] = useState(null);
     const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {
@@ -55,15 +60,18 @@ const MemberGate = () => {
 
         // Keeps the shared token slot current as Firebase rotates the ID token.
         const unsubscribe = onIdTokenChanged(auth, async (user) => {
-            setMemberPanelToken(user ? await user.getIdToken() : null);
+            const fresh = user ? await user.getIdToken() : null;
+            setMemberPanelToken(fresh);
+            if (!cancelled) setToken(fresh);
         });
 
         (async () => {
             try {
-                const token = await currentUser.getIdToken();
-                setMemberPanelToken(token);
+                const idToken = await currentUser.getIdToken();
+                setMemberPanelToken(idToken);
+                setToken(idToken);
                 const res = await fetch('/api/panel-users?action=whoami', {
-                    headers: { Authorization: `Bearer ${token}` },
+                    headers: { Authorization: `Bearer ${idToken}` },
                 });
                 const data = await res.json().catch(() => ({}));
                 if (cancelled) return;
@@ -79,16 +87,19 @@ const MemberGate = () => {
             }
         })();
 
+        // The token slot is deliberately not cleared here: this effect re-runs
+        // (e.g. React dev double-mount, profile refresh) while child screens are
+        // already fetching, and a momentary null would turn those requests into
+        // spurious 401s. Sign-out clears it via onIdTokenChanged above.
         return () => {
             cancelled = true;
             unsubscribe();
-            setMemberPanelToken(null);
         };
     }, [currentUser, attempt]);
 
     const access = useMemo(
-        () => (state.status === 'ready' ? buildAccess('member', state.member, state.member.name) : null),
-        [state]
+        () => (state.status === 'ready' ? buildAccess('member', state.member, state.member.name, token) : null),
+        [state, token]
     );
 
     if (state.status === 'loading') {
@@ -135,7 +146,7 @@ const MemberGate = () => {
 };
 
 const AdminGate = () => {
-    const access = useMemo(() => buildAccess('admin', ADMIN_PROFILE, 'Admin'), []);
+    const access = useMemo(() => buildAccess('admin', ADMIN_PROFILE, 'Admin', sessionStorage.getItem('adminKey')), []);
     return (
         <PanelAccessContext.Provider value={access}>
             <Outlet />

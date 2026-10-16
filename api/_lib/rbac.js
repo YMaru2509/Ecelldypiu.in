@@ -143,6 +143,16 @@ export async function callerCan(req, moduleKey, level = 'view') {
     }
 }
 
+// callerCan across several acceptable [module, level] pairs.
+export async function callerCanAny(req, pairs) {
+    try {
+        const member = await getCallerMember(req);
+        return isActiveMember(member) && pairs.some(([moduleKey, level]) => hasPermission(member, moduleKey, level));
+    } catch {
+        return false;
+    }
+}
+
 // Verifies the caller and requires system_owner specifically (used for
 // role/permission assignment, which only system_owner may perform).
 export async function requireSystemOwner(req) {

@@ -1,4 +1,5 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { callerCan } from './_lib/rbac.js';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
 
@@ -418,11 +419,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // Verify admin API key
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
+    // Shared admin key, or a staff member with mass-mail access: reading the
+    // send log needs view, sending anything needs manage.
+    const isLogRequest = req.method === 'GET' && req.query.action === 'logs';
+    if (!(await callerCan(req, 'mass-mail', isLogRequest ? 'view' : 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

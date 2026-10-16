@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
-import { requirePermission, getCallerMember, hasPermission, sendRbacError } from './_lib/rbac.js';
+import { requirePermission, requireAnyPermission, getCallerMember, hasPermission, callerCan, callerCanAny, sendRbacError } from './_lib/rbac.js';
 
 let db = null;
 
@@ -152,6 +152,8 @@ export default async function handler(req, res) {
             return await handleListRegistrations(req, res);
         } else if (action === 'export-checkins') {
             return await handleExportCheckins(req, res);
+        } else if (action === 'export-registrations') {
+            return await handleExportRegistrations(req, res);
         }
     }
 
@@ -196,6 +198,8 @@ export default async function handler(req, res) {
             return await handleGenerateEventContent(req, res);
         } else if (action === 'export-checkins-sheet') {
             return await handleExportCheckinsSheet(req, res);
+        } else if (action === 'resend-pass') {
+            return await handleResendPass(req, res);
         }
     }
 
@@ -240,8 +244,7 @@ async function handleListApplications(req, res) {
 }
 
 async function handleListAttendees(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCanAny(req, [['certificates', 'view'], ['events', 'view']]))) return res.status(401).json({ error: 'Unauthorized' });
 
     const eventId = req.query?.eventId || new URL(req.url, 'http://localhost').searchParams.get('eventId');
     if (!eventId) return res.status(400).json({ error: 'eventId is required' });
@@ -564,8 +567,7 @@ async function handleVerifyAdmin(req, res) {
 }
 
 async function handleImportAttendees(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCanAny(req, [['certificates', 'manage'], ['events', 'manage']]))) return res.status(401).json({ error: 'Unauthorized' });
 
     const { eventId, attendees } = req.body;
     if (!eventId || !attendees || !Array.isArray(attendees)) return res.status(400).json({ error: 'eventId and attendees array required' });
@@ -648,8 +650,7 @@ async function handleGetEvents(req, res) {
 }
 
 async function handleCreateEvent(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'events', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -674,8 +675,7 @@ async function handleCreateEvent(req, res) {
 }
 
 async function handleUpdateEvent(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'events', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -697,8 +697,7 @@ async function handleUpdateEvent(req, res) {
 }
 
 async function handleDeleteEvent(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'events', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -1286,6 +1285,20 @@ function buildRegistrationPassHTML(name, event) {
 </html>`;
 }
 
+// Emails a registrant their personal QR pass. Used when they first register and
+// again when staff resend it.
+async function sendPassEmail({ eventId, registrationId, passToken, name, email }, eventData, provider) {
+    const qrPayload = JSON.stringify({ eventId, registrationId, token: passToken });
+    const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480 });
+    await sendEmail(
+        email,
+        `Your Pass: ${eventData.title || 'Event'}`,
+        buildRegistrationPassHTML(name, eventData),
+        provider || 'resend',
+        [{ filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' }],
+    );
+}
+
 function normalizeEmailForId(email) {
     return (email || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -1330,17 +1343,8 @@ async function handleRegisterForEvent(req, res) {
             throw createErr;
         }
 
-        const qrPayload = JSON.stringify({ eventId, registrationId, token: passToken });
-        const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480 });
-
         try {
-            await sendEmail(
-                email.trim(),
-                `Your Pass: ${eventData.title || 'Event'}`,
-                buildRegistrationPassHTML(name.trim(), eventData),
-                provider || 'resend',
-                [{ filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' }],
-            );
+            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim() }, eventData, provider);
         } catch (emailErr) {
             console.error(`Pass email failed for ${email}: ${emailErr.message}`);
         }
@@ -1390,7 +1394,7 @@ async function handleCheckinRegistration(req, res) {
 // registered/checked-in counts.
 async function handleListRegistrations(req, res) {
     try {
-        await requirePermission(req, 'registrations', 'view');
+        await requireAnyPermission(req, [['registrations', 'view'], ['passes', 'view']]);
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
         const eventId = req.query?.eventId;
@@ -1411,6 +1415,64 @@ async function handleListRegistrations(req, res) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error listing registrations:', error);
         return res.status(500).json({ error: 'Failed to list registrations' });
+    }
+}
+
+// passes:manage — re-sends a registrant's existing pass (same QR, same token),
+// for people who lost the email. Nothing about the registration changes.
+async function handleResendPass(req, res) {
+    try {
+        await requirePermission(req, 'passes', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, registrationId, provider } = req.body || {};
+        if (!eventId || !registrationId) return res.status(400).json({ error: 'eventId and registrationId are required' });
+
+        const [regSnap, eventSnap] = await Promise.all([
+            db.collection('event_registrations').doc(registrationId).get(),
+            db.collection('events').doc(eventId).get(),
+        ]);
+        if (!regSnap.exists || regSnap.data().eventId !== eventId) return res.status(404).json({ error: 'Registration not found' });
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+
+        const reg = regSnap.data();
+        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email }, eventSnap.data(), provider);
+        return res.status(200).json({ success: true, email: reg.email });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error resending pass:', error);
+        return res.status(500).json({ error: `Couldn't send the pass: ${error.message}` });
+    }
+}
+
+// passes:view — registrants for an event as a CSV (who registered, who showed up).
+async function handleExportRegistrations(req, res) {
+    try {
+        await requireAnyPermission(req, [['passes', 'view'], ['registrations', 'view']]);
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const eventId = req.query?.eventId;
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+
+        const snap = await db.collection('event_registrations').where('eventId', '==', eventId).get();
+        const istStamp = (ts) => (ts?.toDate ? ts.toDate().toLocaleString('en-GB', { timeZone: IST, dateStyle: 'medium', timeStyle: 'short' }) : '');
+        const rows = snap.docs
+            .map((d) => d.data())
+            .sort((a, b) => (a.registeredAt?.toMillis?.() || 0) - (b.registeredAt?.toMillis?.() || 0))
+            .map((r) => [r.name || '', r.email || '', r.phone || '', istStamp(r.registeredAt), r.checkedIn ? 'Yes' : 'No', istStamp(r.checkedInAt)]);
+
+        const csv = toCsv([['Name', 'Email', 'Phone', 'Registered (IST)', 'Checked In', 'Checked In At (IST)'], ...rows]);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="registrations-${safeFilePart(eventSnap.data().title || eventId)}.csv"`);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).end(csv);
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error exporting registrations:', error);
+        return res.status(500).json({ error: 'Failed to export registrations' });
     }
 }
 
@@ -1600,7 +1662,7 @@ const sendAiError = (res, error, fallback) => {
 
 // Admin-only: approval document in, drafted event + identification out.
 async function handleParseEventDocument(req, res) {
-    if (!isAuthorized(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'events', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { fileBase64, mimeType, fileName } = req.body || {};
@@ -1638,7 +1700,7 @@ async function handleParseEventDocument(req, res) {
 
 // Admin-only: the theme + vibe assistant, now on OpenRouter.
 async function handleGenerateEventContent(req, res) {
-    if (!isAuthorized(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'events', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { theme, vibe, model } = req.body || {};
