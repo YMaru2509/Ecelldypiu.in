@@ -92,7 +92,6 @@ const ActivateForm = ({ event, onActivated }) => {
     const [provider, setProvider] = useState('zeptomail');
     const [loading, setLoading] = useState('');
     const [error, setError] = useState('');
-    const [summary, setSummary] = useState(null);
 
     // `loading` records which button was pressed so only that one spins.
     const activate = async (notify) => {
@@ -107,8 +106,7 @@ const ActivateForm = ({ event, onActivated }) => {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to open check-in');
-            setSummary(data);
-            onActivated();
+            onActivated(data);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -158,13 +156,6 @@ const ActivateForm = ({ event, onActivated }) => {
                     Activate &amp; Notify
                 </button>
             </div>
-            {summary && (
-                <p className="text-xs font-bold text-[var(--success-color)]">
-                    {summary.notifyRequested === false
-                        ? 'Check-in opened. No emails were sent.'
-                        : `Notified ${summary.notified} of ${summary.totalMembers} core members.`}
-                </p>
-            )}
         </form>
     );
 };
@@ -234,6 +225,7 @@ const EventDetail = ({ event, onBack }) => {
     const [allMembers, setAllMembers] = useState([]);
     const [closing, setClosing] = useState(false);
     const [qrDataUrl, setQrDataUrl] = useState('');
+    const [activationNote, setActivationNote] = useState(null);
 
     const attendanceEnabled = checkinData?.attendanceEnabled || false;
     const activeWindow = checkinData?.activeWindow || null;
@@ -293,6 +285,7 @@ const EventDetail = ({ event, onBack }) => {
                 headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
                 body: JSON.stringify({ eventId: event.id }),
             });
+            setActivationNote(null);
             await fetchStatus();
         } finally {
             setClosing(false);
@@ -325,7 +318,7 @@ const EventDetail = ({ event, onBack }) => {
                     )}
 
                     {attendanceEnabled && !activeWindow && (
-                        <ActivateForm event={event} onActivated={fetchStatus} />
+                        <ActivateForm event={event} onActivated={(result) => { setActivationNote(result); fetchStatus(); }} />
                     )}
 
                     {activeWindow && (
@@ -335,6 +328,13 @@ const EventDetail = ({ event, onBack }) => {
                                     <Clock className="w-4 h-4" /> Closes in {mins}:{secs}
                                 </div>
                                 {qrDataUrl && <img src={qrDataUrl} alt="Check-in QR code" className="mx-auto rounded-xl border-4 border-[var(--border-color)]" />}
+                                {activationNote && (
+                                    <p className="text-[11px] font-bold text-[var(--success-color)] mt-3">
+                                        {activationNote.notifyRequested === false
+                                            ? 'Opened without emailing anyone.'
+                                            : `Emailed ${activationNote.notified} of ${activationNote.totalMembers} core members.`}
+                                    </p>
+                                )}
                                 <p className="text-xs font-bold mt-3">{activeWindow.room}</p>
                                 <p className="text-[10px] text-[var(--text-secondary)]">Open {fmtTime(activeWindow.windowStart)} – {fmtTime(activeWindow.windowEnd)}</p>
                                 <button type="button" disabled={closing} onClick={closeWindow}
