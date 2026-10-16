@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { promises as fsp } from 'fs';
 import nodePath from 'path';
 import QRCode from 'qrcode';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
@@ -1285,34 +1286,31 @@ async function loadEventBanner(event) {
     }
 }
 
-// The emailed pass: a ticket with the event's poster on top, event details, and
-// the QR on a perforated stub. Table layout + bgcolor attributes so it holds up
-// in Gmail/Outlook; images are inline (cid:) so nothing depends on remote loading.
-function buildRegistrationPassHTML({ name, event, registration, hasBanner, passCode }) {
+// Standard PDF fonts only cover WinAnsi: fold curly quotes/dashes and drop anything else.
+const winAnsi = (text) => String(text ?? '')
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-')
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+
+const eventAssetUrl = (src) => (!src ? '' : /^https?:\/\//i.test(src) ? src : `${siteBaseUrl()}/${String(src).replace(/^\/+/, '')}`);
+
+// The confirmation email: a warm "you're registered" message. The pass itself is
+// the single PDF attached to it; nothing else is attached.
+function buildRegistrationEmailHTML({ name, event, passCode }) {
     const accent = '#FFB22C';
-    const title = escapeHtml(event.title || 'Event');
+    const title = escapeHtml(event.title || 'the event');
     const subtitle = event.subtitle ? escapeHtml(event.subtitle) : '';
+    const firstName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'there');
+    const bannerUrl = eventAssetUrl(event.image || event.thumbnail);
     const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
-    const answers = registration?.answers || {};
-
-    const detail = (label, value) => (value ? `
-        <td valign="top" style="padding:0 12px 18px 0; width:50%;">
-            <div style="font-size:10px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase; margin-bottom:4px;">${label}</div>
-            <div style="font-size:15px; color:#ffffff; font-weight:bold; line-height:1.3;">${escapeHtml(value)}</div>
-        </td>` : '<td style="width:50%;"></td>');
-
-    const rows = [
-        [detail('Date', event.date), detail('Time', event.time)],
-        [detail('Venue', event.location), detail('Organised by', organizer)],
-    ].filter(([a, b]) => a.includes('<div') || b.includes('<div'));
-
-    const holder = (label, value) => (value ? `
-        <div style="margin-bottom:12px;">
-            <div style="font-size:10px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase;">${label}</div>
-            <div style="font-size:16px; color:#ffffff; font-weight:bold;">${escapeHtml(value)}</div>
-        </div>` : '');
-
     const eventUrl = `${siteBaseUrl()}/events/${encodeURIComponent(event.slug || event.id || '')}`;
+
+    const fact = (label, value) => (value ? `
+        <tr><td style="padding:7px 0; font-size:11px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase; width:96px;" valign="top">${label}</td>
+        <td style="padding:7px 0; font-size:15px; color:#ffffff; font-weight:bold;" valign="top">${escapeHtml(value)}</td></tr>` : '');
+
+    const tip = (text) => `
+        <tr><td valign="top" style="padding:5px 12px 5px 0; color:${accent}; font-size:15px; font-weight:bold;">&#10003;</td>
+        <td style="padding:5px 0; font-size:14px; color:#d4d4d8; line-height:1.5;">${text}</td></tr>`;
 
     return `<!DOCTYPE html>
 <html>
@@ -1320,92 +1318,205 @@ function buildRegistrationPassHTML({ name, event, registration, hasBanner, passC
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark light">
-    <title>Your pass - ${title}</title>
+    <title>You're registered for ${title}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#070708; font-family:Helvetica, Arial, sans-serif; color:#ffffff;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#070708" style="background-color:#070708;">
-<tr><td align="center" style="padding:28px 12px;">
-    <p style="margin:0 0 16px 0; font-size:13px; color:#a1a1aa;">Hi ${escapeHtml(name || 'there')}, you're in. Here's your pass for <strong style="color:#ffffff;">${title}</strong>.</p>
-
-    <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" bgcolor="#141416" style="width:600px; max-width:100%; background-color:#141416; border:2px solid ${accent}; border-radius:24px; overflow:hidden;">
-        ${hasBanner ? `<tr><td style="padding:0; line-height:0;"><img src="cid:eventbanner" alt="${title}" width="600" style="display:block; width:100%; height:auto; border:0;"></td></tr>` : ''}
-        <tr><td bgcolor="${accent}" style="background-color:${accent}; padding:10px 28px; font-size:11px; font-weight:900; letter-spacing:3px; color:#000000; text-transform:uppercase;">
-            E-Cell DYPIU &nbsp;&bull;&nbsp; Event Pass &nbsp;&bull;&nbsp; Admit One
-        </td></tr>
-        <tr><td style="padding:28px 28px 8px 28px;">
-            <div style="font-size:32px; line-height:1.05; font-weight:900; letter-spacing:-1px; color:#ffffff; text-transform:uppercase;">${title}</div>
-            ${subtitle ? `<div style="font-size:15px; font-weight:bold; color:${accent}; text-transform:uppercase; margin-top:6px;">${subtitle}</div>` : ''}
-        </td></tr>
-        <tr><td style="padding:20px 28px 0 28px;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                ${rows.map(([a, b]) => `<tr>${a}${b}</tr>`).join('')}
-            </table>
-        </td></tr>
-        <tr><td style="padding:6px 0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-                <td width="14" bgcolor="#070708" style="width:14px; height:28px; background-color:#070708; border-radius:0 14px 14px 0;">&nbsp;</td>
-                <td style="border-top:2px dashed #3a3a40; font-size:0; line-height:0;">&nbsp;</td>
-                <td width="14" bgcolor="#070708" style="width:14px; height:28px; background-color:#070708; border-radius:14px 0 0 14px;">&nbsp;</td>
+<tr><td align="center" style="padding:24px 12px;">
+    <table role="presentation" width="560" cellspacing="0" cellpadding="0" border="0" bgcolor="#141416" style="width:560px; max-width:100%; background-color:#141416; border:2px solid ${accent}; border-radius:24px; overflow:hidden;">
+        ${bannerUrl ? `<tr><td style="padding:0; line-height:0;"><img src="${escapeHtml(bannerUrl)}" alt="${title}" width="560" style="display:block; width:100%; height:auto; border:0;"></td></tr>` : ''}
+        <tr><td style="padding:30px 28px 6px 28px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                <td bgcolor="${accent}" style="background-color:${accent}; border-radius:999px; padding:6px 14px; font-size:11px; font-weight:900; letter-spacing:2px; color:#000000; text-transform:uppercase;">&#10003;&nbsp; Registration confirmed</td>
             </tr></table>
-        </td></tr>
-        <tr><td style="padding:18px 28px 28px 28px;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-                <td valign="middle" style="padding-right:16px;">
-                    ${holder('Pass holder', registration?.name || name)}
-                    ${holder('PRN', answers.prn)}
-                    ${holder('Pass ID', passCode)}
-                </td>
-                <td valign="middle" align="right" width="190" style="width:190px;">
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="background-color:#ffffff; border-radius:16px;"><tr><td style="padding:10px; line-height:0;">
-                        <img src="cid:passqr" alt="Your entry QR code" width="170" height="170" style="display:block; width:170px; height:170px; border:0;">
-                    </td></tr></table>
-                </td>
-            </tr></table>
-        </td></tr>
-        <tr><td bgcolor="#0c0c0e" style="background-color:#0c0c0e; padding:18px 28px; border-top:1px solid #26262b;">
-            <div style="font-size:12px; color:#a1a1aa; line-height:1.6;">
-                Show this QR at the entrance &mdash; on your phone or printed. Please carry your college ID. One entry per pass; it is unique to you, so don't forward it.
+            <div style="font-size:34px; line-height:1.05; font-weight:900; letter-spacing:-1px; color:#ffffff; margin-top:18px;">You're in, ${firstName}.</div>
+            <div style="font-size:17px; line-height:1.55; color:#e4e4e7; margin-top:14px;">
+                You're officially registered for <strong style="color:${accent};">${title}</strong>${subtitle ? ` &mdash; <em style="color:#d4d4d8;">${subtitle.replace(/[.!?\s]+$/, '')}</em>` : ''}. We can't wait to see you there.
             </div>
         </td></tr>
+        <tr><td style="padding:18px 28px 6px 28px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0c0c0e" style="background-color:#0c0c0e; border:1px solid #26262b; border-radius:16px;"><tr><td style="padding:12px 20px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                    ${fact('Date', event.date)}${fact('Time', event.time)}${fact('Venue', event.location)}${fact('By', organizer)}
+                </table>
+            </td></tr></table>
+        </td></tr>
+        <tr><td style="padding:18px 28px 6px 28px;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#1c1708" style="background-color:#1c1708; border-left:4px solid ${accent}; border-radius:12px;"><tr><td style="padding:16px 20px;">
+                <div style="font-size:15px; font-weight:900; color:${accent}; text-transform:uppercase; letter-spacing:1px;">Your pass is attached</div>
+                <div style="font-size:14px; color:#e4e4e7; line-height:1.55; margin-top:6px;">
+                    Open the PDF on your phone and show its QR code at the entrance. It's built for mobile &mdash; no printing needed.
+                    <span style="color:#8a8a93;">Pass ID: <strong style="color:#ffffff;">${escapeHtml(passCode)}</strong></span>
+                </div>
+            </td></tr></table>
+        </td></tr>
+        <tr><td style="padding:14px 28px 4px 28px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                ${tip('Carry your <strong style="color:#ffffff;">college ID</strong> along with the pass.')}
+                ${tip('Keep the pass handy &mdash; a screenshot of the QR works too.')}
+                ${tip('The pass is unique to you. Please don\'t forward it.')}
+            </table>
+        </td></tr>
+        <tr><td align="center" style="padding:22px 28px 30px 28px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+                <td bgcolor="${accent}" style="background-color:${accent}; border-radius:999px;">
+                    <a href="${eventUrl}" style="display:inline-block; padding:13px 28px; font-size:13px; font-weight:900; letter-spacing:1px; color:#000000; text-decoration:none; text-transform:uppercase;">View event details</a>
+                </td>
+            </tr></table>
+        </td></tr>
+        <tr><td bgcolor="#0c0c0e" style="background-color:#0c0c0e; padding:16px 28px; border-top:1px solid #26262b; text-align:center; font-size:11px; color:#6b6b73;">
+            E-Cell DYPIU &nbsp;&bull;&nbsp; Ideas / Business / Pitching &nbsp;&bull;&nbsp; &copy; ${new Date().getFullYear()}
+        </td></tr>
     </table>
-
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-top:22px;"><tr>
-        <td bgcolor="${accent}" style="background-color:${accent}; border-radius:999px;">
-            <a href="${eventUrl}" style="display:inline-block; padding:12px 26px; font-size:13px; font-weight:900; letter-spacing:1px; color:#000000; text-decoration:none; text-transform:uppercase;">View event details</a>
-        </td>
-    </tr></table>
-    <p style="margin:18px 0 0 0; font-size:11px; color:#6b6b73;">The QR is also attached as pass.png in case images are blocked. &copy; ${new Date().getFullYear()} E-Cell DYPIU</p>
 </td></tr>
 </table>
 </body>
 </html>`;
 }
 
-// Emails a registrant their personal QR pass. Used when they first register and
-// again when staff resend it. Passes always go out through ZeptoMail (Zoho).
-async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers }, eventData) {
-    const qrPayload = JSON.stringify({ eventId, registrationId, token: passToken });
-    const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480, margin: 1 });
-    const banner = await loadEventBanner(eventData);
-    const attachments = [
-        { filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' },
-        { filename: 'qr.png', content: qrPng.toString('base64'), contentType: 'image/png', cid: 'passqr' },
-    ];
+// The pass: one portrait PDF page, 420pt wide (a phone screen at fit-to-width) so
+// the QR and text are comfortably readable on mobile without pinching.
+async function buildPassPdf({ event, name, answers, passCode, qrPng, banner }) {
+    const W = 420; const H = 976;
+    const pdf = await PDFDocument.create();
+    pdf.setTitle(`${event.title || 'Event'} - Pass`);
+    pdf.setAuthor('E-Cell DYPIU');
+    const page = pdf.addPage([W, H]);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const regular = await pdf.embedFont(StandardFonts.Helvetica);
+
+    const yellow = rgb(1, 0.698, 0.173);
+    const white = rgb(1, 1, 1);
+    const muted = rgb(0.54, 0.54, 0.58);
+    const pageBg = rgb(0.027, 0.027, 0.031);
+    const cardBg = rgb(0.078, 0.078, 0.086);
+    const top = (t) => H - t; // measure from the top of the page
+
+    const roundedPath = (w, h, r) => `M ${r} 0 H ${w - r} A ${r} ${r} 0 0 1 ${w} ${r} V ${h - r} A ${r} ${r} 0 0 1 ${w - r} ${h} H ${r} A ${r} ${r} 0 0 1 0 ${h - r} V ${r} A ${r} ${r} 0 0 1 ${r} 0 Z`;
+    const roundedBox = (x, t, w, h, r, opts) => page.drawSvgPath(roundedPath(w, h, r), { x, y: top(t), ...opts });
+    const text = (str, x, t, size, font, color, maxWidth) => {
+        let value = winAnsi(str);
+        if (maxWidth) while (value.length > 1 && font.widthOfTextAtSize(value, size) > maxWidth) value = value.slice(0, -1);
+        page.drawText(value, { x, y: top(t) - size, size, font, color });
+    };
+    const centered = (str, t, size, font, color) => {
+        const value = winAnsi(str);
+        text(value, (W - font.widthOfTextAtSize(value, size)) / 2, t, size, font, color);
+    };
+    const wrap = (str, font, size, maxWidth, maxLines) => {
+        const words = winAnsi(str).split(/\s+/).filter(Boolean);
+        const lines = []; let line = '';
+        for (const word of words) {
+            const attempt = line ? `${line} ${word}` : word;
+            if (font.widthOfTextAtSize(attempt, size) <= maxWidth || !line) line = attempt;
+            else { lines.push(line); line = word; }
+        }
+        if (line) lines.push(line);
+        return lines.slice(0, maxLines);
+    };
+
+    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: pageBg });
+    const cardX = 14; const cardW = W - 28; const cardTop = 14; const cardH = H - 28;
+    roundedBox(cardX, cardTop, cardW, cardH, 22, { color: cardBg, borderColor: yellow, borderWidth: 2 });
+    const innerX = 28; const innerW = W - 56;
+
+    // poster, framed inside the card
+    let cursor = 30;
     if (banner) {
-        attachments.push({ filename: 'event.jpg', content: banner.buffer.toString('base64'), contentType: banner.contentType, cid: 'eventbanner' });
+        try {
+            const image = /png/i.test(banner.contentType) ? await pdf.embedPng(banner.buffer) : await pdf.embedJpg(banner.buffer);
+            const imgH = innerW * (image.height / image.width);
+            page.drawImage(image, { x: innerX, y: top(cursor) - imgH, width: innerW, height: imgH });
+            cursor += imgH + 14;
+        } catch { /* unsupported image type (e.g. webp): skip the poster */ }
     }
+
+    // ticket strip
+    page.drawRectangle({ x: innerX, y: top(cursor) - 26, width: innerW, height: 26, color: yellow });
+    const strip = 'E-CELL DYPIU  |  EVENT PASS  |  ADMIT ONE';
+    text(strip, innerX + (innerW - bold.widthOfTextAtSize(strip, 9.5)) / 2, cursor + 8, 9.5, bold, rgb(0, 0, 0));
+    cursor += 26 + 24;
+
+    // title + subtitle
+    const title = winAnsi(event.title || 'Event').toUpperCase();
+    let titleSize = 30;
+    while (titleSize > 16 && bold.widthOfTextAtSize(title, titleSize) > innerW) titleSize -= 1;
+    text(title, innerX, cursor, titleSize, bold, white);
+    cursor += titleSize + 6;
+    if (event.subtitle) {
+        text(String(event.subtitle).toUpperCase(), innerX, cursor, 12, bold, yellow, innerW);
+        cursor += 12 + 16;
+    }
+    cursor += 10;
+
+    // details grid
+    const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
+    const cells = [['DATE', event.date], ['TIME', event.time], ['VENUE', event.location], ['ORGANISED BY', organizer]].filter(([, v]) => v);
+    const colW = (innerW - 16) / 2;
+    for (let i = 0; i < cells.length; i += 2) {
+        let rowH = 0;
+        [cells[i], cells[i + 1]].forEach((cell, c) => {
+            if (!cell) return;
+            const x = innerX + c * (colW + 16);
+            text(cell[0], x, cursor, 8.5, bold, muted);
+            const lines = wrap(cell[1], bold, 13, colW, 2);
+            lines.forEach((ln, li) => text(ln, x, cursor + 14 + li * 16, 13, bold, white));
+            rowH = Math.max(rowH, 14 + lines.length * 16 + 12);
+        });
+        cursor += rowH;
+    }
+
+    // perforation + notches
+    cursor += 10;
+    page.drawLine({ start: { x: innerX - 4, y: top(cursor) }, end: { x: W - innerX + 4, y: top(cursor) }, thickness: 1.2, color: rgb(0.23, 0.23, 0.25), dashArray: [5, 4] });
+    page.drawCircle({ x: cardX, y: top(cursor), size: 12, color: pageBg });
+    page.drawCircle({ x: W - cardX, y: top(cursor), size: 12, color: pageBg });
+    cursor += 24;
+
+    // QR on a white tile
+    const tile = 232;
+    roundedBox((W - tile) / 2, cursor, tile, tile, 16, { color: white });
+    const qr = await pdf.embedPng(qrPng);
+    page.drawImage(qr, { x: (W - tile) / 2 + 13, y: top(cursor) - tile + 13, width: tile - 26, height: tile - 26 });
+    cursor += tile + 12;
+    centered('SCAN AT THE ENTRANCE', cursor, 9, bold, muted);
+    cursor += 9 + 22;
+
+    // holder block
+    text('PASS HOLDER', innerX, cursor, 8.5, bold, muted);
+    text(name || 'Guest', innerX, cursor + 13, 17, bold, white, innerW);
+    cursor += 13 + 17 + 14;
+    const prn = answers?.prn;
+    if (prn) text('PRN', innerX, cursor, 8.5, bold, muted);
+    text('PASS ID', innerX + colW + 16, cursor, 8.5, bold, muted);
+    if (prn) text(prn, innerX, cursor + 13, 13, bold, white, colW);
+    text(passCode, innerX + colW + 16, cursor + 13, 13, bold, white, colW);
+    cursor += 13 + 13 + 18;
+
+    // footer
+    page.drawLine({ start: { x: innerX, y: top(cursor) }, end: { x: W - innerX, y: top(cursor) }, thickness: 0.8, color: rgb(0.15, 0.15, 0.17) });
+    cursor += 12;
+    wrap('Show this pass on your phone. Please carry your college ID. One entry per pass - it is unique to you, so please do not share it.', regular, 9, innerW, 3)
+        .forEach((ln, i) => text(ln, innerX, cursor + i * 12, 9, regular, muted));
+
+    return Buffer.from(await pdf.save());
+}
+
+// Emails a registrant a confirmation message with their pass as the one and
+// only attachment (a mobile-sized PDF). Used when they first register and again
+// when staff resend it. Always sent through ZeptoMail (Zoho).
+async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers }, eventData) {
+    const event = { ...eventData, id: eventData.id || eventId };
+    const passCode = passToken.slice(0, 8).toUpperCase();
+    const qrPng = await QRCode.toBuffer(JSON.stringify({ eventId, registrationId, token: passToken }), { errorCorrectionLevel: 'H', width: 600, margin: 1 });
+    const pdf = await buildPassPdf({ event, name, answers, passCode, qrPng, banner: await loadEventBanner(eventData) });
+    const fileName = `${(event.title || 'Event').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'Event'}-Pass.pdf`;
     await sendEmail(
         email,
-        `Your pass: ${eventData.title || 'Event'}`,
-        buildRegistrationPassHTML({
-            name,
-            event: { ...eventData, id: eventData.id || eventId },
-            registration: { name, answers: answers || {} },
-            hasBanner: Boolean(banner),
-            passCode: passToken.slice(0, 8).toUpperCase(),
-        }),
+        `You're registered for ${event.title || 'the event'} - your pass is attached`,
+        buildRegistrationEmailHTML({ name, event, passCode }),
         'zeptomail',
-        attachments,
+        [{ filename: fileName, content: pdf.toString('base64'), contentType: 'application/pdf' }],
     );
 }
 
