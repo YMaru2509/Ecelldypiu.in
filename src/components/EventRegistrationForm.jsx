@@ -30,7 +30,7 @@ const EventRegistrationForm = ({ eventId }) => {
 
     if (done) {
         return (
-            <div className="bg-[var(--bg-card)] border-4 border-brand-yellow rounded-[2rem] p-8 text-center">
+            <div className="bg-[var(--bg-card)] text-[var(--text-primary)] border-4 border-brand-yellow rounded-[2rem] p-8 text-center">
                 <CheckCircle2 className="w-12 h-12 text-brand-yellow mx-auto mb-4" />
                 <h3 className="text-2xl font-black uppercase mb-2">You're Registered!</h3>
                 <p className="text-[var(--text-secondary)]">Check your email for your pass — show it at the door to check in.</p>
@@ -39,7 +39,7 @@ const EventRegistrationForm = ({ eventId }) => {
     }
 
     return (
-        <form onSubmit={submit} className="bg-[var(--bg-card)] border-4 border-[var(--border-color)] rounded-[2rem] p-8">
+        <form onSubmit={submit} className="bg-[var(--bg-card)] text-[var(--text-primary)] border-4 border-[var(--border-color)] rounded-[2rem] p-8">
             <div className="flex items-center gap-2 mb-6">
                 <Ticket className="w-5 h-5 text-brand-yellow" />
                 <h3 className="text-2xl font-black uppercase">Register</h3>

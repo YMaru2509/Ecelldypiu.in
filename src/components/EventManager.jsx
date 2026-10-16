@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Loader2, Plus, Edit, Trash2, LinkIcon, Settings, AlertCircle, CheckCircle2 } from 'lucide-react';
 import EventEditor from './EventEditor';
-import EventCreationLauncher from './EventCreationLauncher';
+import EventCreationWizard from './EventCreationWizard';
 import { createBlankEventForm, createEventDraftFromTemplate } from '../utils/eventTemplates';
 
 const EventManager = ({ adminKey }) => {
@@ -193,10 +193,17 @@ const EventManager = ({ adminKey }) => {
             )}
 
             {showEventStartModal && (
-                <EventCreationLauncher
+                <EventCreationWizard
                     onClose={() => setShowEventStartModal(false)}
+                    onComplete={(draft) => {
+                        setEventForm(draft);
+                        setEditingEventId(null);
+                        setEventInitialAIOpen(false);
+                        setShowEventStartModal(false);
+                        setShowEventModal(true);
+                    }}
                     onSelectTemplate={(template) => {
-                        setEventForm(createEventDraftFromTemplate(template.id));
+                        setEventForm(createEventDraftFromTemplate(template));
                         setEditingEventId(null);
                         setEventInitialAIOpen(false);
                         setShowEventStartModal(false);

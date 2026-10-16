@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { X, Trash2, ChevronDown, ChevronUp, Sparkles, Wand2, Settings2, Loader2, AlertCircle, FileUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Trash2, ChevronDown, ChevronUp, Sparkles, Wand2, Settings2, Loader2, AlertCircle } from 'lucide-react';
 import { generateEventContent, AI_MODELS, VIBES } from '../utils/aiService';
 import { DEFAULT_EVENT_FORM } from '../utils/eventTemplates';
-import { adminAuthHeaders } from '../utils/adminAuth';
+import { SECTION_CATALOG, HERO_STYLES, EVENT_TYPES, getSection, defaultActiveSections, sectionHasData } from '../utils/eventSections';
 
 const TEAM_EVENT_KEYWORDS = ['hackathon', 'competition', 'contest', 'challenge', 'pitch', 'ideathon'];
 
@@ -15,11 +15,17 @@ const inferTeamBasedEvent = (event = {}) => {
   return TEAM_EVENT_KEYWORDS.some(keyword => searchable.includes(keyword));
 };
 
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
 const normalizeEventForm = (event = {}) => ({
   ...DEFAULT_EVENT_FORM,
   ...event,
   title: event.title || '',
   slug: event.slug || '',
+  subtitle: event.subtitle || '',
+  heroTag: event.heroTag || '',
+  heroStyle: HERO_STYLES.some(s => s.id === event.heroStyle) ? event.heroStyle : 'poster',
+  eventType: event.eventType || '',
   date: event.date || '',
   time: event.time || '',
   location: event.location || '',
@@ -28,16 +34,24 @@ const normalizeEventForm = (event = {}) => ({
   image: event.image || '',
   participants: event.participants || '',
   category: event.category || 'Workshop',
-  highlights: Array.isArray(event.highlights) ? event.highlights : [],
-  zones: Array.isArray(event.zones) ? event.zones : [],
+  highlights: asArray(event.highlights),
+  process: asArray(event.process),
+  zones: asArray(event.zones),
   schedule: event.schedule && typeof event.schedule === 'object' ? event.schedule : {},
-  workshops: Array.isArray(event.workshops) ? event.workshops : [],
-  awards: Array.isArray(event.awards) ? event.awards : [],
+  workshops: asArray(event.workshops),
+  challenges: asArray(event.challenges),
+  people: asArray(event.people),
+  outcomes: asArray(event.outcomes),
+  awards: asArray(event.awards),
+  winners: asArray(event.winners),
+  callout: { tag: '', title: '', body: '', ...(event.callout || {}) },
+  gallery: asArray(event.gallery),
+  sectionTitles: event.sectionTitles && typeof event.sectionTitles === 'object' ? event.sectionTitles : {},
   featured: !!event.featured,
   teamBased: inferTeamBasedEvent(event),
   internalOnly: event.internalOnly === true,
   activeSections: {
-    ...DEFAULT_EVENT_FORM.activeSections,
+    ...defaultActiveSections(),
     ...(event.activeSections || {})
   }
 });
@@ -48,14 +62,17 @@ const slugify = (value) => value
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
 
-const getSectionStateFromContent = (content, fallback) => ({
-  ...fallback,
-  highlights: Array.isArray(content.highlights) ? content.highlights.length > 0 : fallback.highlights,
-  zones: Array.isArray(content.zones) ? content.zones.length > 0 : fallback.zones,
-  schedule: content.schedule && Object.values(content.schedule).some(items => Array.isArray(items) && items.length > 0) ? true : fallback.schedule,
-  workshops: Array.isArray(content.workshops) ? content.workshops.length > 0 : fallback.workshops,
-  awards: Array.isArray(content.awards) ? content.awards.length > 0 : fallback.awards
-});
+// After the AI drafts content, switch on exactly the sections it produced
+// data for (and off the content sections it left empty); registration is a
+// page-level choice the AI doesn't decide, so it keeps its current state.
+const getSectionStateFromContent = (content, fallback) => {
+  const next = { ...fallback };
+  SECTION_CATALOG.forEach(({ key }) => {
+    if (key === 'register') return;
+    if (key in content) next[key] = sectionHasData(content, key);
+  });
+  return next;
+};
 
 const EditorSection = ({ title, section, expanded, onToggle, children }) => (
   <div className="border border-zinc-700 rounded-lg overflow-hidden mb-4">
@@ -75,11 +92,7 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
   const [form, setForm] = useState(() => normalizeEventForm(event));
   const [expanded, setExpanded] = useState({
     basic: true,
-    highlights: false,
-    zones: false,
-    schedule: false,
-    workshops: false,
-    awards: false
+    ...Object.fromEntries(SECTION_CATALOG.map(({ key }) => [key, false]))
   });
 
   // Section Manager State
@@ -92,64 +105,47 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
   const [aiModel, setAiModel] = useState(AI_MODELS.THINKING);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(null);
-  const [docParsing, setDocParsing] = useState(false);
-  const [docError, setDocError] = useState(null);
-  const docInputRef = useRef(null);
 
-  // Shared by both the theme-based AI assist and the document-upload assist —
-  // both produce the same `content` shape, so both merge into the form the
-  // same way (overwrites text fields, always keeps the admin's own images).
+  // Merges AI-drafted content into the form: text fields only overwrite when
+  // the AI actually produced a value, list sections only when it produced
+  // items (so a theme draft never wipes hand-entered winners/people), and the
+  // admin's own images are always kept.
   const applyAIContent = (content, fallbackTitle = '') => {
+    const pick = (value, prev) => (value ? value : prev);
+    const pickList = (value, prev) => (Array.isArray(value) && value.length > 0 ? value : prev);
     setForm(prev => ({
       ...prev,
-      ...content,
-      title: content.title || prev.title || fallbackTitle,
-      slug: content.slug || slugify(content.title || prev.title || fallbackTitle),
-      date: content.date || prev.date,
-      time: content.time || prev.time,
-      location: content.location || prev.location,
-      participants: content.participants || prev.participants,
-      category: content.category || prev.category,
+      title: pick(content.title, prev.title || fallbackTitle),
+      slug: content.slug || prev.slug || slugify(content.title || prev.title || fallbackTitle),
+      subtitle: pick(content.subtitle, prev.subtitle),
+      heroTag: pick(content.heroTag, prev.heroTag),
+      heroStyle: HERO_STYLES.some(s => s.id === content.heroStyle) ? content.heroStyle : prev.heroStyle,
+      eventType: pick(content.eventType, prev.eventType),
+      date: pick(content.date, prev.date),
+      time: pick(content.time, prev.time),
+      location: pick(content.location, prev.location),
+      participants: pick(content.participants, prev.participants),
+      category: pick(content.category, prev.category),
       teamBased: typeof content.teamBased === 'boolean' ? content.teamBased : inferTeamBasedEvent(content),
-      description: content.description || prev.description,
+      description: pick(content.description, prev.description),
       thumbnail: prev.thumbnail,
       image: prev.image,
-      highlights: content.highlights || prev.highlights,
-      zones: content.zones || prev.zones,
-      schedule: { ...prev.schedule, ...(content.schedule || {}) },
-      workshops: content.workshops || prev.workshops,
-      awards: content.awards || prev.awards
+      highlights: pickList(content.highlights, prev.highlights),
+      process: pickList(content.process, prev.process),
+      zones: pickList(content.zones, prev.zones),
+      schedule: sectionHasData(content, 'schedule') ? { ...prev.schedule, ...content.schedule } : prev.schedule,
+      workshops: pickList(content.workshops, prev.workshops),
+      challenges: pickList(content.challenges, prev.challenges),
+      people: pickList(content.people, prev.people),
+      outcomes: pickList(content.outcomes, prev.outcomes),
+      awards: pickList(content.awards, prev.awards),
+      winners: pickList(content.winners, prev.winners),
+      callout: sectionHasData(content, 'callout') ? { ...prev.callout, ...content.callout } : prev.callout
     }));
-    setActiveSections(prev => getSectionStateFromContent(content, prev));
-  };
-
-  const handleDocumentUpload = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setDocParsing(true);
-    setDocError(null);
-    try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const fileBase64 = dataUrl.split(',')[1];
-      const res = await fetch('/api/event?action=parse-event-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
-        body: JSON.stringify({ fileBase64, mimeType: file.type }),
-      });
-      const content = await res.json();
-      if (!res.ok) throw new Error(content.error || 'Failed to read document');
-      applyAIContent(content);
-    } catch (err) {
-      setDocError(err.message);
-    } finally {
-      setDocParsing(false);
-    }
+    setActiveSections(prev => getSectionStateFromContent(
+      Object.fromEntries(Object.entries(content).filter(([, v]) => !(Array.isArray(v) && v.length === 0))),
+      prev
+    ));
   };
 
   useEffect(() => {
@@ -301,28 +297,11 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
               <Sparkles className="w-5 h-5" />
               Magic AI Assistant
             </button>
-            <button
-              type="button"
-              onClick={() => docInputRef.current?.click()}
-              disabled={docParsing}
-              className="flex items-center gap-3 bg-zinc-800 border-2 border-zinc-700 text-white px-6 py-2 rounded-full font-black uppercase hover:border-brand-yellow transition-all disabled:opacity-50"
-            >
-              {docParsing ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileUp className="w-5 h-5" />}
-              {docParsing ? 'Reading Document...' : 'Upload Approval Doc'}
-            </button>
-            <input ref={docInputRef} type="file" accept="application/pdf,image/*" onChange={handleDocumentUpload} className="hidden" />
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
             <X className="w-8 h-8" />
           </button>
         </div>
-
-        {docError && (
-          <div className="mx-8 mt-4 bg-red-900/40 border-2 border-red-500 p-4 rounded-xl flex items-center gap-3 text-red-400 flex-shrink-0">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm font-bold">{docError}</p>
-          </div>
-        )}
 
         <div className="flex-1 overflow-y-auto overscroll-contain p-8 space-y-4 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }} data-lenis-prevent>
 
@@ -333,17 +312,35 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
               Display Sections
             </h3>
             <div className="flex flex-wrap gap-3">
-              {Object.keys(activeSections).map(section => (
+              {SECTION_CATALOG.map(({ key, label }) => (
                 <button
-                  key={section}
+                  key={key}
                   type="button"
-                  onClick={() => setActiveSections(prev => ({ ...prev, [section]: !prev[section] }))}
-                  className={`px-4 py-2 rounded-lg font-bold border-2 transition-all uppercase text-xs ${activeSections[section] ? 'bg-brand-yellow/20 border-brand-yellow text-brand-yellow' : 'bg-black border-zinc-800 text-gray-600'}`}
+                  onClick={() => setActiveSections(prev => ({ ...prev, [key]: !prev[key] }))}
+                  className={`px-4 py-2 rounded-lg font-bold border-2 transition-all uppercase text-xs ${activeSections[key] ? 'bg-brand-yellow/20 border-brand-yellow text-brand-yellow' : 'bg-black border-zinc-800 text-gray-600'}`}
                 >
-                  {section} {activeSections[section] ? '✓' : '✗'}
+                  {label} {activeSections[key] ? '✓' : '✗'}
                 </button>
               ))}
             </div>
+            {SECTION_CATALOG.some(({ key, heading }) => heading && activeSections[key]) && (
+              <div className="mt-6 border-t border-zinc-700 pt-5">
+                <h4 className="text-xs font-black uppercase text-gray-500 mb-1">Heading text</h4>
+                <p className="text-[11px] text-gray-500 mb-3">Wrap the highlighted word in *stars*, e.g. HOW IT *UNFOLDED*.</p>
+                <div className="grid md:grid-cols-2 gap-3">
+                  {SECTION_CATALOG.filter(({ key, heading }) => heading && activeSections[key]).map(({ key, label, heading }) => (
+                    <label key={key} className="block">
+                      <span className="block text-[10px] font-bold uppercase text-gray-500 mb-1">{label}</span>
+                      <input
+                        value={form.sectionTitles[key] ?? heading}
+                        onChange={(e) => setForm(prev => ({ ...prev, sectionTitles: { ...prev.sectionTitles, [key]: e.target.value } }))}
+                        className="w-full bg-zinc-700 p-2 rounded text-white text-sm"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           {/* Basic Info */}
           <EditorSection title="📋 Basic Info" section="basic" expanded={expanded} onToggle={toggleSection}>
@@ -355,6 +352,15 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
               <input value={form.location} onChange={(e) => updateField('location', e.target.value)} placeholder="Location" className="bg-zinc-800 p-3 rounded text-white" />
               <input value={form.participants} onChange={(e) => updateField('participants', e.target.value)} placeholder="Participants (e.g., 500+)" className="bg-zinc-800 p-3 rounded text-white" />
               <input value={form.category} onChange={(e) => updateField('category', e.target.value)} placeholder="Category" className="bg-zinc-800 p-3 rounded text-white" />
+              <input value={form.subtitle} onChange={(e) => updateField('subtitle', e.target.value)} placeholder="Tagline shown under the title" className="bg-zinc-800 p-3 rounded text-white" />
+              <input value={form.heroTag} onChange={(e) => updateField('heroTag', e.target.value)} placeholder="Badge text (e.g. FLAGSHIP CHALLENGE)" className="bg-zinc-800 p-3 rounded text-white" />
+              <select value={form.eventType} onChange={(e) => updateField('eventType', e.target.value)} className="bg-zinc-800 p-3 rounded text-white">
+                <option value="">Event type…</option>
+                {EVENT_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+              <select value={form.heroStyle} onChange={(e) => updateField('heroStyle', e.target.value)} className="bg-zinc-800 p-3 rounded text-white">
+                {HERO_STYLES.map(style => <option key={style.id} value={style.id}>Page style: {style.label} ({style.modelledOn})</option>)}
+              </select>
               <div className="flex gap-2">
                 <input value={form.thumbnail} onChange={(e) => updateField('thumbnail', e.target.value)} placeholder="Thumbnail path" className="flex-1 bg-zinc-800 p-3 rounded text-white" />
                 <button type="button" onClick={openMediaBrowser} className="px-3 py-2 bg-zinc-700 rounded text-xs">Browse</button>
@@ -470,6 +476,64 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
                   <input value={a.icon} onChange={(e) => updateAward(idx, 'icon', e.target.value)} placeholder="Icon" className="w-32 bg-zinc-700 p-2 rounded text-white text-sm" />
                 </div>
               ))}
+            </div>
+          </EditorSection>
+
+          {/* Catalog-driven sections: steps, problem statements, people, outcomes, winners, gallery */}
+          {SECTION_CATALOG.filter(({ kind, fields }) => kind === 'list' && fields).map(section => (
+            <EditorSection key={section.key} title={`${section.label} (${(form[section.key] || []).length})`} section={section.key} expanded={expanded} onToggle={toggleSection}>
+              <p className="text-xs text-gray-500 mb-4">{section.description} Modelled on: {section.usedBy}.</p>
+              <button
+                type="button"
+                onClick={() => updateField(section.key, [...form[section.key], { ...section.blank }])}
+                className="px-4 py-2 bg-brand-yellow text-[var(--text-on-brand)] rounded font-bold mb-4"
+              >
+                + Add
+              </button>
+              <div className="space-y-3">
+                {form[section.key].map((item, idx) => (
+                  <div key={idx} className="bg-zinc-800 p-4 rounded border border-zinc-700 relative">
+                    <button
+                      type="button"
+                      onClick={() => updateField(section.key, form[section.key].filter((_, i) => i !== idx))}
+                      className="absolute top-2 right-2 text-red-400 hover:text-red-300"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                    <div className="grid md:grid-cols-2 gap-2 pr-8">
+                      {section.fields.map(field => {
+                        const common = {
+                          value: item[field.key] || '',
+                          onChange: (e) => updateField(section.key, form[section.key].map((it, i) => i === idx ? { ...it, [field.key]: e.target.value } : it)),
+                          placeholder: field.label,
+                          className: `bg-zinc-700 p-2 rounded text-white text-sm ${field.type === 'textarea' ? 'md:col-span-2' : ''}`
+                        };
+                        return field.type === 'textarea'
+                          ? <textarea key={field.key} rows={2} {...common} />
+                          : <input key={field.key} {...common} />;
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </EditorSection>
+          ))}
+
+          {/* What's Next banner */}
+          <EditorSection title="📣 What's Next Banner" section="callout" expanded={expanded} onToggle={toggleSection}>
+            <p className="text-xs text-gray-500 mb-4">{getSection('callout').description} Modelled on: {getSection('callout').usedBy}.</p>
+            <div className="space-y-2">
+              {getSection('callout').fields.map(field => {
+                const common = {
+                  value: form.callout[field.key] || '',
+                  onChange: (e) => setForm(prev => ({ ...prev, callout: { ...prev.callout, [field.key]: e.target.value } })),
+                  placeholder: field.label,
+                  className: 'w-full bg-zinc-700 p-2 rounded text-white text-sm'
+                };
+                return field.type === 'textarea'
+                  ? <textarea key={field.key} rows={3} {...common} />
+                  : <input key={field.key} {...common} />;
+              })}
             </div>
           </EditorSection>
         </div>

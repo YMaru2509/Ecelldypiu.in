@@ -1,0 +1,31 @@
+import {
+    HighlightsSection,
+    ProcessSection,
+    ZonesSection,
+    ScheduleSection,
+    WorkshopsSection,
+    ChallengesSection,
+    PeopleSection,
+    OutcomesSection,
+    AwardsSection,
+    WinnersSection,
+    CalloutSection,
+    GallerySection,
+    RegisterSection,
+} from './EventSections';
+
+export const SECTION_RENDERERS = {
+    highlights: { Component: HighlightsSection, tone: 'brand' },
+    process: { Component: ProcessSection },
+    zones: { Component: ZonesSection },
+    schedule: { Component: ScheduleSection },
+    workshops: { Component: WorkshopsSection },
+    challenges: { Component: ChallengesSection },
+    people: { Component: PeopleSection },
+    outcomes: { Component: OutcomesSection },
+    awards: { Component: AwardsSection },
+    winners: { Component: WinnersSection },
+    callout: { Component: CalloutSection },
+    gallery: { Component: GallerySection },
+    register: { Component: RegisterSection, tone: 'brand' },
+};

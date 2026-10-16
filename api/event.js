@@ -190,6 +190,8 @@ export default async function handler(req, res) {
             return await handleCheckinRegistration(req, res);
         } else if (action === 'parse-event-document') {
             return await handleParseEventDocument(req, res);
+        } else if (action === 'generate-event-content') {
+            return await handleGenerateEventContent(req, res);
         }
     }
 
@@ -1233,75 +1235,244 @@ async function handleListRegistrations(req, res) {
     }
 }
 
-const EVENT_CONTENT_SHAPE_PROMPT = `You are reading an event approval document (a letter, memo, or form approving a college club event). Extract the event details and respond with ONLY a single JSON object, no markdown fences, no commentary, matching exactly this shape (omit fields you can't find rather than guessing):
-{
-  "title": string,
-  "slug": string (url-safe, lowercase, hyphenated, derived from title),
-  "date": string (human-readable, e.g. "15th March 2026"),
-  "time": string,
-  "location": string,
-  "participants": string,
-  "category": string,
-  "teamBased": boolean,
-  "description": string (2-4 sentences),
-  "highlights": string[],
-  "zones": string[],
-  "schedule": { "day1": [{ "time": string, "event": string }] },
-  "workshops": string[],
-  "awards": string[]
-}`;
+// ---------------------------------------------------------------------------
+// AI event drafting via OpenRouter. Two admin-only actions share one caller:
+//   parse-event-document  — an uploaded approval letter (PDF / image) in, a
+//                           drafted event + identified event type + suggested
+//                           page headings out. Powers the creation wizard.
+//   generate-event-content — the older "Magic AI Assistant" (theme + vibe in,
+//                           drafted event out), moved here from the external
+//                           Cloud Function so everything runs on one key.
+// Needs OPENROUTER_API_KEY. OPENROUTER_MODEL picks the model (must accept
+// image/PDF input for document parsing); OPENROUTER_MODEL_THINKING optionally
+// overrides it for the assistant's "Thinking" toggle.
+// ---------------------------------------------------------------------------
 
-// Admin-only: parses an uploaded approval document (PDF or image) via Gemini
-// and returns the same content shape EventEditor.jsx's existing theme-based
-// AI assist produces, so the frontend can reuse its existing apply-to-form
-// logic unchanged. Requires GEMINI_API_KEY — a separate key from the one
-// used by the external generate-content Cloud Function the theme-based
-// assist calls, since that Cloud Function lives outside this repo.
+// Keep in sync with src/utils/eventSections.js (api/ can't import from src/).
+const AI_SECTION_KEYS = [
+    'highlights', 'process', 'zones', 'schedule', 'workshops', 'challenges',
+    'people', 'outcomes', 'awards', 'winners', 'callout', 'gallery', 'register',
+];
+const AI_EVENT_TYPES = [
+    'Hackathon', 'Pitch Competition', 'Summit', 'Workshop', 'Seminar / Talk',
+    'Training / FDP', 'Networking', 'Awareness Drive', 'Festival', 'Other',
+];
+const AI_HERO_STYLES = ['poster', 'giant', 'stats'];
+const AI_ICONS = 'Lightbulb, Users, Rocket, TrendingUp, Trophy, Award, Medal, Target, Shield, Star, Info, Zap, BookOpen, Mic, Handshake';
+
+const EVENT_JSON_SHAPE = `{
+  "eventType": one of ${JSON.stringify(AI_EVENT_TYPES)},
+  "title": string,
+  "slug": string (url-safe, lowercase, hyphenated, from the title),
+  "subtitle": string (a short punchy tagline, max 10 words),
+  "heroTag": string (2-3 word UPPERCASE badge, e.g. "FLAGSHIP CHALLENGE", "WORKSHOP", "UPCOMING SUMMIT"),
+  "date": string (human readable, e.g. "15th March 2026" or "8th & 9th November 2025"),
+  "time": string (duration or timing, e.g. "24 Hour Marathon" or "10 AM - 4 PM"),
+  "location": string,
+  "participants": string (expected audience, e.g. "200+" or "Students & Faculty"),
+  "category": string (same as eventType unless something more specific fits),
+  "teamBased": boolean,
+  "description": string (2-4 sentences, faithful to the source),
+  "highlights": [{ "title": string, "description": string, "icon": string }],
+  "process": [{ "title": string, "description": string, "icon": string }],
+  "zones": [{ "zone": string, "name": string, "duration": string, "focus": string, "description": string }],
+  "schedule": { "day1Night": [{ "time": string, "event": string }], "day2": [{ "time": string, "event": string }] },
+  "workshops": string[],
+  "challenges": [{ "category": string, "title": string, "description": string }],
+  "people": [{ "name": string, "role": string, "image": "" }],
+  "outcomes": [{ "title": string, "description": string, "icon": string }],
+  "awards": [{ "title": string, "icon": string }],
+  "winners": [{ "place": "1st" | "2nd" | "3rd", "team": string, "prize": string, "members": string }],
+  "callout": { "tag": string, "title": string, "body": string },
+  "recommendedSections": subset of ${JSON.stringify(AI_SECTION_KEYS)} that suit this event,
+  "heroStyle": one of ${JSON.stringify(AI_HERO_STYLES)}
+}
+Rules: icons must be one of: ${AI_ICONS}. Use "day1Night" for a first day that runs into the evening/night or the only day, and "day2" for the second day; use "day3" if needed. Leave arrays empty ([]) and strings "" for anything the source does not mention — never invent names, prizes, winners, speakers or numbers.`;
+
+const DOCUMENT_PROMPT = `You are reading an event approval document (a letter, memo or form approving a college entrepreneurship-cell event). Identify what kind of event it is, extract its facts, and propose which sections an event web page should show. Respond with ONLY one JSON object — no markdown fences, no commentary — shaped exactly like:
+${EVENT_JSON_SHAPE}
+"recommendedSections" should include a section only if the document gives it real content (always consider "register" for an upcoming event). "heroStyle": "poster" for competitions/flagships, "giant" for celebrations/awareness events, "stats" when the event is mostly facts and timings.`;
+
+const buildThemePrompt = (theme, vibe) => `You are drafting a web page for a college entrepreneurship-cell event. Event idea: "${theme}". Tone/vibe: "${vibe}". Invent plausible, tasteful content and respond with ONLY one JSON object — no markdown fences, no commentary — shaped exactly like:
+${EVENT_JSON_SHAPE}
+Fill the content sections that suit this event type (highlights, schedule, workshops, awards and so on) but leave "winners" and "people" empty arrays and "gallery"-style data out entirely, because those require real facts.`;
+
+async function callOpenRouter(content, { thinking = false } = {}) {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        const err = new Error('OPENROUTER_API_KEY is not configured on the server');
+        err.status = 503;
+        throw err;
+    }
+    const model = (thinking && process.env.OPENROUTER_MODEL_THINKING)
+        || process.env.OPENROUTER_MODEL
+        || 'google/gemini-2.5-flash';
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://ecelldypiu.in',
+            'X-Title': 'E-Cell DYPIU',
+        },
+        body: JSON.stringify({
+            model,
+            temperature: 0.2,
+            messages: [{ role: 'user', content }],
+        }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        console.error('OpenRouter error:', response.status, JSON.stringify(data));
+        const err = new Error(data.error?.message || `OpenRouter request failed (${response.status})`);
+        err.status = 502;
+        throw err;
+    }
+    const text = data.choices?.[0]?.message?.content;
+    if (typeof text !== 'string' || !text.trim()) {
+        const err = new Error('The AI returned an empty response — try again');
+        err.status = 502;
+        throw err;
+    }
+    return text;
+}
+
+function extractJsonObject(text) {
+    const stripped = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    try {
+        return JSON.parse(stripped);
+    } catch {
+        const start = stripped.indexOf('{');
+        const end = stripped.lastIndexOf('}');
+        if (start === -1 || end <= start) return null;
+        try {
+            return JSON.parse(stripped.slice(start, end + 1));
+        } catch {
+            return null;
+        }
+    }
+}
+
+const str = (v) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
+const pickFields = (item, fields) => {
+    const source = item && typeof item === 'object' ? item : {};
+    return Object.fromEntries(fields.map((f) => [f, str(source[f])]));
+};
+const objectList = (value, fields, requiredField) => (Array.isArray(value) ? value : [])
+    .map((item) => (typeof item === 'string' ? { [fields[0]]: item } : item))
+    .map((item) => pickFields(item, fields))
+    .filter((item) => item[requiredField]);
+
+// The model's JSON is untrusted input headed for the admin's form and, once
+// saved, a public page — coerce every field to the shape the page expects and
+// drop anything unrecognised instead of passing it through.
+function normalizeEventDraft(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const schedule = {};
+    if (r.schedule && typeof r.schedule === 'object') {
+        for (const [day, items] of Object.entries(r.schedule)) {
+            if (!/^day\d(Night|Morning)?$/.test(day) || !Array.isArray(items)) continue;
+            const rows = items.map((i) => pickFields(i, ['time', 'event'])).filter((i) => i.event);
+            if (rows.length) schedule[day] = rows;
+        }
+    }
+    const eventType = AI_EVENT_TYPES.includes(r.eventType) ? r.eventType : 'Other';
+    const title = str(r.title);
+    const slug = str(r.slug).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+        || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+    const content = {
+        eventType,
+        title,
+        slug,
+        subtitle: str(r.subtitle),
+        heroTag: str(r.heroTag).toUpperCase(),
+        date: str(r.date),
+        time: str(r.time),
+        location: str(r.location),
+        participants: str(r.participants),
+        category: str(r.category) || eventType,
+        teamBased: typeof r.teamBased === 'boolean' ? r.teamBased : false,
+        description: str(r.description),
+        highlights: objectList(r.highlights, ['title', 'description', 'icon'], 'title'),
+        process: objectList(r.process, ['title', 'description', 'icon'], 'title'),
+        zones: objectList(r.zones, ['zone', 'name', 'duration', 'focus', 'description'], 'name'),
+        schedule,
+        workshops: (Array.isArray(r.workshops) ? r.workshops : []).map(str).filter(Boolean),
+        challenges: objectList(r.challenges, ['category', 'title', 'description'], 'title'),
+        people: objectList(r.people, ['name', 'role', 'image'], 'name'),
+        outcomes: objectList(r.outcomes, ['title', 'description', 'icon'], 'title'),
+        awards: objectList(r.awards, ['title', 'icon'], 'title'),
+        winners: objectList(r.winners, ['place', 'team', 'prize', 'members'], 'team'),
+        callout: pickFields(r.callout, ['tag', 'title', 'body']),
+        heroStyle: AI_HERO_STYLES.includes(r.heroStyle) ? r.heroStyle : 'poster',
+    };
+    const recommendedSections = (Array.isArray(r.recommendedSections) ? r.recommendedSections : [])
+        .filter((k) => AI_SECTION_KEYS.includes(k));
+    return { content, recommendedSections };
+}
+
+const sendAiError = (res, error, fallback) => {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error(fallback, error);
+    return res.status(500).json({ error: fallback });
+};
+
+// Admin-only: approval document in, drafted event + identification out.
 async function handleParseEventDocument(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!isAuthorized(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
-        if (!process.env.GEMINI_API_KEY) {
-            return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server' });
-        }
-        const { fileBase64, mimeType } = req.body || {};
+        const { fileBase64, mimeType, fileName } = req.body || {};
         if (!fileBase64 || !mimeType) return res.status(400).json({ error: 'fileBase64 and mimeType are required' });
-
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: EVENT_CONTENT_SHAPE_PROMPT },
-                            { inlineData: { mimeType, data: fileBase64 } },
-                        ],
-                    }],
-                    generationConfig: { temperature: 0.2 },
-                }),
-            },
-        );
-        const geminiData = await geminiRes.json();
-        if (!geminiRes.ok) {
-            console.error('Gemini error:', JSON.stringify(geminiData));
-            return res.status(502).json({ error: geminiData.error?.message || 'AI document parsing failed' });
+        // Vercel rejects request bodies over 4.5MB; base64 adds ~33%.
+        if (fileBase64.length > 4_300_000) {
+            return res.status(413).json({ error: 'File is too large — keep approval documents under 3 MB' });
         }
 
-        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
-        let content;
-        try {
-            content = JSON.parse(cleaned);
-        } catch {
+        const dataUrl = `data:${mimeType};base64,${fileBase64}`;
+        let filePart;
+        if (mimeType === 'application/pdf') {
+            filePart = { type: 'file', file: { filename: str(fileName) || 'approval.pdf', file_data: dataUrl } };
+        } else if (mimeType.startsWith('image/')) {
+            filePart = { type: 'image_url', image_url: { url: dataUrl } };
+        } else {
+            return res.status(400).json({ error: 'Upload a PDF or an image (PNG/JPG) of the approval document' });
+        }
+
+        const text = await callOpenRouter([{ type: 'text', text: DOCUMENT_PROMPT }, filePart]);
+        const parsed = extractJsonObject(text);
+        if (!parsed) {
             return res.status(502).json({ error: 'AI could not read this document — try a clearer file or fill the form manually' });
         }
 
-        return res.status(200).json(content);
+        const { content, recommendedSections } = normalizeEventDraft(parsed);
+        return res.status(200).json({
+            content,
+            meta: { eventType: content.eventType, recommendedSections, heroStyle: content.heroStyle },
+        });
     } catch (error) {
-        console.error('Error parsing event document:', error);
-        return res.status(500).json({ error: 'Failed to parse document' });
+        return sendAiError(res, error, 'Failed to parse document');
+    }
+}
+
+// Admin-only: the theme + vibe assistant, now on OpenRouter.
+async function handleGenerateEventContent(req, res) {
+    if (!isAuthorized(req.headers.authorization)) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        const { theme, vibe, model } = req.body || {};
+        if (!str(theme)) return res.status(400).json({ error: 'theme is required' });
+
+        const text = await callOpenRouter(buildThemePrompt(str(theme), str(vibe) || 'Bold & Minimal'), {
+            thinking: typeof model === 'string' && model.includes('thinking'),
+        });
+        const parsed = extractJsonObject(text);
+        if (!parsed) return res.status(502).json({ error: 'AI returned something unreadable — try again' });
+
+        return res.status(200).json(normalizeEventDraft(parsed).content);
+    } catch (error) {
+        return sendAiError(res, error, 'Failed to generate event content');
     }
 }

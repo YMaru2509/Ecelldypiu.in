@@ -1,6 +1,12 @@
+import { defaultActiveSections } from './eventSections';
+
 export const DEFAULT_EVENT_FORM = {
     title: '',
     slug: '',
+    subtitle: '',
+    heroTag: '',
+    heroStyle: 'poster',
+    eventType: '',
     date: '',
     time: '',
     location: '',
@@ -10,20 +16,22 @@ export const DEFAULT_EVENT_FORM = {
     participants: '',
     category: 'Workshop',
     highlights: [],
+    process: [],
     zones: [],
     schedule: {},
     workshops: [],
+    challenges: [],
+    people: [],
+    outcomes: [],
     awards: [],
+    winners: [],
+    callout: { tag: '', title: '', body: '' },
+    gallery: [],
+    sectionTitles: {},
     featured: false,
     teamBased: false,
     internalOnly: false,
-    activeSections: {
-        highlights: true,
-        zones: true,
-        schedule: true,
-        workshops: true,
-        awards: true
-    }
+    activeSections: defaultActiveSections()
 };
 
 export const EVENT_CREATION_TEMPLATES = [
