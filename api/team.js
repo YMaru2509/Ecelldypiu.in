@@ -37,6 +37,10 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'GET') {
+        // Always public, unpersonalized, no auth branching — safe to cache at
+        // Vercel's edge so repeat/concurrent visitors don't each cost a fresh
+        // Firestore read.
+        res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
         return await handleGetTeam(req, res);
     }
 

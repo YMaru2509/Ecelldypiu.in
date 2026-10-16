@@ -312,6 +312,10 @@ export default async function handler(req, res) {
     const { action } = req.query;
 
     if (req.method === 'GET') {
+        // Always public, unpersonalized (published-only, no auth branching) —
+        // safe to cache at Vercel's edge so concurrent/repeat visitors don't
+        // each cost a fresh Firestore read.
+        res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300');
         return await handleGetBlogs(req, res);
     }
 

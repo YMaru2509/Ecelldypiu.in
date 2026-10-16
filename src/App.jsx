@@ -1,6 +1,8 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Analytics } from "@vercel/analytics/react";
+import { Loader2 } from 'lucide-react';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import RequireAdminKey from './components/RequireAdminKey';
@@ -9,45 +11,54 @@ import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import SocialSidebar from './components/SocialSidebar';
 import Home from './pages/Home';
-import About from './pages/About';
-import Events from './pages/Events';
-import Team from './pages/Team';
-import Blogs from './pages/Blogs';
-import Contact from './pages/Contact';
-import Sponsors from './pages/Sponsors';
-import Inceptio from './pages/Inceptio';
-import Inceptio26 from './pages/Inceptio26';
-import Elevate from './pages/Elevate';
-import SIH from './pages/SIH';
-import FinBiz from './pages/FinBiz';
-import InnovateForImpact from './pages/InnovateForImpact';
-import BlogDetail1 from './pages/BlogDetail1';
-import BlogDetail2 from './pages/BlogDetail2';
-import BlogDetail3 from './pages/BlogDetail3';
-import Linktree from './pages/Linktree';
-import Collaborations from './pages/Collaborations';
-import CollabStatus from './pages/CollabStatus';
-import ApplyNow from './pages/ApplyNow';
-import Newsletter from './pages/Newsletter';
-import AdminPortal from './pages/AdminPortal';
-import BlogDetail from './pages/BlogDetail';
-import GetCertificate from './pages/GetCertificate';
-import Redirect from './pages/Redirect';
-import Register from './pages/Register';
-import Login from './pages/Login';
-import Profile from './pages/Profile';
-import Onboarding from './pages/Onboarding';
-import CheckIn from './pages/CheckIn';
-import SetNewPassword from './pages/SetNewPassword';
-import PanelHome from './pages/Panel/PanelHome';
-import UsersRoles from './pages/Panel/UsersRoles';
-import Members from './pages/Panel/Members';
-import EventsAttendance from './pages/Panel/EventsAttendance';
-import AttendanceQueue from './pages/Panel/AttendanceQueue';
-import Verticals from './pages/Panel/Verticals';
-import AttendanceRequestForm from './pages/AttendanceRequestForm';
-import MyAttendanceRequests from './pages/MyAttendanceRequests';
+// Every other route is its own chunk, fetched only when visited — keeps the
+// bundle a first-time visitor downloads to just the homepage + chrome
+// instead of the whole site (admin panel included).
+const About = lazy(() => import('./pages/About'));
+const Events = lazy(() => import('./pages/Events'));
+const Team = lazy(() => import('./pages/Team'));
+const Blogs = lazy(() => import('./pages/Blogs'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Sponsors = lazy(() => import('./pages/Sponsors'));
+const Inceptio = lazy(() => import('./pages/Inceptio'));
+const Inceptio26 = lazy(() => import('./pages/Inceptio26'));
+const Elevate = lazy(() => import('./pages/Elevate'));
+const SIH = lazy(() => import('./pages/SIH'));
+const FinBiz = lazy(() => import('./pages/FinBiz'));
+const InnovateForImpact = lazy(() => import('./pages/InnovateForImpact'));
+const BlogDetail1 = lazy(() => import('./pages/BlogDetail1'));
+const BlogDetail2 = lazy(() => import('./pages/BlogDetail2'));
+const BlogDetail3 = lazy(() => import('./pages/BlogDetail3'));
+const Linktree = lazy(() => import('./pages/Linktree'));
+const Collaborations = lazy(() => import('./pages/Collaborations'));
+const CollabStatus = lazy(() => import('./pages/CollabStatus'));
+const ApplyNow = lazy(() => import('./pages/ApplyNow'));
+const Newsletter = lazy(() => import('./pages/Newsletter'));
+const AdminPortal = lazy(() => import('./pages/AdminPortal'));
+const BlogDetail = lazy(() => import('./pages/BlogDetail'));
+const GetCertificate = lazy(() => import('./pages/GetCertificate'));
+const Redirect = lazy(() => import('./pages/Redirect'));
+const Register = lazy(() => import('./pages/Register'));
+const Login = lazy(() => import('./pages/Login'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const CheckIn = lazy(() => import('./pages/CheckIn'));
+const SetNewPassword = lazy(() => import('./pages/SetNewPassword'));
+const PanelHome = lazy(() => import('./pages/Panel/PanelHome'));
+const UsersRoles = lazy(() => import('./pages/Panel/UsersRoles'));
+const Members = lazy(() => import('./pages/Panel/Members'));
+const EventsAttendance = lazy(() => import('./pages/Panel/EventsAttendance'));
+const AttendanceQueue = lazy(() => import('./pages/Panel/AttendanceQueue'));
+const Verticals = lazy(() => import('./pages/Panel/Verticals'));
+const AttendanceRequestForm = lazy(() => import('./pages/AttendanceRequestForm'));
+const MyAttendanceRequests = lazy(() => import('./pages/MyAttendanceRequests'));
 import './App.css';
+
+const RouteFallback = () => (
+  <div className="flex items-center justify-center py-32">
+    <Loader2 className="w-8 h-8 animate-spin text-brand-yellow" />
+  </div>
+);
 
 function App() {
   return (
@@ -56,6 +67,7 @@ function App() {
         <ScrollToTop />
         <SpeedInsights />
         <Analytics />
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* Standalone Route for URL Shortener Redirect (No Navbar/Footer/Chrome) */}
           <Route path="/s/:slug" element={<Redirect />} />
@@ -205,6 +217,7 @@ function App() {
             }
           />
         </Routes>
+        </Suspense>
       </Router>
     </AuthProvider>
   );
