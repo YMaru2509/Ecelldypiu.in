@@ -1248,40 +1248,53 @@ async function handleExportCheckinsSheet(req, res) {
 
 const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const siteBaseUrl = () => (process.env.NEXT_PUBLIC_BASE_URL || 'https://www.ecelldypiu.in').replace(/\/+$/, '');
+const siteBaseUrl = () => (process.env.NEXT_PUBLIC_BASE_URL || 'https://ecelldypiu.in').replace(/\/+$/, '');
 
 // The origin this request was served from, if it is one of our own hosts. Used to
 // fetch the event poster from the same deployment that serves it (so a poster
 // added in this release works immediately). Anything else falls back to the site URL.
 function trustedRequestOrigin(req) {
     const host = String(req?.headers?.host || '').toLowerCase();
-    if (!/^(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|([a-z0-9-]+\.)*ecelldypiu\.in|[a-z0-9-]+\.vercel\.app)$/.test(host)) return '';
+    if (!/^(localhost(:\d+)?|127\.0\.0\.1(:\d+)?|([a-z0-9-]+\.)*ecelldypiu\.in|([a-z0-9-]+\.)*dypiu\.ac\.in|[a-z0-9-]+\.vercel\.app)$/.test(host)) return '';
     return `${/^(localhost|127\.)/.test(host) ? 'http' : 'https'}://${host}`;
 }
 
 // The event's poster/thumbnail for the PDF pass. Fetched over HTTP (never read
 // from disk: a filesystem read here makes Vercel bundle the whole project into
-// the function). Any failure just means the pass has no poster.
+// the function). Tries the request's own origin, then the canonical site; any
+// failure is logged and the pass is simply made without a poster.
 async function loadEventBanner(event, origin) {
     const src = event.image || event.thumbnail;
     if (!src || typeof src !== 'string') return null;
     const mimeFor = (name) => (/\.png$/i.test(name) ? 'image/png' : /\.webp$/i.test(name) ? 'image/webp' : 'image/jpeg');
     const attempt = async (url) => {
-        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-        if (!res.ok) return null;
-        const buffer = Buffer.from(await res.arrayBuffer());
-        const contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(url);
-        if (!buffer.length || buffer.length > 2.5 * 1024 * 1024 || !/^image\//.test(contentType)) return null;
-        return { buffer, contentType };
+        try {
+            const res = await fetch(url, {
+                signal: AbortSignal.timeout(8000),
+                headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ECellDYPIU-PassBot/1.0)', Accept: 'image/*,*/*;q=0.8' },
+            });
+            if (!res.ok) { console.error(`Pass poster fetch ${url} -> HTTP ${res.status}`); return null; }
+            const buffer = Buffer.from(await res.arrayBuffer());
+            const contentType = (res.headers.get('content-type') || '').split(';')[0] || mimeFor(url);
+            if (!buffer.length || buffer.length > 2.5 * 1024 * 1024 || !/^image\//.test(contentType)) {
+                console.error(`Pass poster fetch ${url} rejected (${contentType}, ${buffer.length} bytes)`);
+                return null;
+            }
+            return { buffer, contentType };
+        } catch (err) {
+            console.error(`Pass poster fetch ${url} failed: ${err.message}`);
+            return null;
+        }
     };
-    try {
-        if (/^https?:\/\//i.test(src)) return await attempt(src);
-        const rel = `/${src.replace(/^\/+/, '')}`;
-        if (rel.includes('..')) return null;
-        return (origin && await attempt(`${origin}${rel}`)) || await attempt(`${siteBaseUrl()}${rel}`);
-    } catch {
-        return null;
+    if (/^https?:\/\//i.test(src)) return attempt(src);
+    const rel = `/${src.replace(/^\/+/, '')}`;
+    if (rel.includes('..')) return null;
+    const bases = [...new Set([origin, siteBaseUrl(), 'https://ecell.dypiu.ac.in', 'https://ecelldypiu.in'].filter(Boolean))];
+    for (const base of bases) {
+        const found = await attempt(`${base}${rel}`);
+        if (found) return found;
     }
+    return null;
 }
 
 // Standard PDF fonts only cover WinAnsi: fold curly quotes/dashes and drop anything else.
@@ -1289,18 +1302,19 @@ const winAnsi = (text) => String(text ?? '')
     .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-')
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
 
-const eventAssetUrl = (src) => (!src ? '' : /^https?:\/\//i.test(src) ? src : `${siteBaseUrl()}/${String(src).replace(/^\/+/, '')}`);
+const eventAssetUrl = (src, base) => (!src ? '' : /^https?:\/\//i.test(src) ? src : `${base}/${String(src).replace(/^\/+/, '')}`);
+const publicBase = (origin) => (origin && !/^https?:\/\/(localhost|127\.)/.test(origin) ? origin : siteBaseUrl());
 
 // The confirmation email: a warm "you're registered" message. The pass itself is
 // the single PDF attached to it; nothing else is attached.
-function buildRegistrationEmailHTML({ name, event, passCode }) {
+function buildRegistrationEmailHTML({ name, event, passCode, base }) {
     const accent = '#FFB22C';
     const title = escapeHtml(event.title || 'the event');
     const subtitle = event.subtitle ? escapeHtml(event.subtitle) : '';
     const firstName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'there');
-    const bannerUrl = eventAssetUrl(event.image || event.thumbnail);
+    const bannerUrl = eventAssetUrl(event.image || event.thumbnail, base);
     const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
-    const eventUrl = `${siteBaseUrl()}/events/${encodeURIComponent(event.slug || event.id || '')}`;
+    const eventUrl = `${base}/events/${encodeURIComponent(event.slug || event.id || '')}`;
 
     const fact = (label, value) => (value ? `
         <tr><td style="padding:7px 0; font-size:11px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase; width:96px;" valign="top">${label}</td>
@@ -1373,130 +1387,139 @@ function buildRegistrationEmailHTML({ name, event, passCode }) {
 }
 
 // The pass: one portrait PDF page, 420pt wide (a phone screen at fit-to-width) so
-// the QR and text are comfortably readable on mobile without pinching.
+// the QR and text are comfortably readable on mobile without pinching. The page
+// is as tall as its content (laid out once to measure, then drawn).
 async function buildPassPdf({ event, name, answers, passCode, qrPng, banner }) {
-    const W = 420; const H = 976;
+    const W = 420;
     const pdf = await PDFDocument.create();
     pdf.setTitle(`${event.title || 'Event'} - Pass`);
     pdf.setAuthor('E-Cell DYPIU');
-    const page = pdf.addPage([W, H]);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
     const regular = await pdf.embedFont(StandardFonts.Helvetica);
+    const qr = await pdf.embedPng(qrPng);
+    let posterImage = null;
+    if (banner) {
+        try {
+            posterImage = /png/i.test(banner.contentType) ? await pdf.embedPng(banner.buffer) : await pdf.embedJpg(banner.buffer);
+        } catch (err) { console.error(`Pass poster could not be embedded (${banner.contentType}): ${err.message}`); }
+    }
 
     const yellow = rgb(1, 0.698, 0.173);
     const white = rgb(1, 1, 1);
     const muted = rgb(0.54, 0.54, 0.58);
     const pageBg = rgb(0.027, 0.027, 0.031);
     const cardBg = rgb(0.078, 0.078, 0.086);
-    const top = (t) => H - t; // measure from the top of the page
-
     const roundedPath = (w, h, r) => `M ${r} 0 H ${w - r} A ${r} ${r} 0 0 1 ${w} ${r} V ${h - r} A ${r} ${r} 0 0 1 ${w - r} ${h} H ${r} A ${r} ${r} 0 0 1 0 ${h - r} V ${r} A ${r} ${r} 0 0 1 ${r} 0 Z`;
-    const roundedBox = (x, t, w, h, r, opts) => page.drawSvgPath(roundedPath(w, h, r), { x, y: top(t), ...opts });
-    const text = (str, x, t, size, font, color, maxWidth) => {
-        let value = winAnsi(str);
-        if (maxWidth) while (value.length > 1 && font.widthOfTextAtSize(value, size) > maxWidth) value = value.slice(0, -1);
-        page.drawText(value, { x, y: top(t) - size, size, font, color });
-    };
-    const centered = (str, t, size, font, color) => {
-        const value = winAnsi(str);
-        text(value, (W - font.widthOfTextAtSize(value, size)) / 2, t, size, font, color);
-    };
-    const wrap = (str, font, size, maxWidth, maxLines) => {
-        const words = winAnsi(str).split(/\s+/).filter(Boolean);
-        const lines = []; let line = '';
-        for (const word of words) {
-            const attempt = line ? `${line} ${word}` : word;
-            if (font.widthOfTextAtSize(attempt, size) <= maxWidth || !line) line = attempt;
-            else { lines.push(line); line = word; }
-        }
-        if (line) lines.push(line);
-        return lines.slice(0, maxLines);
-    };
-
-    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: pageBg });
-    const cardX = 14; const cardW = W - 28; const cardTop = 14; const cardH = H - 28;
-    roundedBox(cardX, cardTop, cardW, cardH, 22, { color: cardBg, borderColor: yellow, borderWidth: 2 });
     const innerX = 28; const innerW = W - 56;
+    const cardX = 14; const colW = (innerW - 16) / 2;
 
-    // poster, framed inside the card
-    let cursor = 30;
-    if (banner) {
-        try {
-            const image = /png/i.test(banner.contentType) ? await pdf.embedPng(banner.buffer) : await pdf.embedJpg(banner.buffer);
-            const imgH = innerW * (image.height / image.width);
-            page.drawImage(image, { x: innerX, y: top(cursor) - imgH, width: innerW, height: imgH });
+    // Lays the pass out top-to-bottom on `page` (page height H) and returns where the content ends.
+    const layout = (page, H) => {
+        const top = (t) => H - t;
+        const roundedBox = (x, t, w, h, r, opts) => page.drawSvgPath(roundedPath(w, h, r), { x, y: top(t), ...opts });
+        const text = (str, x, t, size, font, color, maxWidth) => {
+            let value = winAnsi(str);
+            if (maxWidth) while (value.length > 1 && font.widthOfTextAtSize(value, size) > maxWidth) value = value.slice(0, -1);
+            page.drawText(value, { x, y: top(t) - size, size, font, color });
+        };
+        const centered = (str, t, size, font, color) => {
+            const value = winAnsi(str);
+            text(value, (W - font.widthOfTextAtSize(value, size)) / 2, t, size, font, color);
+        };
+        const wrap = (str, font, size, maxWidth, maxLines) => {
+            const words = winAnsi(str).split(/\s+/).filter(Boolean);
+            const lines = []; let line = '';
+            for (const word of words) {
+                const attemptLine = line ? `${line} ${word}` : word;
+                if (font.widthOfTextAtSize(attemptLine, size) <= maxWidth || !line) line = attemptLine;
+                else { lines.push(line); line = word; }
+            }
+            if (line) lines.push(line);
+            return lines.slice(0, maxLines);
+        };
+
+        page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: pageBg });
+        roundedBox(cardX, 14, W - 28, H - 28, 22, { color: cardBg, borderColor: yellow, borderWidth: 2 });
+
+        let cursor = 30;
+        if (posterImage) {
+            const imgH = innerW * (posterImage.height / posterImage.width);
+            page.drawImage(posterImage, { x: innerX, y: top(cursor) - imgH, width: innerW, height: imgH });
             cursor += imgH + 14;
-        } catch { /* unsupported image type (e.g. webp): skip the poster */ }
-    }
+        }
 
-    // ticket strip
-    page.drawRectangle({ x: innerX, y: top(cursor) - 26, width: innerW, height: 26, color: yellow });
-    const strip = 'E-CELL DYPIU  |  EVENT PASS  |  ADMIT ONE';
-    text(strip, innerX + (innerW - bold.widthOfTextAtSize(strip, 9.5)) / 2, cursor + 8, 9.5, bold, rgb(0, 0, 0));
-    cursor += 26 + 24;
+        // ticket strip
+        page.drawRectangle({ x: innerX, y: top(cursor) - 26, width: innerW, height: 26, color: yellow });
+        const strip = 'E-CELL DYPIU  |  EVENT PASS  |  ADMIT ONE';
+        text(strip, innerX + (innerW - bold.widthOfTextAtSize(strip, 9.5)) / 2, cursor + 8, 9.5, bold, rgb(0, 0, 0));
+        cursor += 26 + 24;
 
-    // title + subtitle
-    const title = winAnsi(event.title || 'Event').toUpperCase();
-    let titleSize = 30;
-    while (titleSize > 16 && bold.widthOfTextAtSize(title, titleSize) > innerW) titleSize -= 1;
-    text(title, innerX, cursor, titleSize, bold, white);
-    cursor += titleSize + 6;
-    if (event.subtitle) {
-        text(String(event.subtitle).toUpperCase(), innerX, cursor, 12, bold, yellow, innerW);
-        cursor += 12 + 16;
-    }
-    cursor += 10;
+        // title + subtitle
+        const title = winAnsi(event.title || 'Event').toUpperCase();
+        let titleSize = 30;
+        while (titleSize > 16 && bold.widthOfTextAtSize(title, titleSize) > innerW) titleSize -= 1;
+        text(title, innerX, cursor, titleSize, bold, white);
+        cursor += titleSize + 6;
+        if (event.subtitle) {
+            text(String(event.subtitle).toUpperCase(), innerX, cursor, 12, bold, yellow, innerW);
+            cursor += 12 + 16;
+        }
+        cursor += 10;
 
-    // details grid
-    const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
-    const cells = [['DATE', event.date], ['TIME', event.time], ['VENUE', event.location], ['ORGANISED BY', organizer]].filter(([, v]) => v);
-    const colW = (innerW - 16) / 2;
-    for (let i = 0; i < cells.length; i += 2) {
-        let rowH = 0;
-        [cells[i], cells[i + 1]].forEach((cell, c) => {
-            if (!cell) return;
-            const x = innerX + c * (colW + 16);
-            text(cell[0], x, cursor, 8.5, bold, muted);
-            const lines = wrap(cell[1], bold, 13, colW, 2);
-            lines.forEach((ln, li) => text(ln, x, cursor + 14 + li * 16, 13, bold, white));
-            rowH = Math.max(rowH, 14 + lines.length * 16 + 12);
-        });
-        cursor += rowH;
-    }
+        // details grid
+        const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
+        const cells = [['DATE', event.date], ['TIME', event.time], ['VENUE', event.location], ['ORGANISED BY', organizer]].filter(([, v]) => v);
+        for (let i = 0; i < cells.length; i += 2) {
+            let rowH = 0;
+            [cells[i], cells[i + 1]].forEach((cell, c) => {
+                if (!cell) return;
+                const x = innerX + c * (colW + 16);
+                text(cell[0], x, cursor, 8.5, bold, muted);
+                const lines = wrap(cell[1], bold, 13, colW, 2);
+                lines.forEach((ln, li) => text(ln, x, cursor + 14 + li * 16, 13, bold, white));
+                rowH = Math.max(rowH, 14 + lines.length * 16 + 12);
+            });
+            cursor += rowH;
+        }
 
-    // perforation + notches
-    cursor += 10;
-    page.drawLine({ start: { x: innerX - 4, y: top(cursor) }, end: { x: W - innerX + 4, y: top(cursor) }, thickness: 1.2, color: rgb(0.23, 0.23, 0.25), dashArray: [5, 4] });
-    page.drawCircle({ x: cardX, y: top(cursor), size: 12, color: pageBg });
-    page.drawCircle({ x: W - cardX, y: top(cursor), size: 12, color: pageBg });
-    cursor += 24;
+        // perforation + notches
+        cursor += 10;
+        page.drawLine({ start: { x: innerX - 4, y: top(cursor) }, end: { x: W - innerX + 4, y: top(cursor) }, thickness: 1.2, color: rgb(0.23, 0.23, 0.25), dashArray: [5, 4] });
+        page.drawCircle({ x: cardX, y: top(cursor), size: 12, color: pageBg });
+        page.drawCircle({ x: W - cardX, y: top(cursor), size: 12, color: pageBg });
+        cursor += 24;
 
-    // QR on a white tile
-    const tile = 232;
-    roundedBox((W - tile) / 2, cursor, tile, tile, 16, { color: white });
-    const qr = await pdf.embedPng(qrPng);
-    page.drawImage(qr, { x: (W - tile) / 2 + 13, y: top(cursor) - tile + 13, width: tile - 26, height: tile - 26 });
-    cursor += tile + 12;
-    centered('SCAN AT THE ENTRANCE', cursor, 9, bold, muted);
-    cursor += 9 + 22;
+        // QR on a white tile
+        const tile = 232;
+        roundedBox((W - tile) / 2, cursor, tile, tile, 16, { color: white });
+        page.drawImage(qr, { x: (W - tile) / 2 + 13, y: top(cursor) - tile + 13, width: tile - 26, height: tile - 26 });
+        cursor += tile + 12;
+        centered('SCAN AT THE ENTRANCE', cursor, 9, bold, muted);
+        cursor += 9 + 22;
 
-    // holder block
-    text('PASS HOLDER', innerX, cursor, 8.5, bold, muted);
-    text(name || 'Guest', innerX, cursor + 13, 17, bold, white, innerW);
-    cursor += 13 + 17 + 14;
-    const prn = answers?.prn;
-    if (prn) text('PRN', innerX, cursor, 8.5, bold, muted);
-    text('PASS ID', innerX + colW + 16, cursor, 8.5, bold, muted);
-    if (prn) text(prn, innerX, cursor + 13, 13, bold, white, colW);
-    text(passCode, innerX + colW + 16, cursor + 13, 13, bold, white, colW);
-    cursor += 13 + 13 + 18;
+        // holder block
+        text('PASS HOLDER', innerX, cursor, 8.5, bold, muted);
+        text(name || 'Guest', innerX, cursor + 13, 17, bold, white, innerW);
+        cursor += 13 + 17 + 14;
+        const prn = answers?.prn;
+        if (prn) text('PRN', innerX, cursor, 8.5, bold, muted);
+        text('PASS ID', innerX + colW + 16, cursor, 8.5, bold, muted);
+        if (prn) text(prn, innerX, cursor + 13, 13, bold, white, colW);
+        text(passCode, innerX + colW + 16, cursor + 13, 13, bold, white, colW);
+        cursor += 13 + 13 + 18;
 
-    // footer
-    page.drawLine({ start: { x: innerX, y: top(cursor) }, end: { x: W - innerX, y: top(cursor) }, thickness: 0.8, color: rgb(0.15, 0.15, 0.17) });
-    cursor += 12;
-    wrap('Show this pass on your phone. Please carry your college ID. One entry per pass - it is unique to you, so please do not share it.', regular, 9, innerW, 3)
-        .forEach((ln, i) => text(ln, innerX, cursor + i * 12, 9, regular, muted));
+        // footer
+        page.drawLine({ start: { x: innerX, y: top(cursor) }, end: { x: W - innerX, y: top(cursor) }, thickness: 0.8, color: rgb(0.15, 0.15, 0.17) });
+        cursor += 12;
+        const footer = wrap('Show this pass on your phone. Please carry your college ID. One entry per pass - it is unique to you, so please do not share it.', regular, 9, innerW, 3);
+        footer.forEach((ln, i) => text(ln, innerX, cursor + i * 12, 9, regular, muted));
+        return cursor + footer.length * 12;
+    };
 
+    const noop = () => {};
+    const measure = layout({ drawText: noop, drawSvgPath: noop, drawRectangle: noop, drawLine: noop, drawCircle: noop, drawImage: noop }, 4000);
+    const H = Math.ceil(measure + 14 + 22); // content + card padding + page margin
+    layout(pdf.addPage([W, H]), H);
     return Buffer.from(await pdf.save());
 }
 
@@ -1512,7 +1535,7 @@ async function sendPassEmail({ eventId, registrationId, passToken, name, email, 
     await sendEmail(
         email,
         `You're registered for ${event.title || 'the event'} - your pass is attached`,
-        buildRegistrationEmailHTML({ name, event, passCode }),
+        buildRegistrationEmailHTML({ name, event, passCode, base: publicBase(origin) }),
         'zeptomail',
         [{ filename: fileName, content: pdf.toString('base64'), contentType: 'application/pdf' }],
     );
