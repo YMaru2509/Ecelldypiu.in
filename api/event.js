@@ -845,6 +845,10 @@ async function handleCreateCheckinSession(req, res) {
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
         const { eventId, room, windowMinutes, provider } = req.body || {};
+        // Emailing the team is opt-out so existing callers keep their behaviour;
+        // the panel's plain "Activate" button sends notify: false to open the
+        // window silently.
+        const shouldNotify = req.body?.notify !== false;
         if (!eventId) return res.status(400).json({ error: 'eventId is required' });
         if (!room?.trim()) return res.status(400).json({ error: 'room is required' });
         const minutes = Number(windowMinutes) > 0 ? Number(windowMinutes) : 15;
@@ -886,32 +890,37 @@ async function handleCreateCheckinSession(req, res) {
             createdAt: Timestamp.now(),
         });
 
-        const membersSnap = await db.collection('members')
-            .where('memberType', '==', 'ecell_member')
-            .where('membershipStatus', '==', 'active')
-            .get();
-
-        const eventTitle = eventData.title || eventId;
-        const subject = `Attendance check-in now open: ${eventTitle}`;
-        const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
-            <h2>Attendance check-in is open</h2>
-            <p>Be in <strong>${room.trim()}</strong> now and scan the QR code shown there to be marked present for <strong>${eventTitle}</strong>.</p>
-            <p>This closes in ${minutes} minute${minutes === 1 ? '' : 's'}.</p>
-        </div>`;
-
         let notified = 0;
-        for (const doc of membersSnap.docs) {
-            const email = doc.data().email;
-            if (!email) continue;
-            try {
-                await sendEmail(email, subject, html, provider || 'resend');
-                notified++;
-            } catch (err) {
-                console.error(`Check-in notify failed for ${email}: ${err.message}`);
+        let totalMembers = 0;
+
+        if (shouldNotify) {
+            const membersSnap = await db.collection('members')
+                .where('memberType', '==', 'ecell_member')
+                .where('membershipStatus', '==', 'active')
+                .get();
+            totalMembers = membersSnap.size;
+
+            const eventTitle = eventData.title || eventId;
+            const subject = `Attendance check-in now open: ${eventTitle}`;
+            const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;">
+                <h2>Attendance check-in is open</h2>
+                <p>Be in <strong>${room.trim()}</strong> now and scan the QR code shown there to be marked present for <strong>${eventTitle}</strong>.</p>
+                <p>This closes in ${minutes} minute${minutes === 1 ? '' : 's'}.</p>
+            </div>`;
+
+            for (const doc of membersSnap.docs) {
+                const email = doc.data().email;
+                if (!email) continue;
+                try {
+                    await sendEmail(email, subject, html, provider || 'resend');
+                    notified++;
+                } catch (err) {
+                    console.error(`Check-in notify failed for ${email}: ${err.message}`);
+                }
             }
         }
 
-        return res.status(200).json({ success: true, windowId: windowRef.id, token, windowStart, windowEnd, notified, totalMembers: membersSnap.size });
+        return res.status(200).json({ success: true, windowId: windowRef.id, token, windowStart, windowEnd, notified, totalMembers, notifyRequested: shouldNotify });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error creating checkin session:', error);

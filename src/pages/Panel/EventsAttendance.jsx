@@ -90,20 +90,20 @@ const ActivateForm = ({ event, onActivated }) => {
     const [room, setRoom] = useState('');
     const [minutes, setMinutes] = useState(15);
     const [provider, setProvider] = useState('zeptomail');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState('');
     const [error, setError] = useState('');
     const [summary, setSummary] = useState(null);
 
-    const submit = async (e) => {
-        e.preventDefault();
+    // `loading` records which button was pressed so only that one spins.
+    const activate = async (notify) => {
         if (!room.trim()) return;
-        setLoading(true);
+        setLoading(notify ? 'notify' : 'silent');
         setError('');
         try {
             const res = await fetch('/api/event?action=create-checkin-session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
-                body: JSON.stringify({ eventId: event.id, room: room.trim(), windowMinutes: Number(minutes), provider }),
+                body: JSON.stringify({ eventId: event.id, room: room.trim(), windowMinutes: Number(minutes), provider, notify }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to open check-in');
@@ -112,15 +112,22 @@ const ActivateForm = ({ event, onActivated }) => {
         } catch (err) {
             setError(err.message);
         } finally {
-            setLoading(false);
+            setLoading('');
         }
+    };
+
+    // Pressing Enter in a field submits the form, so the default action is the
+    // silent one — nobody gets emailed by accident.
+    const submit = (e) => {
+        e.preventDefault();
+        activate(false);
     };
 
     return (
         <form onSubmit={submit} className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-6 space-y-4">
             <h3 className="font-black uppercase text-sm">Open Attendance Check-In</h3>
             <p className="text-xs text-[var(--text-secondary)]">
-                Emails every active core member the moment you activate — only do this when you're ready for them to head to the room.
+                <strong>Activate</strong> opens the window and shows the QR code without emailing anyone. <strong>Activate &amp; Notify</strong> also emails every active core member — only use it when you're ready for them to head to the room.
             </p>
             {error && <p className="text-xs font-bold text-[var(--danger-color)]">{error}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -136,17 +143,26 @@ const ActivateForm = ({ event, onActivated }) => {
                 </div>
             </div>
             <div>
-                <label className="block text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">Notify via</label>
+                <label className="block text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1">Notify via (Activate &amp; Notify only)</label>
                 <MailProviderSelect value={provider} onChange={setProvider} className="w-full sm:w-auto" />
             </div>
-            <button type="submit" disabled={loading || !room.trim()}
-                className="flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-5 py-2.5 rounded-xl text-xs font-black uppercase disabled:opacity-50">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                Activate & Notify
-            </button>
+            <div className="flex flex-wrap gap-3">
+                <button type="submit" disabled={!!loading || !room.trim()}
+                    className="flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-5 py-2.5 rounded-xl text-xs font-black uppercase disabled:opacity-50">
+                    {loading === 'silent' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Power className="w-4 h-4" />}
+                    Activate
+                </button>
+                <button type="button" onClick={() => activate(true)} disabled={!!loading || !room.trim()}
+                    className="flex items-center gap-2 border-2 border-brand-yellow text-brand-yellow hover:bg-brand-yellow hover:text-[var(--text-on-brand)] px-5 py-2.5 rounded-xl text-xs font-black uppercase disabled:opacity-50 transition-colors">
+                    {loading === 'notify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                    Activate &amp; Notify
+                </button>
+            </div>
             {summary && (
                 <p className="text-xs font-bold text-[var(--success-color)]">
-                    Notified {summary.notified} of {summary.totalMembers} core members.
+                    {summary.notifyRequested === false
+                        ? 'Check-in opened. No emails were sent.'
+                        : `Notified ${summary.notified} of ${summary.totalMembers} core members.`}
                 </p>
             )}
         </form>
