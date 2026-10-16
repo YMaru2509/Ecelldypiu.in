@@ -232,7 +232,7 @@ const EventDetail = ({ event, onBack }) => {
 
     useEffect(() => {
         fetchStatus();
-        fetch('/api/panel-users', { headers: adminAuthHeaders() })
+        fetch('/api/panel-users?action=member-directory', { headers: adminAuthHeaders() })
             .then((r) => r.json())
             .then((d) => setAllMembers((d.members || []).filter((m) => m.memberType === 'ecell_member' && m.membershipStatus === 'active')))
             .catch(() => {});

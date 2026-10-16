@@ -1,20 +1,15 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, Users, UserRound, LayoutDashboard, LogOut, ClipboardCheck, Layers, QrCode, ScanLine } from 'lucide-react';
+import { Shield, LogOut, ArrowLeft } from 'lucide-react';
 import { adminLogout } from '../../utils/adminAuth';
-
-const NAV_ITEMS = [
-    { key: 'dashboard', label: 'Dashboard', path: '/panel', icon: LayoutDashboard },
-    { key: 'team', label: 'Team Members', path: '/panel/team', icon: Users },
-    { key: 'members', label: 'Members', path: '/panel/members', icon: UserRound },
-    { key: 'events', label: 'Event Attendance', path: '/panel/events', icon: QrCode },
-    { key: 'door-checkin', label: 'Door Check-In', path: '/panel/door-checkin', icon: ScanLine },
-    { key: 'attendance-queue', label: 'Attendance Approvals', path: '/panel/attendance', icon: ClipboardCheck },
-    { key: 'verticals', label: 'E-Cell Verticals', path: '/panel/verticals', icon: Layers },
-];
+import { PANEL_MODULES } from '../../utils/panelModules';
+import { usePanelAccess } from '../../context/panelAccessContext';
 
 const PanelShell = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { mode, name, profile } = usePanelAccess();
+    const isMember = mode === 'member';
+    const items = PANEL_MODULES.filter((m) => m.access(profile));
 
     const handleLogout = () => {
         adminLogout();
@@ -28,13 +23,15 @@ const PanelShell = ({ children }) => {
                     <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-4 md:sticky md:top-28">
                         <div className="flex items-center gap-2 px-2 pb-4 mb-2 border-b border-[var(--border-color)]">
                             <Shield className="w-5 h-5 text-brand-yellow flex-shrink-0" />
-                            <div>
+                            <div className="min-w-0">
                                 <p className="font-black uppercase text-sm leading-tight">Attendance Management</p>
-                                <p className="text-[10px] font-bold uppercase text-brand-yellow">Admin Console</p>
+                                <p className="text-[10px] font-bold uppercase text-brand-yellow truncate">
+                                    {isMember ? `Staff · ${name || 'Member'}` : 'Admin Console'}
+                                </p>
                             </div>
                         </div>
                         <nav className="flex flex-col gap-1">
-                            {NAV_ITEMS.map((item) => {
+                            {items.map((item) => {
                                 const Icon = item.icon;
                                 const active = location.pathname === item.path;
                                 return (
@@ -51,14 +48,24 @@ const PanelShell = ({ children }) => {
                                     </Link>
                                 );
                             })}
-                            <button
-                                type="button"
-                                onClick={handleLogout}
-                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase text-[var(--danger-color)] hover:bg-[color-mix(in_srgb,var(--danger-bg)_40%,transparent)] transition-colors mt-2"
-                            >
-                                <LogOut className="w-4 h-4 flex-shrink-0" />
-                                Logout
-                            </button>
+                            {isMember ? (
+                                <Link
+                                    to="/profile"
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors mt-2"
+                                >
+                                    <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+                                    Exit Staff Panel
+                                </Link>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={handleLogout}
+                                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase text-[var(--danger-color)] hover:bg-[color-mix(in_srgb,var(--danger-bg)_40%,transparent)] transition-colors mt-2"
+                                >
+                                    <LogOut className="w-4 h-4 flex-shrink-0" />
+                                    Logout
+                                </button>
+                            )}
                         </nav>
                     </div>
                 </aside>

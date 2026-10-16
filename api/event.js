@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
-import { requirePermission, getCallerMember, sendRbacError } from './_lib/rbac.js';
+import { requirePermission, getCallerMember, hasPermission, sendRbacError } from './_lib/rbac.js';
 
 let db = null;
 
@@ -592,7 +592,17 @@ async function handleGetEvents(req, res) {
 
     try {
         const authHeader = req.headers.authorization;
-        const isAdmin = isAuthorized(authHeader);
+        let isAdmin = isAuthorized(authHeader);
+        // A staff member signed in with their own account (not the shared admin
+        // key) who may view events sees internal events too. Anonymous visitors
+        // send no header and skip this entirely.
+        if (!isAdmin && authHeader?.startsWith('Bearer ')) {
+            try {
+                isAdmin = hasPermission(await getCallerMember(req), 'events', 'view');
+            } catch {
+                isAdmin = false;
+            }
+        }
         const { slug } = req.query || {};
 
         // Single-event lookup for the public event detail page — docId is

@@ -5,7 +5,8 @@ import { Analytics } from "@vercel/analytics/react";
 import { Loader2 } from 'lucide-react';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import RequireAdminKey from './components/RequireAdminKey';
+import PanelGate from './components/PanelGate';
+import RequirePanelModule from './components/RequirePanelModule';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
@@ -144,62 +145,16 @@ function App() {
                     <Route path="/apply" element={<ApplyNow />} />
                     <Route path="/newsletter" element={<Newsletter />} />
                     <Route path="/admin" element={<AdminPortal />} />
-                    <Route
-                      path="/panel"
-                      element={
-                        <RequireAdminKey>
-                          <PanelHome />
-                        </RequireAdminKey>
-                      }
-                    />
-                    <Route
-                      path="/panel/team"
-                      element={
-                        <RequireAdminKey>
-                          <UsersRoles />
-                        </RequireAdminKey>
-                      }
-                    />
-                    <Route
-                      path="/panel/members"
-                      element={
-                        <RequireAdminKey>
-                          <Members />
-                        </RequireAdminKey>
-                      }
-                    />
-                    <Route
-                      path="/panel/attendance"
-                      element={
-                        <RequireAdminKey>
-                          <AttendanceQueue />
-                        </RequireAdminKey>
-                      }
-                    />
-                    <Route
-                      path="/panel/events"
-                      element={
-                        <RequireAdminKey>
-                          <EventsAttendance />
-                        </RequireAdminKey>
-                      }
-                    />
-                    <Route
-                      path="/panel/verticals"
-                      element={
-                        <RequireAdminKey>
-                          <Verticals />
-                        </RequireAdminKey>
-                      }
-                    />
-                    <Route
-                      path="/panel/door-checkin"
-                      element={
-                        <RequireAdminKey>
-                          <PublicCheckin />
-                        </RequireAdminKey>
-                      }
-                    />
+                    {/* Staff panel: one gate validates either the admin password or the member's own login, then each module checks its own permission. */}
+                    <Route path="/panel" element={<PanelGate />}>
+                      <Route index element={<PanelHome />} />
+                      <Route path="team" element={<RequirePanelModule module="team"><UsersRoles /></RequirePanelModule>} />
+                      <Route path="members" element={<RequirePanelModule module="members"><Members /></RequirePanelModule>} />
+                      <Route path="attendance" element={<RequirePanelModule module="attendance-queue"><AttendanceQueue /></RequirePanelModule>} />
+                      <Route path="events" element={<RequirePanelModule module="events"><EventsAttendance /></RequirePanelModule>} />
+                      <Route path="door-checkin" element={<RequirePanelModule module="door-checkin"><PublicCheckin /></RequirePanelModule>} />
+                      <Route path="verticals" element={<RequirePanelModule module="verticals"><Verticals /></RequirePanelModule>} />
+                    </Route>
                     <Route
                       path="/attendance/new"
                       element={

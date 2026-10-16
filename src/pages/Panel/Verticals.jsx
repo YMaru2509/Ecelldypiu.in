@@ -19,7 +19,7 @@ const Verticals = () => {
         try {
             const [vRes, mRes] = await Promise.all([
                 fetch('/api/attendance?action=verticals', { headers: adminAuthHeaders() }),
-                fetch('/api/panel-users', { headers: adminAuthHeaders() }),
+                fetch('/api/panel-users?action=member-directory', { headers: adminAuthHeaders() }),
             ]);
             const vData = await vRes.json();
             const mData = await mRes.json();

@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { X, User, LogOut, UserCheck, Sun, Moon, ClipboardList } from 'lucide-react';
+import { X, User, LogOut, UserCheck, Sun, Moon, ClipboardList, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/useAuth';
 import { useTheme } from '../context/ThemeContext';
+import { hasStaffAccess } from '../utils/panelModules';
 
 const MotionNav = motion.nav;
 const MotionSpan = motion.span;
@@ -22,6 +23,10 @@ const Navbar = () => {
     if (currentUser?.email) return currentUser.email.charAt(0).toUpperCase();
     return 'M';
   }, [userProfile?.name, currentUser?.email]);
+
+  // UI hint only: shows the Staff Panel button to members whose roles/permissions
+  // open at least one panel module. The panel re-validates with the server on entry.
+  const showStaffPanel = !!currentUser && hasStaffAccess(userProfile);
 
   if (location.pathname === '/ourlinks' || location.pathname.startsWith('/s/')) return null;
 
@@ -105,6 +110,17 @@ const Navbar = () => {
                 {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
               </span>
             </button>
+
+            {showStaffPanel && (
+              <Link
+                to="/panel"
+                title="Staff Panel"
+                className={`flex items-center gap-2 border-2 border-brand-yellow text-brand-yellow hover:bg-brand-yellow hover:text-[var(--text-on-brand)] font-black px-3 py-1.5 rounded-full transition-all text-xs uppercase whitespace-nowrap ${location.pathname.startsWith('/panel') ? 'bg-brand-yellow !text-[var(--text-on-brand)]' : ''}`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span className="hidden lg:inline">Staff Panel</span>
+              </Link>
+            )}
 
             {currentUser ? (
               <div className="relative">
@@ -280,6 +296,19 @@ const Navbar = () => {
                     </span>
                     <span className="text-brand-yellow">→</span>
                   </Link>
+                  {showStaffPanel && (
+                    <Link
+                      to="/panel"
+                      onClick={() => setIsOpen(false)}
+                      className={`mobile-nav-item ${location.pathname.startsWith('/panel') ? 'active' : ''}`}
+                    >
+                      <span className="flex items-center gap-2 text-brand-yellow font-bold">
+                        <ShieldCheck className="w-4 h-4" />
+                        Staff Panel
+                      </span>
+                      <span className="text-brand-yellow">→</span>
+                    </Link>
+                  )}
                   <Link
                     to="/attendance/mine"
                     onClick={() => setIsOpen(false)}

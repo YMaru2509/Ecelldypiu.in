@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { db, auth } from './_lib/firebaseAdmin.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { requirePermission, requireSystemOwner, isSystemOwner, MODULES, PERMISSION_LEVELS, sendRbacError, RbacError } from './_lib/rbac.js';
+import { requirePermission, requireSystemOwner, getCallerMember, hasPermission, isSystemOwner, MODULES, PERMISSION_LEVELS, sendRbacError, RbacError } from './_lib/rbac.js';
 import { writeAuditLog } from './_lib/auditLog.js';
 import { sendEmail } from './_lib/emailTransport.js';
 
@@ -71,6 +71,8 @@ export default async function handler(req, res) {
         // Public, unauthenticated — the only action the live Team page may call.
         if (req.method === 'GET' && action === 'public-roster') return await handlePublicRoster(req, res);
         if (req.method === 'GET' && action === 'roster-status') return await handleRosterStatus(req, res);
+        if (req.method === 'GET' && action === 'whoami') return await handleWhoami(req, res);
+        if (req.method === 'GET' && action === 'member-directory') return await handleMemberDirectory(req, res);
 
         if (req.method === 'GET') return await handleList(req, res);
 
@@ -90,6 +92,53 @@ export default async function handler(req, res) {
     } catch (error) {
         return sendRbacError(res, error);
     }
+}
+
+// Staff panel entry check: validates the caller's own login (or the shared
+// admin key) on the server and returns exactly what the panel needs to decide
+// which modules to show. Informational only — every module's endpoints still
+// enforce their own permission on every request.
+async function handleWhoami(req, res) {
+    const caller = await getCallerMember(req);
+    if (caller.membershipStatus === 'banned' || caller.membershipStatus === 'past_member') {
+        throw new RbacError(403, 'Your membership is no longer active');
+    }
+    return res.status(200).json({
+        success: true,
+        member: {
+            uid: caller.uid,
+            name: caller.name || '',
+            email: caller.email || '',
+            roles: Array.isArray(caller.roles) ? caller.roles : [],
+            permissions: caller.permissions || {},
+            verticals: Array.isArray(caller.verticals) ? caller.verticals : [],
+            isAdminPanel: caller.isAdminPanelActor === true,
+        },
+    });
+}
+
+// Name/email/status only — enough for the panel's pickers (event manual
+// check-in, vertical head assignment) without exposing phone numbers or
+// profile details. Open to anyone holding a permission that needs such a
+// picker, so those screens work without the broader 'users' permission.
+async function handleMemberDirectory(req, res) {
+    const caller = await getCallerMember(req);
+    const allowed = [['users', 'view'], ['attendance', 'view'], ['events', 'view']]
+        .some(([module, level]) => hasPermission(caller, module, level));
+    if (!allowed) throw new RbacError(403, "You don't have access to the member directory");
+
+    const snap = await db.collection('members').orderBy('name').get();
+    const members = snap.docs.map((doc) => {
+        const data = doc.data();
+        return {
+            uid: doc.id,
+            name: data.name || '',
+            email: data.email || '',
+            memberType: data.memberType || 'normal_member',
+            membershipStatus: data.membershipStatus || 'active',
+        };
+    });
+    return res.status(200).json({ success: true, members });
 }
 
 async function handleList(req, res) {
