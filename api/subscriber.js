@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { callerCan } from './_lib/rbac.js';
 
 // Initialize Firebase Admin (only once)
 const privateKey = process.env.FIREBASE_PRIVATE_KEY
@@ -49,11 +50,8 @@ export default async function handler(req, res) {
 }
 
 async function handleGetSubscribers(req, res) {
-    // Auth check
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
+    // Shared admin key, or a staff member with view access to subscribers
+    if (!(await callerCan(req, 'subscribers', 'view'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -130,11 +128,8 @@ async function handleSubmitNewsletter(req, res) {
 }
 
 async function handleAddSubscriber(req, res) {
-    // Verify admin API key for security
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
+    // Shared admin key, or a staff member with manage access to subscribers
+    if (!(await callerCan(req, 'subscribers', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -186,11 +181,8 @@ async function handleAddSubscriber(req, res) {
 }
 
 async function handleDeleteSubscriber(req, res) {
-    // Verify admin API key for security
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
+    // Shared admin key, or a staff member with manage access to subscribers
+    if (!(await callerCan(req, 'subscribers', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

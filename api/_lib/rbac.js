@@ -114,6 +114,35 @@ export async function requirePermission(req, moduleKey, level = 'view') {
     return member;
 }
 
+// A removed member keeps a working login until their account is cleaned up, but
+// must not keep staff access.
+const isActiveMember = (member) =>
+    member.membershipStatus !== 'banned' && member.membershipStatus !== 'past_member';
+
+// Like requirePermission, but passes if the caller holds ANY of the listed
+// [module, level] pairs (e.g. the Team page may be viewed with either the
+// 'users' or the 'team' permission).
+export async function requireAnyPermission(req, pairs) {
+    const member = await getCallerMember(req);
+    if (!isActiveMember(member) || !pairs.some(([moduleKey, level]) => hasPermission(member, moduleKey, level))) {
+        throw new RbacError(403, `You don't have access to ${pairs.map(([m]) => m).join(' or ')}`);
+    }
+    return member;
+}
+
+// For endpoints that predate member logins and used to accept only the shared
+// admin key: true when the caller is the admin key (a system owner to
+// getCallerMember) or a staff member holding `level` on `moduleKey`. Never
+// throws, so callers can keep their own 401 response.
+export async function callerCan(req, moduleKey, level = 'view') {
+    try {
+        const member = await getCallerMember(req);
+        return isActiveMember(member) && hasPermission(member, moduleKey, level);
+    } catch {
+        return false;
+    }
+}
+
 // Verifies the caller and requires system_owner specifically (used for
 // role/permission assignment, which only system_owner may perform).
 export async function requireSystemOwner(req) {

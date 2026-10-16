@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, UserRound, QrCode, ScanLine, ClipboardCheck, Layers } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, QrCode, ScanLine, ClipboardCheck, Layers, Newspaper, Mail } from 'lucide-react';
 import { hasPermission, hasRole, isSystemOwner } from './rbac';
 
 // Everything the staff panel can show, and who may open each screen. This is
@@ -14,13 +14,23 @@ export const PANEL_MODULES = [
     },
     {
         key: 'team', label: 'Team Members', path: '/panel/team', icon: Users,
-        description: 'Invite, organise and manage core team members and their access.',
-        access: (p) => hasPermission(p, 'users', 'view'),
+        description: 'The core team roster — view it, and manage it if you have permission.',
+        access: (p) => hasPermission(p, 'users', 'view') || hasPermission(p, 'team', 'view'),
     },
     {
         key: 'members', label: 'Members', path: '/panel/members', icon: UserRound,
         description: 'Registered student members.',
         access: (p) => hasPermission(p, 'users', 'view'),
+    },
+    {
+        key: 'blogs', label: 'Blogs', path: '/panel/blogs', icon: Newspaper,
+        description: 'See every blog post and its publish status.',
+        access: (p) => hasPermission(p, 'blogs', 'view'),
+    },
+    {
+        key: 'subscribers', label: 'Subscribers', path: '/panel/subscribers', icon: Mail,
+        description: 'Newsletter subscribers and their contact details.',
+        access: (p) => hasPermission(p, 'subscribers', 'view'),
     },
     {
         key: 'events', label: 'Event Attendance', path: '/panel/events', icon: QrCode,

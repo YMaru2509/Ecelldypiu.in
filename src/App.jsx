@@ -50,6 +50,8 @@ const UsersRoles = lazy(() => import('./pages/Panel/UsersRoles'));
 const Members = lazy(() => import('./pages/Panel/Members'));
 const EventsAttendance = lazy(() => import('./pages/Panel/EventsAttendance'));
 const PublicCheckin = lazy(() => import('./pages/Panel/PublicCheckin'));
+const BlogsPanel = lazy(() => import('./pages/Panel/BlogsPanel'));
+const SubscribersPanel = lazy(() => import('./pages/Panel/SubscribersPanel'));
 const AttendanceQueue = lazy(() => import('./pages/Panel/AttendanceQueue'));
 const Verticals = lazy(() => import('./pages/Panel/Verticals'));
 const EventDetailPage = lazy(() => import('./pages/EventDetailPage'));
@@ -150,6 +152,8 @@ function App() {
                       <Route index element={<PanelHome />} />
                       <Route path="team" element={<RequirePanelModule module="team"><UsersRoles /></RequirePanelModule>} />
                       <Route path="members" element={<RequirePanelModule module="members"><Members /></RequirePanelModule>} />
+                      <Route path="blogs" element={<RequirePanelModule module="blogs"><BlogsPanel /></RequirePanelModule>} />
+                      <Route path="subscribers" element={<RequirePanelModule module="subscribers"><SubscribersPanel /></RequirePanelModule>} />
                       <Route path="attendance" element={<RequirePanelModule module="attendance-queue"><AttendanceQueue /></RequirePanelModule>} />
                       <Route path="events" element={<RequirePanelModule module="events"><EventsAttendance /></RequirePanelModule>} />
                       <Route path="door-checkin" element={<RequirePanelModule module="door-checkin"><PublicCheckin /></RequirePanelModule>} />

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { db, auth } from './_lib/firebaseAdmin.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { requirePermission, requireSystemOwner, getCallerMember, hasPermission, isSystemOwner, MODULES, PERMISSION_LEVELS, sendRbacError, RbacError } from './_lib/rbac.js';
+import { requirePermission, requireAnyPermission, requireSystemOwner, getCallerMember, hasPermission, isSystemOwner, MODULES, PERMISSION_LEVELS, sendRbacError, RbacError } from './_lib/rbac.js';
 import { writeAuditLog } from './_lib/auditLog.js';
 import { sendEmail } from './_lib/emailTransport.js';
 
@@ -142,7 +142,9 @@ async function handleMemberDirectory(req, res) {
 }
 
 async function handleList(req, res) {
-    const caller = await requirePermission(req, 'users', 'view');
+    // The Team page may be viewed with either permission; managing it is still
+    // 'users' (or 'team' for reordering only) — see the individual handlers.
+    const caller = await requireAnyPermission(req, [['users', 'view'], ['team', 'view']]);
 
     const snap = await db.collection('members').orderBy('name').get();
     const members = snap.docs.map((doc) => {
@@ -579,7 +581,8 @@ async function handleUpdateAccess(req, res) {
 // reorder action (batch-update just the priority field) applied to members
 // instead of the legacy TEAM_MEMBERS collection.
 async function handleReorder(req, res) {
-    const caller = await requirePermission(req, 'users', 'manage');
+    // Display order is the one Team page action the 'team' permission may manage.
+    const caller = await requireAnyPermission(req, [['users', 'manage'], ['team', 'manage']]);
 
     const { order } = req.body || {};
     if (!Array.isArray(order) || order.length === 0) {

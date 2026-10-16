@@ -3,7 +3,8 @@ import { Loader2, Save, ShieldCheck, UserPlus, UserMinus, UserCheck2, History, B
 import PanelShell from './PanelShell';
 import MailProviderSelect from '../../components/MailProviderSelect';
 import RemoveMemberFlow from './RemoveMemberFlow';
-import { MODULES, PERMISSION_LEVELS, isSystemOwner } from '../../utils/rbac';
+import { MODULES, PERMISSION_LEVELS, isSystemOwner, hasPermission } from '../../utils/rbac';
+import { usePanelAccess } from '../../context/panelAccessContext';
 import { adminAuthHeaders } from '../../utils/adminAuth';
 
 // Permanently capped to these two accounts — mirrors api/panel-users.js's
@@ -663,6 +664,13 @@ const TeamRosterControl = ({ status, onRefresh }) => {
 };
 
 const UsersRoles = () => {
+    // Viewing the team needs 'users' or 'team' view; changing anything needs
+    // 'users' manage (display order alone can also be changed with 'team' manage).
+    // The server enforces this — hiding the controls just avoids dead buttons.
+    const { profile } = usePanelAccess();
+    const canManage = hasPermission(profile, 'users', 'manage');
+    const canReorder = canManage || hasPermission(profile, 'team', 'manage');
+
     const [members, setMembers] = useState([]);
     const [verticals, setVerticals] = useState([]);
     const [eventsById, setEventsById] = useState({});
@@ -740,26 +748,28 @@ const UsersRoles = () => {
             <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
                 <h1 className="text-2xl md:text-3xl font-black uppercase">Team Members</h1>
                 <div className="flex items-center gap-2">
-                    <button
+                    {canReorder && <button
                         type="button"
                         onClick={() => setReorderMode((v) => !v)}
                         className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase border-2 ${reorderMode ? 'bg-brand-yellow text-[var(--text-on-brand)] border-brand-yellow' : 'border-[var(--border-color)] text-[var(--text-secondary)]'}`}
                     >
                         <GripVertical className="w-4 h-4" /> {reorderMode ? 'Done Reordering' : 'Reorder Team'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setSearchOpen(true)}
-                        className="flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-4 py-2.5 rounded-xl text-xs font-black uppercase"
-                    >
-                        <Settings2 className="w-4 h-4" /> Assign Staff
-                    </button>
+                    </button>}
+                    {canManage && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchOpen(true)}
+                            className="flex items-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-4 py-2.5 rounded-xl text-xs font-black uppercase"
+                        >
+                            <Settings2 className="w-4 h-4" /> Assign Staff
+                        </button>
+                    )}
                 </div>
             </div>
 
-            <TeamRosterControl status={rosterStatus} onRefresh={fetchMembers} />
+            {canManage && <TeamRosterControl status={rosterStatus} onRefresh={fetchMembers} />}
 
-            {!reorderMode && (
+            {canManage && !reorderMode && (
                 <>
                     <CsvUploadForm onImported={fetchMembers} />
                     <InviteMemberForm onInvited={fetchMembers} />
@@ -849,7 +859,7 @@ const UsersRoles = () => {
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-2 flex-shrink-0">
+                                {canManage && <div className="flex items-center gap-2 flex-shrink-0">
                                     <button
                                         type="button"
                                         onClick={() => setEditingMember(member)}
@@ -878,7 +888,7 @@ const UsersRoles = () => {
                                             </button>
                                         ) : null
                                     )}
-                                </div>
+                                </div>}
                             </div>
 
                             {member.membershipStatus === 'banned' && member.bannedReason && (

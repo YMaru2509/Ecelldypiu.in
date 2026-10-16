@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { callerCan } from './_lib/rbac.js';
 
 // Initialize Firebase Admin (only once)
 const privateKey = process.env.FIREBASE_PRIVATE_KEY
@@ -311,6 +312,12 @@ export default async function handler(req, res) {
 
     const { action } = req.query;
 
+    if (req.method === 'GET' && action === 'admin-list') {
+        // Staff view of every post, drafts included — never cacheable.
+        res.setHeader('Cache-Control', 'no-store');
+        return await handleAdminListBlogs(req, res);
+    }
+
     if (req.method === 'GET') {
         // Always public, unpersonalized (published-only, no auth branching) —
         // safe to cache at Vercel's edge so concurrent/repeat visitors don't
@@ -502,11 +509,41 @@ async function handleCreateBlog(req, res) {
     }
 }
 
-async function handleDeleteBlog(req, res) {
-    // Verify admin API key
-    const authHeader = req.headers.authorization;
+// Staff panel listing: every post with its publish state, for members holding
+// the 'blogs' permission (or the shared admin key).
+async function handleAdminListBlogs(req, res) {
+    if (!(await callerCan(req, 'blogs', 'view'))) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-    if (!isAuthorized(authHeader)) {
+    try {
+        const snapshot = await db.collection('BLOGS').get();
+        const toIso = (value) => (value?.toDate ? value.toDate().toISOString() : (typeof value === 'string' ? value : null));
+        const blogs = snapshot.docs
+            .map((doc) => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    title: data.title || '(untitled)',
+                    slug: data.slug || '',
+                    category: data.category || '',
+                    author: data.author || '',
+                    published: data.published === true,
+                    date: data.date || '',
+                    createdAt: toIso(data.createdAt),
+                };
+            })
+            .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        return res.status(200).json({ success: true, blogs, total: blogs.length });
+    } catch (error) {
+        console.error('Error listing blogs for staff:', error);
+        return res.status(500).json({ error: 'Failed to list blogs' });
+    }
+}
+
+async function handleDeleteBlog(req, res) {
+    // Shared admin key, or a staff member with manage access to blogs
+    if (!(await callerCan(req, 'blogs', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
