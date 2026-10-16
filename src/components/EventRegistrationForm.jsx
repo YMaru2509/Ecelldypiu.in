@@ -85,8 +85,10 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
 
             {error && <p className="text-sm font-bold text-[var(--danger-color)] mb-4">{error}</p>}
 
-            <div className="space-y-4">
-                {formFields.map((field) => {
+            <div className="grid sm:grid-cols-2 gap-x-5 gap-y-4">
+                {formFields.map((field, index) => {
+                    // an odd last field takes the full row
+                    const span = index === formFields.length - 1 && formFields.length % 2 === 1 ? 'sm:col-span-2' : '';
                     const value = values[field.key] || '';
                     const label = (
                         <label htmlFor={`reg-${field.key}`} className="block text-xs font-black uppercase mb-1.5">
@@ -96,7 +98,7 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
 
                     if (field.type === 'select') {
                         return (
-                            <div key={field.key}>
+                            <div key={field.key} className={span}>
                                 {label}
                                 <select id={`reg-${field.key}`} value={value} onChange={(e) => set(field.key, e.target.value)} required={field.required} className={inputClass}>
                                     <option value="">Select…</option>
@@ -116,10 +118,10 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
                         const words = wordCount(value);
                         const over = field.maxWords && words > field.maxWords;
                         return (
-                            <div key={field.key}>
+                            <div key={field.key} className={span}>
                                 {label}
                                 {field.helper && <p className="text-[11px] text-[var(--text-secondary)] mb-2">{field.helper}</p>}
-                                <textarea id={`reg-${field.key}`} rows={5} value={value} onChange={(e) => set(field.key, e.target.value)} required={field.required} className={inputClass} />
+                                <textarea id={`reg-${field.key}`} rows={5} value={value} onChange={(e) => set(field.key, e.target.value)} required={field.required} placeholder={field.placeholder || ''} className={inputClass} />
                                 {field.maxWords && (
                                     <p className={`text-[11px] font-bold mt-1 text-right ${over ? 'text-[var(--danger-color)]' : 'text-[var(--text-muted)]'}`}>
                                         {words} / {field.maxWords} words
@@ -130,7 +132,7 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
                     }
 
                     return (
-                        <div key={field.key}>
+                        <div key={field.key} className={span}>
                             {label}
                             <input id={`reg-${field.key}`} type={field.type || 'text'} value={value} onChange={(e) => set(field.key, e.target.value)}
                                 required={field.required} placeholder={field.placeholder || ''} className={inputClass} />
@@ -139,7 +141,7 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
                 })}
 
                 <button type="submit" disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-6 py-3 rounded-xl font-black uppercase disabled:opacity-50">
+                    className="sm:col-span-2 w-full flex items-center justify-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-6 py-3 rounded-xl font-black uppercase disabled:opacity-50">
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                     Get My Pass
                 </button>

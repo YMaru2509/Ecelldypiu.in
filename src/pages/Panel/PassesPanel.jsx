@@ -35,7 +35,12 @@ const PassesPanel = () => {
     useEffect(() => {
         fetch('/api/event?action=get-events', { headers: adminAuthHeaders() })
             .then((r) => r.json())
-            .then((d) => setEvents(Array.isArray(d) ? d.filter((e) => !e.internalOnly) : []))
+            .then((d) => {
+                const list = (Array.isArray(d) ? d.filter((e) => !e.internalOnly) : [])
+                    .sort((a, b) => Number(b.upcoming === true) - Number(a.upcoming === true));
+                setEvents(list);
+                if (list[0]?.upcoming) setEventId((current) => current || list[0].id);
+            })
             .catch(() => setError('Could not load events'))
             .finally(() => setLoadingEvents(false));
     }, []);

@@ -16,7 +16,13 @@ const PublicCheckin = () => {
     useEffect(() => {
         fetch('/api/event?action=get-events', { headers: adminAuthHeaders() })
             .then((r) => r.json())
-            .then((d) => setEvents(Array.isArray(d) ? d : []))
+            .then((d) => {
+                // Only events that take public registrations (not team-internal ones), upcoming first.
+                const list = (Array.isArray(d) ? d : []).filter((e) => !e.internalOnly)
+                    .sort((a, b) => Number(b.upcoming === true) - Number(a.upcoming === true));
+                setEvents(list);
+                if (list[0]?.upcoming) setSelectedId((current) => current || list[0].id);
+            })
             .finally(() => setLoading(false));
     }, []);
 

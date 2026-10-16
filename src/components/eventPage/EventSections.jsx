@@ -278,13 +278,13 @@ export const GallerySection = ({ event, heading }) => {
 };
 
 export const RegisterSection = ({ event, heading }) => (
-    <div className="grid lg:grid-cols-2 gap-12 items-center max-w-5xl mx-auto">
-        <div>
-            <Heading text={heading} onBrand className="!text-left !mb-6" />
-            <p className="font-mono text-lg mb-4">
+    <div className="max-w-3xl mx-auto">
+        <div className="text-center mb-8 md:mb-10">
+            <Heading text={heading} onBrand className="!mb-5 md:!mb-6" />
+            <p className="font-mono text-base md:text-lg mb-3">
                 Reserve your spot for <strong>{event.title}</strong>. We'll email you a personal QR pass — show it at the door to check in.
             </p>
-            <p className="font-mono text-sm opacity-70">One pass per email address. Check your spam folder if it doesn't arrive within a few minutes.</p>
+            <p className="font-mono text-xs md:text-sm opacity-70">One pass per email address. Check your spam folder if it doesn't arrive within a few minutes.</p>
         </div>
         <EventRegistrationForm eventId={event.id} fields={event.registrationFields} notice={event.registrationNotice} />
     </div>
