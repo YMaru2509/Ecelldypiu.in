@@ -20,7 +20,7 @@ export const EventIcon = ({ name, className = 'w-6 h-6' }) => {
 export const Heading = ({ text, onBrand = false, className = '' }) => {
     const parts = text.split(/\*([^*]+)\*/g);
     return (
-        <h2 className={`text-4xl md:text-6xl font-black mb-16 uppercase tracking-tighter text-center ${className}`}>
+        <h2 className={`text-3xl md:text-6xl font-black mb-8 md:mb-16 uppercase tracking-tighter text-center ${className}`}>
             {parts.map((part, i) => (i % 2 === 1
                 ? <span key={i} className={onBrand ? 'bg-[var(--bg-primary)] text-[var(--text-primary)] px-3 inline-block -rotate-1' : 'text-brand-yellow'}>{part}</span>
                 : <span key={i}>{part}</span>))}
@@ -31,7 +31,7 @@ export const Heading = ({ text, onBrand = false, className = '' }) => {
 // Every section is a full-width band; `tone` picks the old pages' alternating
 // backgrounds (black / zinc / brand). Brand bands add the noise overlay.
 export const SectionShell = ({ id, tone, children }) => {
-    const base = 'py-20 border-b-4 border-white relative';
+    const base = 'py-12 md:py-20 border-b-4 border-white relative';
     const tones = {
         black: 'bg-black text-white',
         zinc: 'bg-zinc-900 text-white',

@@ -1286,15 +1286,15 @@ function buildRegistrationPassHTML(name, event) {
 }
 
 // Emails a registrant their personal QR pass. Used when they first register and
-// again when staff resend it.
-async function sendPassEmail({ eventId, registrationId, passToken, name, email }, eventData, provider) {
+// again when staff resend it. Passes always go out through ZeptoMail (Zoho).
+async function sendPassEmail({ eventId, registrationId, passToken, name, email }, eventData) {
     const qrPayload = JSON.stringify({ eventId, registrationId, token: passToken });
     const qrPng = await QRCode.toBuffer(qrPayload, { errorCorrectionLevel: 'H', width: 480 });
     await sendEmail(
         email,
         `Your Pass: ${eventData.title || 'Event'}`,
         buildRegistrationPassHTML(name, eventData),
-        provider || 'resend',
+        'zeptomail',
         [{ filename: 'pass.png', content: qrPng.toString('base64'), contentType: 'image/png' }],
     );
 }
@@ -1388,7 +1388,7 @@ async function handleRegisterForEvent(req, res) {
             throw createErr;
         }
 
-        // Public callers can't choose the mail provider — always the default.
+        // Always ZeptoMail (Zoho); a failed send is logged, the registration stands.
         try {
             await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim() }, eventData);
         } catch (emailErr) {
@@ -1476,7 +1476,7 @@ async function handleResendPass(req, res) {
         await requirePermission(req, 'passes', 'manage');
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
-        const { eventId, registrationId, provider } = req.body || {};
+        const { eventId, registrationId } = req.body || {};
         if (!eventId || !registrationId) return res.status(400).json({ error: 'eventId and registrationId are required' });
 
         const [regSnap, eventSnap] = await Promise.all([
@@ -1487,7 +1487,7 @@ async function handleResendPass(req, res) {
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
 
         const reg = regSnap.data();
-        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email }, eventSnap.data(), provider);
+        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email }, eventSnap.data());
         return res.status(200).json({ success: true, email: reg.email });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);

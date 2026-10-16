@@ -13,16 +13,18 @@ import { asItem, cardClass, inverseCardClass } from './helpers';
 export const HighlightsSection = ({ event, heading }) => (
     <>
         <Heading text={heading} onBrand />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {event.highlights.map((raw, i) => {
                 const item = asItem(raw, 'title');
                 return (
-                    <div key={i} className={inverseCardClass}>
-                        <div className="w-12 h-12 rounded-xl bg-brand-yellow text-[var(--text-on-brand)] flex items-center justify-center mb-5 flex-shrink-0">
+                    <div key={i} className={`${inverseCardClass} !flex-row md:!flex-col items-start gap-4 md:gap-0`}>
+                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-brand-yellow text-[var(--text-on-brand)] flex items-center justify-center md:mb-5 flex-shrink-0">
                             <EventIcon name={item.icon} />
                         </div>
-                        <h3 className="text-2xl font-black uppercase mb-2 leading-tight">{item.title}</h3>
-                        {item.description && <p className="font-mono text-sm opacity-80">{item.description}</p>}
+                        <div className="min-w-0">
+                            <h3 className="text-lg md:text-2xl font-black uppercase mb-1 md:mb-2 leading-tight">{item.title}</h3>
+                            {item.description && <p className="font-mono text-xs md:text-sm opacity-80">{item.description}</p>}
+                        </div>
                     </div>
                 );
             })}
@@ -34,19 +36,19 @@ export const ProcessSection = ({ event, heading }) => (
     <>
         <Heading text={heading} className={event.sectionIntros?.process ? '!mb-6' : ''} />
         {event.sectionIntros?.process && (
-            <p className="max-w-3xl mx-auto text-center text-gray-300 font-mono leading-relaxed mb-12 whitespace-pre-wrap">{event.sectionIntros.process}</p>
+            <p className="max-w-3xl mx-auto text-center text-gray-300 font-mono text-sm md:text-base leading-relaxed mb-8 md:mb-12 whitespace-pre-wrap">{event.sectionIntros.process}</p>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 max-w-5xl mx-auto">
             {event.process.map((raw, i) => {
                 const item = asItem(raw, 'title');
                 return (
                     <div key={i} className={cardClass}>
-                        <div className="flex items-start gap-5">
-                            <span className="text-6xl font-black text-stroke leading-none">{String(i + 1).padStart(2, '0')}</span>
+                        <div className="flex items-start gap-3 md:gap-5">
+                            <span className="text-4xl md:text-6xl font-black text-stroke leading-none">{String(i + 1).padStart(2, '0')}</span>
                             <div>
-                                <div className="text-brand-yellow mb-2"><EventIcon name={item.icon} /></div>
-                                <h3 className="text-2xl font-black uppercase mb-2">{item.title}</h3>
-                                {item.description && <p className="text-gray-400 font-mono text-sm">{item.description}</p>}
+                                <div className="text-brand-yellow mb-2 hidden md:block"><EventIcon name={item.icon} /></div>
+                                <h3 className="text-lg md:text-2xl font-black uppercase mb-1 md:mb-2">{item.title}</h3>
+                                {item.description && <p className="text-gray-400 font-mono text-xs md:text-sm">{item.description}</p>}
                             </div>
                         </div>
                     </div>
@@ -235,10 +237,10 @@ export const WinnersSection = ({ event, heading }) => {
 export const CalloutSection = ({ event }) => {
     const { tag, title, body } = event.callout;
     return (
-        <div className="max-w-4xl mx-auto border-4 border-brand-yellow rounded-[2.5rem] p-8 md:p-12 bg-black shadow-[10px_10px_0px_var(--primary-color)]">
+        <div className="max-w-4xl mx-auto border-4 border-brand-yellow rounded-3xl md:rounded-[2.5rem] p-5 md:p-12 bg-black shadow-[6px_6px_0px_var(--primary-color)] md:shadow-[10px_10px_0px_var(--primary-color)]">
             {tag && <span className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-4 py-1 mb-5 text-sm uppercase rounded-sm -rotate-1">{tag}</span>}
-            {title && <h3 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-4">{title}</h3>}
-            {body && <p className="text-gray-300 font-mono leading-relaxed whitespace-pre-wrap">{body}</p>}
+            {title && <h3 className="text-2xl md:text-5xl font-black uppercase tracking-tighter mb-3 md:mb-4">{title}</h3>}
+            {body && <p className="text-gray-300 font-mono text-sm md:text-base leading-relaxed whitespace-pre-wrap">{body}</p>}
         </div>
     );
 };
