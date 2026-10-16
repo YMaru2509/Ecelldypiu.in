@@ -171,6 +171,8 @@ export default async function handler(req, res) {
             return await handleUpdateEvent(req, res);
         } else if (action === 'delete-event') {
             return await handleDeleteEvent(req, res);
+        } else if (action === 'toggle-attendance') {
+            return await handleToggleAttendance(req, res);
         } else if (action === 'create-checkin-session') {
             return await handleCreateCheckinSession(req, res);
         } else if (action === 'close-checkin') {
@@ -735,10 +737,14 @@ async function handleDeleteApplication(req, res) {
 // shared admin key.
 // ---------------------------------------------------------------------------
 
-async function recordCheckin({ eventId, uid, memberName, verified, method, markedBy }) {
+async function recordCheckin({ eventId, windowId, uid, memberName, verified, method, markedBy }) {
     const scannedAt = new Date().toISOString();
-    await db.collection('event_checkins').doc(`${eventId}_${uid}`).set({
+    // Doc id is per (window, member) — not per (event, member) — so the same
+    // member can be checked in independently on each day/window of a
+    // multi-day event instead of only ever once for the whole event.
+    await db.collection('event_checkins').doc(`${windowId}_${uid}`).set({
         eventId,
+        windowId,
         uid,
         memberName: memberName || '',
         verified,
@@ -755,7 +761,43 @@ async function recordCheckin({ eventId, uid, memberName, verified, method, marke
     });
 }
 
-// Admin: opens the window and emails every active core member. Best-effort
+async function getActiveWindow(eventId) {
+    const snap = await db.collection('event_checkin_windows')
+        .where('eventId', '==', eventId)
+        .where('active', '==', true)
+        .limit(1)
+        .get();
+    return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+// Admin: the explicit gate in front of the whole check-in feature — a QR
+// session can't be opened for an event until this is turned on, even by a
+// system owner. Doesn't touch any existing window/check-in data, just the
+// event's own flag.
+async function handleToggleAttendance(req, res) {
+    try {
+        await requirePermission(req, 'events', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, enabled } = req.body || {};
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
+        if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
+
+        const eventRef = db.collection('events').doc(eventId);
+        const eventSnap = await eventRef.get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+
+        await eventRef.update({ attendanceEnabled: enabled, updatedAt: Timestamp.now() });
+        return res.status(200).json({ success: true, attendanceEnabled: enabled });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error toggling attendance:', error);
+        return res.status(500).json({ error: 'Failed to toggle attendance' });
+    }
+}
+
+// Admin: opens a new window (one per day/session, kept as permanent history
+// rather than overwritten) and emails every active core member. Best-effort
 // on the email send — a failed send for one person never blocks activation.
 async function handleCreateCheckinSession(req, res) {
     try {
@@ -772,21 +814,36 @@ async function handleCreateCheckinSession(req, res) {
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
         const eventData = eventSnap.data();
 
+        if (!eventData.attendanceEnabled) {
+            return res.status(403).json({ error: 'Team Attendance is not enabled for this event yet' });
+        }
+
+        // Close out any window left open from a previous activation before
+        // starting a new one — only one window is ever live at a time.
+        const stillOpen = await db.collection('event_checkin_windows')
+            .where('eventId', '==', eventId)
+            .where('active', '==', true)
+            .get();
+        const closeBatch = db.batch();
+        stillOpen.docs.forEach((doc) => closeBatch.update(doc.ref, { active: false }));
+        if (!stillOpen.empty) await closeBatch.commit();
+
         const token = crypto.randomBytes(12).toString('hex');
         const now = new Date();
         const windowStart = now.toISOString();
         const windowEnd = new Date(now.getTime() + minutes * 60000).toISOString();
+        const dayLabel = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-        await eventRef.update({
-            checkin: {
-                token,
-                room: room.trim(),
-                windowStart,
-                windowEnd,
-                active: true,
-                activatedBy: caller.uid,
-            },
-            updatedAt: Timestamp.now(),
+        const windowRef = await db.collection('event_checkin_windows').add({
+            eventId,
+            token,
+            room: room.trim(),
+            windowStart,
+            windowEnd,
+            active: true,
+            dayLabel,
+            activatedBy: caller.uid,
+            createdAt: Timestamp.now(),
         });
 
         const membersSnap = await db.collection('members')
@@ -814,7 +871,7 @@ async function handleCreateCheckinSession(req, res) {
             }
         }
 
-        return res.status(200).json({ success: true, token, windowStart, windowEnd, notified, totalMembers: membersSnap.size });
+        return res.status(200).json({ success: true, windowId: windowRef.id, token, windowStart, windowEnd, notified, totalMembers: membersSnap.size });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error creating checkin session:', error);
@@ -822,9 +879,11 @@ async function handleCreateCheckinSession(req, res) {
     }
 }
 
-// Admin: live status for the panel — the session itself plus who's checked
-// in so far. 'view' permission is enough here; only activating/closing the
-// window requires 'manage'.
+// Admin: status for the panel — the event's attendanceEnabled flag, the
+// active window (if any), and the window history for this event. The
+// client also attaches its own live Firestore listener on event_checkins
+// (see firestore.rules) for real-time attendee updates instead of
+// repolling this endpoint — this just establishes the starting state.
 async function handleCheckinStatus(req, res) {
     try {
         await requirePermission(req, 'events', 'view');
@@ -836,12 +895,29 @@ async function handleCheckinStatus(req, res) {
         const eventSnap = await db.collection('events').doc(eventId).get();
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
 
-        const checkinsSnap = await db.collection('event_checkins').where('eventId', '==', eventId).get();
-        const attendees = checkinsSnap.docs
-            .map((d) => d.data())
-            .sort((a, b) => (a.scannedAt || '').localeCompare(b.scannedAt || ''));
+        const windowsSnap = await db.collection('event_checkin_windows').where('eventId', '==', eventId).get();
+        const windows = windowsSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (b.windowStart || '').localeCompare(a.windowStart || ''));
+        const activeWindow = windows.find((w) => w.active) || null;
 
-        return res.status(200).json({ success: true, checkin: eventSnap.data().checkin || null, attendees });
+        const checkinsSnap = await db.collection('event_checkins').where('eventId', '==', eventId).get();
+        const allCheckins = checkinsSnap.docs.map((d) => d.data());
+        const countByWindow = {};
+        allCheckins.forEach((c) => { countByWindow[c.windowId] = (countByWindow[c.windowId] || 0) + 1; });
+        const windowsWithCounts = windows.map((w) => ({ ...w, attendeeCount: countByWindow[w.id] || 0 }));
+
+        const attendees = activeWindow
+            ? allCheckins.filter((c) => c.windowId === activeWindow.id).sort((a, b) => (a.scannedAt || '').localeCompare(b.scannedAt || ''))
+            : [];
+
+        return res.status(200).json({
+            success: true,
+            attendanceEnabled: eventSnap.data().attendanceEnabled === true,
+            activeWindow,
+            windows: windowsWithCounts,
+            attendees,
+        });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error reading checkin status:', error);
@@ -849,7 +925,7 @@ async function handleCheckinStatus(req, res) {
     }
 }
 
-// Admin: ends the window early (e.g. everyone's already scanned).
+// Admin: ends the active window early (e.g. everyone's already scanned).
 async function handleCloseCheckin(req, res) {
     try {
         await requirePermission(req, 'events', 'manage');
@@ -858,7 +934,10 @@ async function handleCloseCheckin(req, res) {
         const { eventId } = req.body || {};
         if (!eventId) return res.status(400).json({ error: 'eventId is required' });
 
-        await db.collection('events').doc(eventId).update({ 'checkin.active': false, updatedAt: Timestamp.now() });
+        const active = await getActiveWindow(eventId);
+        if (!active) return res.status(200).json({ success: true });
+
+        await db.collection('event_checkin_windows').doc(active.id).update({ active: false });
         return res.status(200).json({ success: true });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
@@ -878,11 +957,15 @@ async function handleManualCheckin(req, res) {
         const { eventId, uid } = req.body || {};
         if (!eventId || !uid) return res.status(400).json({ error: 'eventId and uid are required' });
 
+        const active = await getActiveWindow(eventId);
+        if (!active) return res.status(400).json({ error: 'No attendance window is currently open for this event' });
+
         const memberSnap = await db.collection('members').doc(uid).get();
         if (!memberSnap.exists) return res.status(404).json({ error: 'Member not found' });
 
         await recordCheckin({
             eventId,
+            windowId: active.id,
             uid,
             memberName: memberSnap.data().name,
             verified: false,
@@ -900,8 +983,9 @@ async function handleManualCheckin(req, res) {
 
 // Member-facing: the QR code's target. Verifies the scanning member's own
 // Firebase session (not the admin key), validates the token and time window
-// server-side, and records one check-in per member per event (idempotent —
-// re-scanning just confirms, never double-records).
+// server-side against whichever window is currently active, and records one
+// check-in per member per window (idempotent — re-scanning just confirms,
+// never double-records; a different day's window gets its own record).
 async function handleScanCheckin(req, res) {
     try {
         const member = await getCallerMember(req);
@@ -912,25 +996,25 @@ async function handleScanCheckin(req, res) {
 
         const eventSnap = await db.collection('events').doc(eventId).get();
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
-        const checkin = eventSnap.data().checkin;
 
-        if (!checkin || !checkin.active) {
+        const active = await getActiveWindow(eventId);
+        if (!active) {
             return res.status(400).json({ error: 'Check-in is not currently open for this event' });
         }
-        if (checkin.token !== token) {
+        if (active.token !== token) {
             return res.status(400).json({ error: 'Invalid or expired check-in code' });
         }
         const now = Date.now();
-        if (now < new Date(checkin.windowStart).getTime() || now > new Date(checkin.windowEnd).getTime()) {
+        if (now < new Date(active.windowStart).getTime() || now > new Date(active.windowEnd).getTime()) {
             return res.status(400).json({ error: 'The check-in window has closed' });
         }
 
-        const already = await db.collection('event_checkins').doc(`${eventId}_${member.uid}`).get();
+        const already = await db.collection('event_checkins').doc(`${active.id}_${member.uid}`).get();
         if (already.exists) {
             return res.status(200).json({ success: true, alreadyCheckedIn: true });
         }
 
-        await recordCheckin({ eventId, uid: member.uid, memberName: member.name, verified: true, method: 'qr' });
+        await recordCheckin({ eventId, windowId: active.id, uid: member.uid, memberName: member.name, verified: true, method: 'qr' });
         return res.status(200).json({ success: true, alreadyCheckedIn: false });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);

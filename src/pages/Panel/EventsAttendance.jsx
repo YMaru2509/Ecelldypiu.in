@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import QRCode from 'qrcode';
-import { Loader2, QrCode, Users, Clock, CheckCircle2, Search, UserPlus, ArrowLeft, Calendar } from 'lucide-react';
+import { Loader2, QrCode, Users, Clock, CheckCircle2, Search, UserPlus, ArrowLeft, Calendar, Power, History } from 'lucide-react';
 import PanelShell from './PanelShell';
 import MailProviderSelect from '../../components/MailProviderSelect';
 import { adminAuthHeaders } from '../../utils/adminAuth';
+import { db } from '../../firebaseConfig';
 
 const fmtTime = (iso) => {
     const d = new Date(iso);
@@ -23,6 +25,65 @@ const useCountdown = (windowEnd, active) => {
         return () => clearInterval(id);
     }, [windowEnd, active]);
     return remaining;
+};
+
+const AttendanceToggle = ({ event, enabled, onChanged }) => {
+    const [loading, setLoading] = useState(false);
+
+    const toggle = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/event?action=toggle-attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
+                body: JSON.stringify({ eventId: event.id, enabled: !enabled }),
+            });
+            const data = await res.json();
+            if (res.ok) onChanged(data.attendanceEnabled);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className={`flex items-center justify-between gap-3 bg-[var(--bg-card)] border-2 rounded-2xl p-4 ${enabled ? 'border-[var(--success-color)]' : 'border-[var(--border-color)]'}`}>
+            <div>
+                <p className="font-black uppercase text-xs">Team Attendance</p>
+                <p className="text-[10px] text-[var(--text-secondary)]">
+                    {enabled ? 'Enabled — check-in windows can be opened for this event.' : 'Disabled — enable before opening a check-in window.'}
+                </p>
+            </div>
+            <button type="button" disabled={loading} onClick={toggle}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase disabled:opacity-50 flex-shrink-0 ${enabled ? 'bg-[var(--success-color)] text-white' : 'bg-zinc-700 text-white'}`}>
+                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Power className="w-3.5 h-3.5" />}
+                {enabled ? 'On' : 'Off'}
+            </button>
+        </div>
+    );
+};
+
+const WindowHistory = ({ windows }) => {
+    if (!windows || windows.length === 0) return null;
+    return (
+        <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-5">
+            <h3 className="font-black uppercase text-xs mb-3 flex items-center gap-2">
+                <History className="w-4 h-4 text-brand-yellow" /> Attendance Window History
+            </h3>
+            <div className="space-y-1 max-h-56 overflow-y-auto">
+                {windows.map((w) => (
+                    <div key={w.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[var(--bg-secondary)]">
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold truncate">{w.dayLabel || fmtTime(w.windowStart)} · {w.room}</p>
+                            <p className="text-[10px] text-[var(--text-secondary)]">{fmtTime(w.windowStart)} – {fmtTime(w.windowEnd)}</p>
+                        </div>
+                        <span className="text-[10px] font-black uppercase text-[var(--text-muted)] flex-shrink-0">
+                            {w.active ? <span className="text-brand-yellow">Open</span> : `${w.attendeeCount} checked in`}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 };
 
 const ActivateForm = ({ event, onActivated }) => {
@@ -152,15 +213,15 @@ const ManualCheckin = ({ event, allMembers, checkedInUids, onMarked }) => {
 
 const EventDetail = ({ event, onBack }) => {
     const [checkinData, setCheckinData] = useState(null);
+    const [liveAttendees, setLiveAttendees] = useState(null);
     const [loading, setLoading] = useState(true);
     const [allMembers, setAllMembers] = useState([]);
     const [closing, setClosing] = useState(false);
     const [qrDataUrl, setQrDataUrl] = useState('');
-    const pollRef = useRef(null);
 
-    const checkin = checkinData?.checkin;
-    const attendees = useMemo(() => checkinData?.attendees || [], [checkinData]);
-    const remaining = useCountdown(checkin?.windowEnd, checkin?.active);
+    const attendanceEnabled = checkinData?.attendanceEnabled || false;
+    const activeWindow = checkinData?.activeWindow || null;
+    const remaining = useCountdown(activeWindow?.windowEnd, !!activeWindow);
 
     const fetchStatus = useCallback(async () => {
         const res = await fetch(`/api/event?action=checkin-status&eventId=${event.id}`, { headers: adminAuthHeaders() });
@@ -177,20 +238,36 @@ const EventDetail = ({ event, onBack }) => {
             .catch(() => {});
     }, [fetchStatus]);
 
-    // Live poll while a window is open so the attendee list and remaining
-    // count update as people scan, without the admin refreshing by hand.
+    // Live attendee list via a direct Firestore listener (event_checkins is
+    // publicly readable, see firestore.rules) instead of polling the API —
+    // updates the instant anyone scans, across every admin viewing this page.
     useEffect(() => {
-        if (checkin?.active) {
-            pollRef.current = setInterval(fetchStatus, 4000);
-            return () => clearInterval(pollRef.current);
-        }
-    }, [checkin?.active, fetchStatus]);
+        const q = query(collection(db, 'event_checkins'), where('eventId', '==', event.id));
+        const unsub = onSnapshot(q, (snap) => {
+            setLiveAttendees(snap.docs.map((d) => d.data()));
+        }, () => {});
+        return unsub;
+    }, [event.id]);
+
+    const attendees = useMemo(() => {
+        const all = liveAttendees ?? checkinData?.attendees ?? [];
+        if (!activeWindow) return liveAttendees == null ? (checkinData?.attendees || []) : [];
+        return all.filter((a) => a.windowId === activeWindow.id);
+    }, [liveAttendees, checkinData, activeWindow]);
+
+    const windowsWithLiveCounts = useMemo(() => {
+        const list = checkinData?.windows || [];
+        if (!liveAttendees) return list;
+        const countByWindow = {};
+        liveAttendees.forEach((a) => { countByWindow[a.windowId] = (countByWindow[a.windowId] || 0) + 1; });
+        return list.map((w) => ({ ...w, attendeeCount: countByWindow[w.id] || 0 }));
+    }, [checkinData, liveAttendees]);
 
     useEffect(() => {
-        if (!checkin?.active || !checkin?.token) { setQrDataUrl(''); return; }
-        const url = `${window.location.origin}/checkin?eventId=${encodeURIComponent(event.id)}&token=${encodeURIComponent(checkin.token)}`;
+        if (!activeWindow?.token) { setQrDataUrl(''); return; }
+        const url = `${window.location.origin}/checkin?eventId=${encodeURIComponent(event.id)}&token=${encodeURIComponent(activeWindow.token)}`;
         QRCode.toDataURL(url, { width: 360, margin: 2, errorCorrectionLevel: 'H' }).then(setQrDataUrl).catch(() => {});
-    }, [checkin?.active, checkin?.token, event.id]);
+    }, [activeWindow?.token, event.id]);
 
     const closeWindow = async () => {
         setClosing(true);
@@ -222,19 +299,28 @@ const EventDetail = ({ event, onBack }) => {
                 <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-brand-yellow" /></div>
             ) : (
                 <div className="space-y-6">
-                    {!checkin?.active && (
+                    <AttendanceToggle event={event} enabled={attendanceEnabled}
+                        onChanged={(next) => setCheckinData((prev) => ({ ...prev, attendanceEnabled: next }))} />
+
+                    {!attendanceEnabled && (
+                        <p className="text-xs font-bold text-[var(--text-secondary)] bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-4">
+                            Turn on Team Attendance above before opening a check-in window for this event.
+                        </p>
+                    )}
+
+                    {attendanceEnabled && !activeWindow && (
                         <ActivateForm event={event} onActivated={fetchStatus} />
                     )}
 
-                    {checkin?.active && (
+                    {activeWindow && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-[var(--bg-card)] border-2 border-brand-yellow rounded-2xl p-6 text-center">
                                 <div className="flex items-center justify-center gap-2 text-xs font-black uppercase text-brand-yellow mb-3">
                                     <Clock className="w-4 h-4" /> Closes in {mins}:{secs}
                                 </div>
                                 {qrDataUrl && <img src={qrDataUrl} alt="Check-in QR code" className="mx-auto rounded-xl border-4 border-[var(--border-color)]" />}
-                                <p className="text-xs font-bold mt-3">{checkin.room}</p>
-                                <p className="text-[10px] text-[var(--text-secondary)]">Open {fmtTime(checkin.windowStart)} – {fmtTime(checkin.windowEnd)}</p>
+                                <p className="text-xs font-bold mt-3">{activeWindow.room}</p>
+                                <p className="text-[10px] text-[var(--text-secondary)]">Open {fmtTime(activeWindow.windowStart)} – {fmtTime(activeWindow.windowEnd)}</p>
                                 <button type="button" disabled={closing} onClick={closeWindow}
                                     className="mt-4 flex items-center gap-2 mx-auto bg-[var(--danger-color)] text-white px-4 py-2 rounded-xl text-xs font-black uppercase disabled:opacity-50">
                                     {closing && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Close Window Now
@@ -251,7 +337,7 @@ const EventDetail = ({ event, onBack }) => {
                         </h3>
                         <div className="space-y-1 max-h-72 overflow-y-auto">
                             {attendees.map((a) => (
-                                <div key={a.uid} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[var(--bg-secondary)]">
+                                <div key={`${a.windowId}_${a.uid}`} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[var(--bg-secondary)]">
                                     <span className="text-xs font-bold truncate">{a.memberName || a.uid}</span>
                                     <span className={`flex items-center gap-1 text-[10px] font-black uppercase flex-shrink-0 ${a.verified ? 'text-[var(--success-color)]' : 'text-[var(--text-muted)]'}`}>
                                         <CheckCircle2 className="w-3.5 h-3.5" /> {a.verified ? 'Scanned' : 'Manual'}
@@ -261,6 +347,8 @@ const EventDetail = ({ event, onBack }) => {
                             {attendees.length === 0 && <p className="text-xs text-[var(--text-secondary)] text-center py-6">No check-ins yet.</p>}
                         </div>
                     </div>
+
+                    <WindowHistory windows={windowsWithLiveCounts} />
                 </div>
             )}
         </div>
@@ -317,8 +405,8 @@ const EventsAttendance = () => {
                                             <p className="text-xs text-[var(--text-secondary)] truncate">{ev.date}</p>
                                         </div>
                                     </div>
-                                    {ev.checkin?.active && (
-                                        <span className="text-[10px] font-black uppercase text-brand-yellow whitespace-nowrap">Check-in Open</span>
+                                    {ev.attendanceEnabled && (
+                                        <span className="text-[10px] font-black uppercase text-[var(--success-color)] whitespace-nowrap">Attendance Enabled</span>
                                     )}
                                 </button>
                             ))}

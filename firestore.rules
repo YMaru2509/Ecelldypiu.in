@@ -102,5 +102,23 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow read, write: if false;
     }
+
+    // 9. EVENT ATTENDANCE: writes are server-mediated only (api/event.js, Admin
+    // SDK), same as everything else above. event_checkins is readable so the
+    // admin panel can attach a live Firestore listener instead of polling —
+    // the admin panel authenticates with a shared key the client SDK can't see
+    // (request.auth is always null there), so this can't be gated to
+    // request.auth without breaking that listener. Data exposed is low
+    // sensitivity (a member's name + verified status + timestamp for one
+    // event), the same shape already shown on checked-in attendee lists.
+    match /event_checkin_windows/{windowId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /event_checkins/{checkinId} {
+      allow read: if true;
+      allow write: if false;
+    }
   }
 }
