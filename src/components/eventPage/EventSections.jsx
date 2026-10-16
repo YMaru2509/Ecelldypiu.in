@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { X, Lightbulb, Star } from 'lucide-react';
+import { X, Lightbulb, Star, ArrowRight } from 'lucide-react';
 import { prettyDayLabel } from '../../utils/eventSections';
 import EventRegistrationForm from '../EventRegistrationForm';
 import { EventIcon, Heading } from './shared';
@@ -284,5 +285,22 @@ export const RegisterSection = ({ event, heading }) => (
             <p className="font-mono text-sm opacity-70">One pass per email address. Check your spam folder if it doesn't arrive within a few minutes.</p>
         </div>
         <EventRegistrationForm eventId={event.id} fields={event.registrationFields} notice={event.registrationNotice} />
+    </div>
+);
+
+// On the event page the register band is just a doorway: the form itself lives
+// at /events/<slug>/register.
+export const RegisterCtaSection = ({ event, heading }) => (
+    <div className="max-w-3xl mx-auto text-center">
+        <Heading text={heading} onBrand className="!mb-6" />
+        <p className="font-mono text-lg mb-8">
+            Reserve your spot for <strong>{event.title}</strong>. We'll email you a personal QR pass — show it at the door to check in.
+        </p>
+        <Link
+            to={`/events/${event.slug || event.id}/register`}
+            className="bg-black text-brand-yellow text-xl font-black px-8 py-4 rounded-full border-4 border-black transform hover:-translate-y-1 transition-all shadow-[8px_8px_0px_rgba(0,0,0,0.35)] inline-flex items-center gap-3 no-underline"
+        >
+            Register Now <ArrowRight className="w-5 h-5" />
+        </Link>
     </div>
 );

@@ -11,7 +11,7 @@ import {
     WinnersSection,
     CalloutSection,
     GallerySection,
-    RegisterSection,
+    RegisterCtaSection,
 } from './EventSections';
 
 export const SECTION_RENDERERS = {
@@ -27,5 +27,5 @@ export const SECTION_RENDERERS = {
     winners: { Component: WinnersSection },
     callout: { Component: CalloutSection },
     gallery: { Component: GallerySection },
-    register: { Component: RegisterSection, tone: 'brand' },
+    register: { Component: RegisterCtaSection, tone: 'brand' },
 };

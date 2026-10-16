@@ -61,14 +61,10 @@ const EventDetailPage = () => {
             });
     }, [event]);
 
-    // Deep links like /events/illuminate-26#register: the sections only exist
-    // after the event loads, so scroll once they're on the page.
+    // Registration used to be an in-page anchor (#register); keep old links working.
     useEffect(() => {
-        if (!loading && event && window.location.hash) {
-            const el = document.getElementById(window.location.hash.slice(1));
-            if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-        }
-    }, [loading, event]);
+        if (window.location.hash === '#register') navigate(`/events/${slug}/register`, { replace: true });
+    }, [slug, navigate]);
 
     if (loading) {
         return (

@@ -63,6 +63,7 @@ const EmbeddedToolPanel = lazy(() => import('./pages/Panel/EmbeddedToolPanel'));
 const AttendanceQueue = lazy(() => import('./pages/Panel/AttendanceQueue'));
 const Verticals = lazy(() => import('./pages/Panel/Verticals'));
 const EventDetailPage = lazy(() => import('./pages/EventDetailPage'));
+const EventRegisterPage = lazy(() => import('./pages/EventRegisterPage'));
 const AttendanceRequestForm = lazy(() => import('./pages/AttendanceRequestForm'));
 const MyAttendanceRequests = lazy(() => import('./pages/MyAttendanceRequests'));
 import './App.css';
@@ -159,6 +160,7 @@ function App() {
                     <Route path="/events/finbiz" element={<FinBiz />} />
                     <Route path="/events/innovate-for-impact" element={<InnovateForImpact />} />
                     <Route path="/events/:eventSlug/certificate" element={<GetCertificate />} />
+                    <Route path="/events/:slug/register" element={<EventRegisterPage />} />
                     <Route path="/events/:slug" element={<EventDetailPage />} />
                     <Route path="/team" element={<Team />} />
                     <Route path="/blogs" element={<Blogs />} />

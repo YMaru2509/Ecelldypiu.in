@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowDown } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 // Events can define their own tiles (event.stats = [{label, value}]) — e.g.
 // "Organised by" — otherwise they're built from the standard fields.
@@ -35,13 +35,13 @@ const StatTile = ({ label, value, big = false }) => (
     </div>
 );
 
-const RegisterButton = () => (
-    <a
-        href="#register"
+const RegisterButton = ({ to }) => (
+    <Link
+        to={to}
         className="bg-brand-yellow text-[var(--text-on-brand)] text-xl font-black px-8 py-4 rounded-full border-4 border-white transform hover:-translate-y-1 transition-all shadow-[8px_8px_0px_var(--text-primary)] hover:shadow-[12px_12px_0px_var(--text-primary)] inline-flex items-center gap-3 no-underline"
     >
-        Register Now <ArrowDown className="w-5 h-5" />
-    </a>
+        Register Now <ArrowRight className="w-5 h-5" />
+    </Link>
 );
 
 const Poster = ({ src, alt, className = '' }) => (
@@ -68,7 +68,7 @@ const EventHero = ({ event, showRegister }) => {
                     {event.description}
                 </p>
             )}
-            {showRegister && <div className="mb-10"><RegisterButton /></div>}
+            {showRegister && <div className="mb-10"><RegisterButton to={`/events/${event.slug || event.id}/register`} /></div>}
         </motion.div>
     );
 
@@ -95,8 +95,16 @@ const EventHero = ({ event, showRegister }) => {
 
     if (style === 'stats') {
         return (
-            <section className="pt-32 pb-16 relative border-b-4 border-white bg-black">
-                <div className="container mx-auto px-4">
+            <section className="pt-32 pb-16 relative border-b-4 border-white bg-black overflow-hidden">
+                {image && (
+                    <>
+                        {/* The poster sits behind the heading and copy; the gradient keeps the text readable. */}
+                        <img src={image} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover object-center" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/5" />
+                        <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black to-transparent" />
+                    </>
+                )}
+                <div className="container mx-auto px-4 relative z-10">
                     {intro(
                         'text-5xl md:text-7xl lg:text-8xl mb-4 leading-[0.9]',
                         event.subtitle && <h2 className="text-2xl md:text-3xl font-bold text-brand-yellow mb-8 uppercase">{event.subtitle}</h2>,
@@ -104,11 +112,6 @@ const EventHero = ({ event, showRegister }) => {
                     {tiles.length > 0 && (
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {tiles.map(([label, value]) => <StatTile key={label} label={label} value={value} big />)}
-                        </div>
-                    )}
-                    {image && (
-                        <div className="mt-12 border-4 border-white bg-zinc-900 p-2 rounded-[2rem] shadow-[12px_12px_0px_var(--primary-color)]">
-                            <img src={image} alt={event.title} className="w-full h-auto rounded-[1.5rem] object-cover" />
                         </div>
                     )}
                 </div>

@@ -176,7 +176,7 @@ const Events = () => {
                     </p>
                     <div className="flex flex-wrap gap-3 mt-auto">
                       <Link
-                        to={`/events/${event.slug || event.id}#register`}
+                        to={`/events/${event.slug || event.id}/register`}
                         className="bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase px-6 py-3 rounded-full border-4 border-white shadow-[6px_6px_0px_var(--text-primary)] hover:-translate-y-1 transition-all inline-flex items-center gap-2"
                       >
                         Register Now <ArrowRight className="w-5 h-5" />
