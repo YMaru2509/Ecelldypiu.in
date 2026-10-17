@@ -13,9 +13,6 @@ const statTiles = (event) => (Array.isArray(event.stats) && event.stats.length >
         ['PARTICIPANTS', event.participants],
     ]).filter(([, value]) => value);
 
-// Column count by number of tiles on large screens (5 tiles read better as 3 + 2 than 4 + 1).
-const TILE_COLUMNS = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4', 5: 'lg:grid-cols-3', 6: 'lg:grid-cols-3' };
-
 const Tag = ({ children }) => (
     <span className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-3 md:px-4 py-1 mb-4 md:mb-6 text-sm md:text-xl transform -rotate-1 rounded-sm">
         {children}
@@ -31,8 +28,8 @@ const BackLink = () => (
     </Link>
 );
 
-const StatTile = ({ label, value, big = false }) => (
-    <div className={`bg-zinc-900 border-2 border-white/20 rounded-xl hover:border-brand-yellow transition-colors ${big ? 'p-3 md:p-6' : 'p-3 md:p-4'}`}>
+const StatTile = ({ label, value, big = false, className = '' }) => (
+    <div className={`bg-zinc-900 border-2 border-white/20 rounded-xl hover:border-brand-yellow transition-colors ${big ? 'p-3 md:p-6' : 'p-3 md:p-4'} ${className}`}>
         <p className="text-gray-500 font-mono text-xs tracking-widest mb-1">{label}</p>
         <p className={`font-bold uppercase break-words ${big ? 'text-sm md:text-xl' : 'text-sm md:text-lg'}`}>{value}</p>
     </div>
@@ -99,32 +96,33 @@ const EventHero = ({ event, showRegister }) => {
     }
 
     if (style === 'stats') {
-        // Phones get their own portrait poster (event.mobileImage) — a landscape
-        // one would be cropped to a sliver there.
+        // Desktop: details on the left, the poster in a tilted frame on the right (the
+        // Inceptio'26 look). Phones get their own portrait poster (event.mobileImage) on
+        // top instead — a landscape one would be a sliver there.
         const mobileImage = event.mobileImage || image;
         return (
-            <section className="md:pt-32 pb-10 md:pb-16 relative border-b-4 border-white bg-black overflow-hidden">
+            <section className="md:min-h-[80vh] md:flex md:flex-col md:justify-center md:pt-32 pb-10 md:pb-16 relative border-b-4 border-white bg-black">
                 {image && (
-                    <>
-                        {/* Desktop: the poster sits behind the heading and copy; the gradient keeps the text readable. */}
-                        <img src={image} alt="" aria-hidden="true" className="hidden md:block absolute inset-0 w-full h-full object-cover object-center" />
-                        <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/5" />
-                        <div className="hidden md:block absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black to-transparent" />
-                        {/* Phone: the whole portrait poster on top, fading into the copy below it. */}
-                        <div className="md:hidden relative pt-[76px] bg-black">
-                            <img src={mobileImage} alt={event.title} className="block w-full h-auto" />
-                        </div>
-                    </>
+                    <div className="md:hidden relative pt-[76px] bg-black">
+                        <img src={mobileImage} alt={event.title} className="block w-full h-auto" />
+                    </div>
                 )}
-                <div className={`container mx-auto px-4 relative z-10 ${image ? 'pt-5 md:pt-0' : 'pt-28 md:pt-0'}`}>
-                    {intro(
-                        'text-4xl md:text-7xl lg:text-8xl mb-3 md:mb-4 leading-[0.9]',
-                        event.subtitle && <h2 className="text-xl md:text-3xl font-bold text-brand-yellow mb-5 md:mb-8 uppercase">{event.subtitle}</h2>,
-                        Boolean(image),
-                    )}
-                    {tiles.length > 0 && (
-                        <div className={`grid grid-cols-2 gap-3 md:gap-4 ${TILE_COLUMNS[Math.min(tiles.length, 6)]}`}>
-                            {tiles.map(([label, value]) => <StatTile key={label} label={label} value={value} big />)}
+                <div className={`container mx-auto px-4 ${image ? 'pt-5 md:pt-0 md:grid md:grid-cols-2 md:gap-12 md:items-center' : 'pt-28 md:pt-0'}`}>
+                    <div className="min-w-0">
+                        {intro(
+                            'text-4xl md:text-6xl lg:text-7xl mb-3 md:mb-4 leading-[0.9] break-words',
+                            event.subtitle && <h2 className="text-xl md:text-3xl font-bold text-brand-yellow mb-5 md:mb-8 uppercase">{event.subtitle}</h2>,
+                            Boolean(image),
+                        )}
+                        {tiles.length > 0 && (
+                            <div className="grid grid-cols-2 gap-3 md:gap-4">
+                                {tiles.map(([label, value], i) => <StatTile key={label} label={label} value={value} className={i === tiles.length - 1 && tiles.length % 2 === 1 ? 'col-span-2' : ''} />)}
+                            </div>
+                        )}
+                    </div>
+                    {image && (
+                        <div className="hidden md:flex justify-center lg:justify-end">
+                            <Poster src={image} alt={event.title} className="w-full max-w-xl" />
                         </div>
                     )}
                 </div>
