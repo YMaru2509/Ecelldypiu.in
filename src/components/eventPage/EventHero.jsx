@@ -13,6 +13,9 @@ const statTiles = (event) => (Array.isArray(event.stats) && event.stats.length >
         ['PARTICIPANTS', event.participants],
     ]).filter(([, value]) => value);
 
+// Column count by number of tiles on large screens (5 tiles read better as 3 + 2 than 4 + 1).
+const TILE_COLUMNS = { 1: 'lg:grid-cols-1', 2: 'lg:grid-cols-2', 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4', 5: 'lg:grid-cols-3', 6: 'lg:grid-cols-3' };
+
 const Tag = ({ children }) => (
     <span className="inline-block bg-brand-yellow text-[var(--text-on-brand)] font-black px-3 md:px-4 py-1 mb-4 md:mb-6 text-sm md:text-xl transform -rotate-1 rounded-sm">
         {children}
@@ -120,7 +123,7 @@ const EventHero = ({ event, showRegister }) => {
                         Boolean(image),
                     )}
                     {tiles.length > 0 && (
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                        <div className={`grid grid-cols-2 gap-3 md:gap-4 ${TILE_COLUMNS[Math.min(tiles.length, 6)]}`}>
                             {tiles.map(([label, value]) => <StatTile key={label} label={label} value={value} big />)}
                         </div>
                     )}

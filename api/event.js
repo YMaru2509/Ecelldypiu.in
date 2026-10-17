@@ -1266,7 +1266,8 @@ function trustedRequestOrigin(req) {
 // the function). Tries the request's own origin, then the canonical site; any
 // failure is logged and the pass is simply made without a poster.
 async function loadEventBanner(event, origin) {
-    const src = event.image || event.thumbnail;
+    // `banner` is a wide crop made for emails and the pass; portrait posters are too tall for them.
+    const src = event.banner || event.image || event.thumbnail;
     if (!src || typeof src !== 'string') return null;
     const mimeFor = (name) => (/\.png$/i.test(name) ? 'image/png' : /\.webp$/i.test(name) ? 'image/webp' : 'image/jpeg');
     const attempt = async (url) => {
@@ -1317,8 +1318,10 @@ function buildRegistrationEmailHTML({ name, event, passCode, base, variant = 'co
     const title = escapeHtml(event.title || 'the event');
     const subtitle = event.subtitle ? escapeHtml(event.subtitle).replace(/[.!?\s]+$/, '') : '';
     const firstName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'there');
-    const bannerUrl = eventAssetUrl(event.image || event.thumbnail, base);
-    const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
+    const bannerUrl = eventAssetUrl(event.banner || event.image || event.thumbnail, base);
+    const statValue = (re) => (Array.isArray(event.stats) ? event.stats : []).find((t) => re.test(t?.label || ''))?.value;
+    const organizer = statValue(/organi[sz]ed/i);
+    const collaborator = statValue(/collaborat/i);
     const eventUrl = `${base}/events/${encodeURIComponent(event.slug || event.id || '')}`;
 
     const copy = {
@@ -1384,7 +1387,7 @@ function buildRegistrationEmailHTML({ name, event, passCode, base, variant = 'co
         <tr><td style="padding:18px 28px 6px 28px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0c0c0e" style="background-color:#0c0c0e; border:1px solid #26262b; border-radius:16px;"><tr><td style="padding:12px 20px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-                    ${fact('Date', event.date)}${fact('Time', event.time)}${fact('Venue', event.location)}${fact('By', organizer)}
+                    ${fact('Date', event.date)}${fact('Time', event.time)}${fact('Venue', event.location)}${fact('By', organizer)}${fact('With', collaborator)}
                 </table>
             </td></tr></table>
         </td></tr>
@@ -1495,8 +1498,11 @@ async function buildPassPdf({ event, name, answers, passCode, qrPng, banner }) {
         cursor += 10;
 
         // details grid
-        const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
-        const cells = [['DATE', event.date], ['TIME', event.time], ['VENUE', event.location], ['ORGANISED BY', organizer]].filter(([, v]) => v);
+        const statValue = (re) => (Array.isArray(event.stats) ? event.stats : []).find((t) => re.test(t?.label || ''))?.value;
+        const cells = [
+            ['DATE', event.date], ['TIME', event.time], ['VENUE', event.location],
+            ['ORGANISED BY', statValue(/organi[sz]ed/i)], ['IN COLLABORATION WITH', statValue(/collaborat/i)],
+        ].filter(([, v]) => v);
         for (let i = 0; i < cells.length; i += 2) {
             let rowH = 0;
             [cells[i], cells[i + 1]].forEach((cell, c) => {
