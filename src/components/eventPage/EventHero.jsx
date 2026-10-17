@@ -60,10 +60,11 @@ const EventHero = ({ event, showRegister }) => {
     // A poster layout with no poster would leave a hole — fall back to the stat strip.
     const style = event.heroStyle === 'poster' && !image ? 'stats' : (event.heroStyle || 'poster');
 
-    const intro = (titleClass, subtitle, posterOnPhone = false) => (
+    // posterShown: the poster already carries the tag/title/tagline, so they stay for screen readers only.
+    const intro = (titleClass, subtitle, posterShown = false) => (
         <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
             <BackLink />
-            <div className={posterOnPhone ? 'sr-only md:not-sr-only' : ''}>
+            <div className={posterShown ? 'sr-only' : ''}>
                 {tag && <div><Tag>{String(tag).toUpperCase()}</Tag></div>}
                 <h1 className={`${titleClass} font-black uppercase tracking-tighter`}>{event.title}</h1>
                 {subtitle}
@@ -99,24 +100,21 @@ const EventHero = ({ event, showRegister }) => {
     }
 
     if (style === 'stats') {
-        // Phones get their own portrait poster (event.mobileImage) — a landscape
-        // one would be cropped to a sliver there.
+        // Poster-led hero: the whole poster is shown (it carries its own title and
+        // tagline), with the details below it. Phones get their own portrait
+        // poster (event.mobileImage) since a landscape one would be a sliver there.
         const mobileImage = event.mobileImage || image;
         return (
-            <section className="md:pt-32 pb-10 md:pb-16 relative border-b-4 border-white bg-black overflow-hidden">
+            <section className={`pb-10 md:pb-16 relative border-b-4 border-white bg-black overflow-hidden ${image ? 'pt-[84px] md:pt-[100px]' : 'pt-28 md:pt-32'}`}>
                 {image && (
-                    <>
-                        {/* Desktop: the poster sits behind the heading and copy; the gradient keeps the text readable. */}
-                        <img src={image} alt="" aria-hidden="true" className="hidden md:block absolute inset-0 w-full h-full object-cover object-center" />
-                        <div className="hidden md:block absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/5" />
-                        <div className="hidden md:block absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black to-transparent" />
-                        {/* Phone: the whole portrait poster on top, fading into the copy below it. */}
-                        <div className="md:hidden relative pt-[76px] bg-black">
-                            <img src={mobileImage} alt={event.title} className="block w-full h-auto" />
+                    <div className="container mx-auto px-0 md:px-4 mb-6 md:mb-10">
+                        <div className="md:border-4 md:border-white md:rounded-[2rem] overflow-hidden md:shadow-[12px_12px_0px_var(--primary-color)] bg-zinc-900">
+                            <img src={mobileImage} alt={event.title} className="block md:hidden w-full h-auto" />
+                            <img src={image} alt={event.title} className="hidden md:block w-full h-auto" />
                         </div>
-                    </>
+                    </div>
                 )}
-                <div className={`container mx-auto px-4 relative z-10 ${image ? 'pt-5 md:pt-0' : 'pt-28 md:pt-0'}`}>
+                <div className="container mx-auto px-4 relative z-10">
                     {intro(
                         'text-4xl md:text-7xl lg:text-8xl mb-3 md:mb-4 leading-[0.9]',
                         event.subtitle && <h2 className="text-xl md:text-3xl font-bold text-brand-yellow mb-5 md:mb-8 uppercase">{event.subtitle}</h2>,
