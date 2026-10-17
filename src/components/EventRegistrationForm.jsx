@@ -16,7 +16,7 @@ const inputClass = 'w-full bg-[var(--bg-secondary)] border-2 border-[var(--borde
 // email, phone, dropdown (optionally with an "Other" write-in) and long-answer
 // fields with a word limit — or the simple default. `notice` is a highlighted
 // requirement shown above the form.
-const EventRegistrationForm = ({ eventId, fields, notice }) => {
+const EventRegistrationForm = ({ eventId, fields, notice, requiresShortlisting = false }) => {
     const formFields = fields?.length ? fields : DEFAULT_FIELDS;
     const [values, setValues] = useState({});
     const [otherText, setOtherText] = useState({});
@@ -63,8 +63,17 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
         return (
             <div className="bg-[var(--bg-card)] text-[var(--text-primary)] border-4 border-brand-yellow rounded-[2rem] p-8 text-center">
                 <CheckCircle2 className="w-12 h-12 text-brand-yellow mx-auto mb-4" />
-                <h3 className="text-2xl font-black uppercase mb-2">You're Registered!</h3>
-                <p className="text-[var(--text-secondary)]">Check your email for your pass — show it at the door to check in.</p>
+                {requiresShortlisting ? (
+                    <>
+                        <h3 className="text-2xl font-black uppercase mb-2">Application Received!</h3>
+                        <p className="text-[var(--text-secondary)]">Thanks for applying. Our team will review your answers — if you're shortlisted, your pass will be emailed to you. Only shortlisted participants are admitted.</p>
+                    </>
+                ) : (
+                    <>
+                        <h3 className="text-2xl font-black uppercase mb-2">You're Registered!</h3>
+                        <p className="text-[var(--text-secondary)]">Check your email for your pass — show it at the door to check in.</p>
+                    </>
+                )}
             </div>
         );
     }
@@ -73,7 +82,7 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
         <form onSubmit={submit} className="bg-[var(--bg-card)] text-[var(--text-primary)] border-4 border-[var(--border-color)] rounded-[2rem] p-6 md:p-8">
             <div className="flex items-center gap-2 mb-5">
                 <Ticket className="w-5 h-5 text-brand-yellow" />
-                <h3 className="text-2xl font-black uppercase">Register</h3>
+                <h3 className="text-2xl font-black uppercase">{requiresShortlisting ? 'Apply' : 'Register'}</h3>
             </div>
 
             {notice && (
@@ -143,7 +152,7 @@ const EventRegistrationForm = ({ eventId, fields, notice }) => {
                 <button type="submit" disabled={loading}
                     className="sm:col-span-2 w-full flex items-center justify-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] px-6 py-3 rounded-xl font-black uppercase disabled:opacity-50">
                     {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Get My Pass
+                    {requiresShortlisting ? 'Submit Application' : 'Get My Pass'}
                 </button>
             </div>
         </form>

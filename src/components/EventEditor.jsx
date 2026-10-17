@@ -51,6 +51,7 @@ const normalizeEventForm = (event = {}) => ({
   teamBased: inferTeamBasedEvent(event),
   internalOnly: event.internalOnly === true,
   upcoming: event.upcoming === true,
+  requiresShortlisting: event.requiresShortlisting === true,
   activeSections: {
     ...defaultActiveSections(),
     ...(event.activeSections || {})
@@ -381,6 +382,10 @@ const EventEditor = ({ event, onSave, onClose, loading, openMediaBrowser, initia
               <div className="flex items-center gap-2 bg-zinc-800 p-3 rounded text-white border border-brand-yellow/30">
                 <input type="checkbox" checked={form.upcoming || false} onChange={(e) => updateField('upcoming', e.target.checked)} className="w-5 h-5 accent-brand-yellow" id="upcoming-checkbox" />
                 <label htmlFor="upcoming-checkbox" className="font-bold cursor-pointer">Upcoming — show under "What's Next"</label>
+              </div>
+              <div className="flex items-center gap-2 bg-zinc-800 p-3 rounded text-white border border-brand-yellow/30">
+                <input type="checkbox" checked={form.requiresShortlisting || false} onChange={(e) => updateField('requiresShortlisting', e.target.checked)} className="w-5 h-5 accent-brand-yellow" id="shortlisting-checkbox" />
+                <label htmlFor="shortlisting-checkbox" className="font-bold cursor-pointer">Applications need shortlisting — passes go only to shortlisted people</label>
               </div>
               <div className="flex items-center gap-2 bg-zinc-800 p-3 rounded text-white border border-brand-yellow/30">
                 <input type="checkbox" checked={form.internalOnly || false} onChange={(e) => updateField('internalOnly', e.target.checked)} className="w-5 h-5 accent-brand-yellow" id="internal-only-checkbox" />

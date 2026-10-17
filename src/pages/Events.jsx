@@ -167,7 +167,7 @@ const Events = () => {
                   )}
                   <div className="p-6 md:p-8 flex flex-col flex-1">
                     <span className="inline-block self-start bg-brand-yellow text-[var(--text-on-brand)] font-black px-3 py-1 text-xs uppercase mb-4 -rotate-1">
-                      Registrations Open
+                      {event.requiresShortlisting ? 'Applications Open' : 'Registrations Open'}
                     </span>
                     <h3 className="text-3xl md:text-4xl font-black uppercase mb-2">{event.title}</h3>
                     {event.subtitle && <p className="text-brand-yellow font-bold uppercase mb-3">{event.subtitle}</p>}
@@ -179,7 +179,7 @@ const Events = () => {
                         to={`/events/${event.slug || event.id}/register`}
                         className="bg-brand-yellow text-[var(--text-on-brand)] font-black uppercase px-6 py-3 rounded-full border-4 border-white shadow-[6px_6px_0px_var(--text-primary)] hover:-translate-y-1 transition-all inline-flex items-center gap-2"
                       >
-                        Register Now <ArrowRight className="w-5 h-5" />
+                        {event.requiresShortlisting ? 'Apply Now' : 'Register Now'} <ArrowRight className="w-5 h-5" />
                       </Link>
                       <Link
                         to={`/events/${event.slug || event.id}`}

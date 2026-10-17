@@ -30,7 +30,7 @@ const PublicCheckin = () => {
         if (!selectedId) return;
         const res = await fetch(`/api/event?action=list-registrations&eventId=${selectedId}`, { headers: adminAuthHeaders() });
         const data = await res.json();
-        if (res.ok) setCounts({ total: data.total, checkedIn: data.checkedIn });
+        if (res.ok) setCounts({ total: data.total, checkedIn: data.checkedIn, gated: data.requiresShortlisting === true });
     }, [selectedId]);
 
     useEffect(() => { fetchCounts(); }, [fetchCounts]);
@@ -95,7 +95,7 @@ const PublicCheckin = () => {
                         </select>
                         {counts && (
                             <p className="mt-3 flex items-center gap-2 text-xs font-bold text-[var(--text-secondary)]">
-                                <Users className="w-3.5 h-3.5 text-brand-yellow" /> {counts.checkedIn} of {counts.total} registered guests checked in
+                                <Users className="w-3.5 h-3.5 text-brand-yellow" /> {counts.checkedIn} of {counts.total} {counts.gated ? 'shortlisted' : 'registered'} guests checked in
                             </p>
                         )}
                     </div>

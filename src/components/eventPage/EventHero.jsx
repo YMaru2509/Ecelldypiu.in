@@ -35,12 +35,12 @@ const StatTile = ({ label, value, big = false }) => (
     </div>
 );
 
-const RegisterButton = ({ to }) => (
+const RegisterButton = ({ to, label = 'Register Now' }) => (
     <Link
         to={to}
         className="bg-brand-yellow text-[var(--text-on-brand)] text-lg md:text-xl font-black px-6 md:px-8 py-3 md:py-4 rounded-full border-4 border-white transform hover:-translate-y-1 transition-all shadow-[8px_8px_0px_var(--text-primary)] hover:shadow-[12px_12px_0px_var(--text-primary)] inline-flex items-center gap-3 no-underline"
     >
-        Register Now <ArrowRight className="w-5 h-5" />
+        {label} <ArrowRight className="w-5 h-5" />
     </Link>
 );
 
@@ -70,7 +70,7 @@ const EventHero = ({ event, showRegister }) => {
                     {event.description}
                 </p>
             )}
-            {showRegister && <div className="mb-6 md:mb-10"><RegisterButton to={`/events/${event.slug || event.id}/register`} /></div>}
+            {showRegister && <div className="mb-6 md:mb-10"><RegisterButton to={`/events/${event.slug || event.id}/register`} label={event.requiresShortlisting ? 'Apply Now' : 'Register Now'} /></div>}
         </motion.div>
     );
 

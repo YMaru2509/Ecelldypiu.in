@@ -277,16 +277,30 @@ export const GallerySection = ({ event, heading }) => {
     );
 };
 
+// Shortlisting events say "Apply" wherever the default "Register" heading would show.
+const applyHeading = (event, heading) => (event.requiresShortlisting && /^REGISTER \*NOW\*$/i.test(heading) ? 'APPLY *NOW*' : heading);
+
 export const RegisterSection = ({ event, heading }) => (
     <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8 md:mb-10">
-            <Heading text={heading} onBrand className="!mb-5 md:!mb-6" />
-            <p className="font-mono text-base md:text-lg mb-3">
-                Reserve your spot for <strong>{event.title}</strong>. We'll email you a personal QR pass — show it at the door to check in.
-            </p>
-            <p className="font-mono text-xs md:text-sm opacity-70">One pass per email address. Check your spam folder if it doesn't arrive within a few minutes.</p>
+            <Heading text={applyHeading(event, heading)} onBrand className="!mb-5 md:!mb-6" />
+            {event.requiresShortlisting ? (
+                <>
+                    <p className="font-mono text-base md:text-lg mb-3">
+                        Apply for <strong>{event.title}</strong>. We review every application and shortlist participants — shortlisted people are emailed a personal QR pass.
+                    </p>
+                    <p className="font-mono text-xs md:text-sm opacity-70">One application per email address. Entry on the day is for shortlisted pass holders only.</p>
+                </>
+            ) : (
+                <>
+                    <p className="font-mono text-base md:text-lg mb-3">
+                        Reserve your spot for <strong>{event.title}</strong>. We'll email you a personal QR pass — show it at the door to check in.
+                    </p>
+                    <p className="font-mono text-xs md:text-sm opacity-70">One pass per email address. Check your spam folder if it doesn't arrive within a few minutes.</p>
+                </>
+            )}
         </div>
-        <EventRegistrationForm eventId={event.id} fields={event.registrationFields} notice={event.registrationNotice} />
+        <EventRegistrationForm eventId={event.id} fields={event.registrationFields} notice={event.registrationNotice} requiresShortlisting={event.requiresShortlisting === true} />
     </div>
 );
 
@@ -294,15 +308,17 @@ export const RegisterSection = ({ event, heading }) => (
 // at /events/<slug>/register.
 export const RegisterCtaSection = ({ event, heading }) => (
     <div className="max-w-3xl mx-auto text-center">
-        <Heading text={heading} onBrand className="!mb-6" />
+        <Heading text={applyHeading(event, heading)} onBrand className="!mb-6" />
         <p className="font-mono text-lg mb-8">
-            Reserve your spot for <strong>{event.title}</strong>. We'll email you a personal QR pass — show it at the door to check in.
+            {event.requiresShortlisting
+                ? <>Apply for <strong>{event.title}</strong>. Applications are reviewed and shortlisted participants receive a personal QR pass by email.</>
+                : <>Reserve your spot for <strong>{event.title}</strong>. We'll email you a personal QR pass — show it at the door to check in.</>}
         </p>
         <Link
             to={`/events/${event.slug || event.id}/register`}
             className="bg-black text-brand-yellow text-xl font-black px-8 py-4 rounded-full border-4 border-black transform hover:-translate-y-1 transition-all shadow-[8px_8px_0px_rgba(0,0,0,0.35)] inline-flex items-center gap-3 no-underline"
         >
-            Register Now <ArrowRight className="w-5 h-5" />
+            {event.requiresShortlisting ? 'Apply Now' : 'Register Now'} <ArrowRight className="w-5 h-5" />
         </Link>
     </div>
 );

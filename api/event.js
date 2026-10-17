@@ -204,6 +204,8 @@ export default async function handler(req, res) {
             return await handleResendPass(req, res);
         } else if (action === 'delete-registration') {
             return await handleDeleteRegistration(req, res);
+        } else if (action === 'set-registration-status') {
+            return await handleSetRegistrationStatus(req, res);
         }
     }
 
@@ -1305,16 +1307,40 @@ const winAnsi = (text) => String(text ?? '')
 const eventAssetUrl = (src, base) => (!src ? '' : /^https?:\/\//i.test(src) ? src : `${base}/${String(src).replace(/^\/+/, '')}`);
 const publicBase = (origin) => (origin && !/^https?:\/\/(localhost|127\.)/.test(origin) ? origin : siteBaseUrl());
 
-// The confirmation email: a warm "you're registered" message. The pass itself is
-// the single PDF attached to it; nothing else is attached.
-function buildRegistrationEmailHTML({ name, event, passCode, base }) {
+// The emails an event sends around registration, one template, three variants:
+//   confirmed   — straight registration: "you're in", pass attached.
+//   received    — shortlisting events: application received, no pass yet.
+//   shortlisted — shortlisting events: you were picked, pass attached.
+// The pass itself is always the single PDF attached; nothing else is attached.
+function buildRegistrationEmailHTML({ name, event, passCode, base, variant = 'confirmed' }) {
     const accent = '#FFB22C';
     const title = escapeHtml(event.title || 'the event');
-    const subtitle = event.subtitle ? escapeHtml(event.subtitle) : '';
+    const subtitle = event.subtitle ? escapeHtml(event.subtitle).replace(/[.!?\s]+$/, '') : '';
     const firstName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'there');
     const bannerUrl = eventAssetUrl(event.image || event.thumbnail, base);
     const organizer = (Array.isArray(event.stats) ? event.stats : []).find((t) => /organi[sz]ed/i.test(t?.label || ''))?.value;
     const eventUrl = `${base}/events/${encodeURIComponent(event.slug || event.id || '')}`;
+
+    const copy = {
+        confirmed: {
+            badge: 'Registration confirmed',
+            headline: `You're in, ${firstName}.`,
+            intro: `You're officially registered for <strong style="color:${accent};">${title}</strong>${subtitle ? ` &mdash; <em style="color:#d4d4d8;">${subtitle}</em>` : ''}. We can't wait to see you there.`,
+            tips: ['Carry your <strong style="color:#ffffff;">college ID</strong> along with the pass.', 'Keep the pass handy &mdash; a screenshot of the QR works too.', 'The pass is unique to you. Please don\'t forward it.'],
+        },
+        received: {
+            badge: 'Application received',
+            headline: `Thanks, ${firstName} &mdash; we've got it.`,
+            intro: `Your application for <strong style="color:${accent};">${title}</strong>${subtitle ? ` &mdash; <em style="color:#d4d4d8;">${subtitle}</em>` : ''} is in. Our team reviews every problem statement and proposed solution, then shortlists participants for the event.`,
+            tips: ['Shortlisted participants are emailed a <strong style="color:#ffffff;">personal QR pass</strong> at this address.', 'Entry on the day is for pass holders only.', 'Keep an eye on your inbox (and spam folder) in the coming days.'],
+        },
+        shortlisted: {
+            badge: "You're shortlisted",
+            headline: `Congratulations, ${firstName}!`,
+            intro: `After reviewing your problem statement and proposed solution, we're delighted to shortlist you for <strong style="color:${accent};">${title}</strong>${subtitle ? ` &mdash; <em style="color:#d4d4d8;">${subtitle}</em>` : ''}. Your pass is below.`,
+            tips: ['Carry your <strong style="color:#ffffff;">college ID</strong> along with the pass.', 'Entry is for shortlisted pass holders only &mdash; a screenshot of the QR works too.', 'The pass is unique to you. Please don\'t forward it.'],
+        },
+    }[variant] || null;
 
     const fact = (label, value) => (value ? `
         <tr><td style="padding:7px 0; font-size:11px; letter-spacing:2px; color:#8a8a93; font-weight:bold; text-transform:uppercase; width:96px;" valign="top">${label}</td>
@@ -1324,13 +1350,24 @@ function buildRegistrationEmailHTML({ name, event, passCode, base }) {
         <tr><td valign="top" style="padding:5px 12px 5px 0; color:${accent}; font-size:15px; font-weight:bold;">&#10003;</td>
         <td style="padding:5px 0; font-size:14px; color:#d4d4d8; line-height:1.5;">${text}</td></tr>`;
 
+    const passBox = variant === 'received' ? `
+                <div style="font-size:15px; font-weight:900; color:${accent}; text-transform:uppercase; letter-spacing:1px;">What happens next</div>
+                <div style="font-size:14px; color:#e4e4e7; line-height:1.55; margin-top:6px;">
+                    1. We review your answers &nbsp;&rarr;&nbsp; 2. Shortlisted participants get a pass by email &nbsp;&rarr;&nbsp; 3. Pass holders are welcomed on the day.
+                </div>` : `
+                <div style="font-size:15px; font-weight:900; color:${accent}; text-transform:uppercase; letter-spacing:1px;">Your pass is attached</div>
+                <div style="font-size:14px; color:#e4e4e7; line-height:1.55; margin-top:6px;">
+                    Open the PDF on your phone and show its QR code at the entrance. It's built for mobile &mdash; no printing needed.
+                    <span style="color:#8a8a93;">Pass ID: <strong style="color:#ffffff;">${escapeHtml(passCode || '')}</strong></span>
+                </div>`;
+
     return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark light">
-    <title>You're registered for ${title}</title>
+    <title>${escapeHtml(copy.badge)} - ${title}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#070708; font-family:Helvetica, Arial, sans-serif; color:#ffffff;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#070708" style="background-color:#070708;">
@@ -1339,12 +1376,10 @@ function buildRegistrationEmailHTML({ name, event, passCode, base }) {
         ${bannerUrl ? `<tr><td style="padding:0; line-height:0;"><img src="${escapeHtml(bannerUrl)}" alt="${title}" width="560" style="display:block; width:100%; height:auto; border:0;"></td></tr>` : ''}
         <tr><td style="padding:30px 28px 6px 28px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
-                <td bgcolor="${accent}" style="background-color:${accent}; border-radius:999px; padding:6px 14px; font-size:11px; font-weight:900; letter-spacing:2px; color:#000000; text-transform:uppercase;">&#10003;&nbsp; Registration confirmed</td>
+                <td bgcolor="${accent}" style="background-color:${accent}; border-radius:999px; padding:6px 14px; font-size:11px; font-weight:900; letter-spacing:2px; color:#000000; text-transform:uppercase;">&#10003;&nbsp; ${escapeHtml(copy.badge)}</td>
             </tr></table>
-            <div style="font-size:34px; line-height:1.05; font-weight:900; letter-spacing:-1px; color:#ffffff; margin-top:18px;">You're in, ${firstName}.</div>
-            <div style="font-size:17px; line-height:1.55; color:#e4e4e7; margin-top:14px;">
-                You're officially registered for <strong style="color:${accent};">${title}</strong>${subtitle ? ` &mdash; <em style="color:#d4d4d8;">${subtitle.replace(/[.!?\s]+$/, '')}</em>` : ''}. We can't wait to see you there.
-            </div>
+            <div style="font-size:34px; line-height:1.05; font-weight:900; letter-spacing:-1px; color:#ffffff; margin-top:18px;">${copy.headline}</div>
+            <div style="font-size:17px; line-height:1.55; color:#e4e4e7; margin-top:14px;">${copy.intro}</div>
         </td></tr>
         <tr><td style="padding:18px 28px 6px 28px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0c0c0e" style="background-color:#0c0c0e; border:1px solid #26262b; border-radius:16px;"><tr><td style="padding:12px 20px;">
@@ -1354,19 +1389,12 @@ function buildRegistrationEmailHTML({ name, event, passCode, base }) {
             </td></tr></table>
         </td></tr>
         <tr><td style="padding:18px 28px 6px 28px;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#1c1708" style="background-color:#1c1708; border-left:4px solid ${accent}; border-radius:12px;"><tr><td style="padding:16px 20px;">
-                <div style="font-size:15px; font-weight:900; color:${accent}; text-transform:uppercase; letter-spacing:1px;">Your pass is attached</div>
-                <div style="font-size:14px; color:#e4e4e7; line-height:1.55; margin-top:6px;">
-                    Open the PDF on your phone and show its QR code at the entrance. It's built for mobile &mdash; no printing needed.
-                    <span style="color:#8a8a93;">Pass ID: <strong style="color:#ffffff;">${escapeHtml(passCode)}</strong></span>
-                </div>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#1c1708" style="background-color:#1c1708; border-left:4px solid ${accent}; border-radius:12px;"><tr><td style="padding:16px 20px;">${passBox}
             </td></tr></table>
         </td></tr>
         <tr><td style="padding:14px 28px 4px 28px;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-                ${tip('Carry your <strong style="color:#ffffff;">college ID</strong> along with the pass.')}
-                ${tip('Keep the pass handy &mdash; a screenshot of the QR works too.')}
-                ${tip('The pass is unique to you. Please don\'t forward it.')}
+                ${copy.tips.map(tip).join('')}
             </table>
         </td></tr>
         <tr><td align="center" style="padding:22px 28px 30px 28px;">
@@ -1523,23 +1551,42 @@ async function buildPassPdf({ event, name, answers, passCode, qrPng, banner }) {
     return Buffer.from(await pdf.save());
 }
 
-// Emails a registrant a confirmation message with their pass as the one and
-// only attachment (a mobile-sized PDF). Used when they first register and again
-// when staff resend it. Always sent through ZeptoMail (Zoho).
-async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers, origin }, eventData) {
+// Emails a registrant their pass: a message plus the pass as the one and only
+// attachment (a mobile-sized PDF). `variant` is 'confirmed' (open registration) or
+// 'shortlisted'. Pass `banner` when sending many in a row so the poster is fetched
+// once. Always sent through ZeptoMail (Zoho).
+async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers, origin, variant = 'confirmed', banner }, eventData) {
     const event = { ...eventData, id: eventData.id || eventId };
     const passCode = passToken.slice(0, 8).toUpperCase();
     const qrPng = await QRCode.toBuffer(JSON.stringify({ eventId, registrationId, token: passToken }), { errorCorrectionLevel: 'H', width: 600, margin: 1 });
-    const pdf = await buildPassPdf({ event, name, answers, passCode, qrPng, banner: await loadEventBanner(eventData, origin) });
+    const poster = banner !== undefined ? banner : await loadEventBanner(eventData, origin);
+    const pdf = await buildPassPdf({ event, name, answers, passCode, qrPng, banner: poster });
     const fileName = `${(event.title || 'Event').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'Event'}-Pass.pdf`;
+    const subject = variant === 'shortlisted'
+        ? `You're shortlisted for ${event.title || 'the event'} - your pass is attached`
+        : `You're registered for ${event.title || 'the event'} - your pass is attached`;
     await sendEmail(
         email,
-        `You're registered for ${event.title || 'the event'} - your pass is attached`,
-        buildRegistrationEmailHTML({ name, event, passCode, base: publicBase(origin) }),
+        subject,
+        buildRegistrationEmailHTML({ name, event, passCode, base: publicBase(origin), variant }),
         'zeptomail',
         [{ filename: fileName, content: pdf.toString('base64'), contentType: 'application/pdf' }],
     );
 }
+
+// Shortlisting events: acknowledges the application. No pass, no attachment.
+async function sendApplicationReceivedEmail({ name, email, origin }, eventData) {
+    await sendEmail(
+        email,
+        `We've received your application for ${eventData.title || 'the event'}`,
+        buildRegistrationEmailHTML({ name, event: eventData, passCode: '', base: publicBase(origin), variant: 'received' }),
+        'zeptomail',
+    );
+}
+
+// Shortlisting events only let shortlisted people in; other events admit everyone registered.
+const isAdmitted = (reg, eventData) => eventData?.requiresShortlisting !== true || reg?.status === 'shortlisted';
+const regStatus = (reg, eventData) => (eventData?.requiresShortlisting === true ? (reg?.status || 'pending') : 'registered');
 
 function normalizeEmailForId(email) {
     return (email || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1618,6 +1665,7 @@ async function handleRegisterForEvent(req, res) {
                 phone: phone?.trim() || '',
                 answers,
                 passToken,
+                ...(eventData.requiresShortlisting === true ? { status: 'pending' } : {}),
                 registeredAt: Timestamp.now(),
                 checkedIn: false,
                 checkedInAt: null,
@@ -1631,13 +1679,19 @@ async function handleRegisterForEvent(req, res) {
         }
 
         // Always ZeptoMail (Zoho); a failed send is logged, the registration stands.
+        // Shortlisting events only acknowledge the application — the pass comes later.
+        const gated = eventData.requiresShortlisting === true;
         try {
-            await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim(), answers, origin: trustedRequestOrigin(req) }, eventData);
+            if (gated) {
+                await sendApplicationReceivedEmail({ name: name.trim(), email: email.trim(), origin: trustedRequestOrigin(req) }, eventData);
+            } else {
+                await sendPassEmail({ eventId, registrationId, passToken, name: name.trim(), email: email.trim(), answers, origin: trustedRequestOrigin(req) }, eventData);
+            }
         } catch (emailErr) {
-            console.error(`Pass email failed for ${email}: ${emailErr.message}`);
+            console.error(`Registration email failed for ${email}: ${emailErr.message}`);
         }
 
-        return res.status(200).json({ success: true, registrationId });
+        return res.status(200).json({ success: true, registrationId, requiresShortlisting: gated });
     } catch (error) {
         console.error('Error registering for event:', error);
         return res.status(500).json({ error: 'Failed to register' });
@@ -1665,6 +1719,11 @@ async function handleCheckinRegistration(req, res) {
             return res.status(400).json({ error: 'Invalid pass for this event' });
         }
 
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        if (!isAdmitted(reg, eventSnap.exists ? eventSnap.data() : null)) {
+            return res.status(403).json({ error: `${reg.name || 'This person'} is not shortlisted — entry not allowed`, notShortlisted: true, name: reg.name });
+        }
+
         if (reg.checkedIn) {
             return res.status(200).json({ success: true, alreadyCheckedIn: true, name: reg.name, email: reg.email });
         }
@@ -1688,22 +1747,34 @@ async function handleListRegistrations(req, res) {
         const eventId = req.query?.eventId;
         if (!eventId) return res.status(400).json({ error: 'eventId is required' });
 
-        const snap = await db.collection('event_registrations').where('eventId', '==', eventId).get();
+        const [snap, eventSnap] = await Promise.all([
+            db.collection('event_registrations').where('eventId', '==', eventId).get(),
+            db.collection('events').doc(eventId).get(),
+        ]);
+        const eventData = eventSnap.exists ? eventSnap.data() : {};
+        const requiresShortlisting = eventData.requiresShortlisting === true;
         const registrations = snap.docs
             .map((d) => {
                 const data = d.data();
                 if (data.registeredAt?.toDate) data.registeredAt = data.registeredAt.toDate().toISOString();
                 if (data.checkedInAt?.toDate) data.checkedInAt = data.checkedInAt.toDate().toISOString();
-                return { id: d.id, ...data, passToken: undefined };
+                if (data.passSentAt?.toDate) data.passSentAt = data.passSentAt.toDate().toISOString();
+                return { id: d.id, ...data, status: regStatus(data, eventData), passToken: undefined };
             })
             .sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
 
-        const eventSnap = await db.collection('events').doc(eventId).get();
-        const fields = eventSnap.exists && Array.isArray(eventSnap.data().registrationFields)
-            ? eventSnap.data().registrationFields.map(({ key, label }) => ({ key, label }))
+        const fields = Array.isArray(eventData.registrationFields)
+            ? eventData.registrationFields.map(({ key, label, type }) => ({ key, label, type }))
             : [];
+        const statusCounts = { pending: 0, shortlisted: 0, rejected: 0 };
+        if (requiresShortlisting) registrations.forEach((r) => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
+        const admitted = registrations.filter((r) => !requiresShortlisting || r.status === 'shortlisted');
 
-        return res.status(200).json({ success: true, registrations, fields, total: registrations.length, checkedIn: registrations.filter((r) => r.checkedIn).length });
+        return res.status(200).json({
+            success: true, registrations, fields, requiresShortlisting, statusCounts,
+            total: admitted.length, applications: registrations.length,
+            checkedIn: admitted.filter((r) => r.checkedIn).length,
+        });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error listing registrations:', error);
@@ -1729,12 +1800,83 @@ async function handleResendPass(req, res) {
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
 
         const reg = regSnap.data();
-        await sendPassEmail({ eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers, origin: trustedRequestOrigin(req) }, eventSnap.data());
+        const eventData = eventSnap.data();
+        if (!isAdmitted(reg, eventData)) return res.status(400).json({ error: 'Shortlist this person before sending them a pass.' });
+        await sendPassEmail({
+            eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers,
+            origin: trustedRequestOrigin(req), variant: eventData.requiresShortlisting === true ? 'shortlisted' : 'confirmed',
+        }, eventData);
+        await regSnap.ref.update({ passSentAt: Timestamp.now() });
         return res.status(200).json({ success: true, email: reg.email });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error resending pass:', error);
         return res.status(500).json({ error: `Couldn't send the pass: ${error.message}` });
+    }
+}
+
+// passes:manage — review decisions for shortlisting events. Sets each person's
+// status to shortlisted / rejected / pending. Moving someone to "shortlisted"
+// emails them their pass (once — re-sending is the Resend button); rejecting or
+// resetting sends nothing. Takes a small batch so the emails fit in one request.
+const REVIEW_STATUSES = ['pending', 'shortlisted', 'rejected'];
+async function handleSetRegistrationStatus(req, res) {
+    try {
+        const caller = await requirePermission(req, 'passes', 'manage');
+        if (!db) return res.status(503).json({ error: 'Database not available' });
+
+        const { eventId, registrationIds, status } = req.body || {};
+        if (!eventId || !Array.isArray(registrationIds) || registrationIds.length === 0) {
+            return res.status(400).json({ error: 'eventId and registrationIds are required' });
+        }
+        if (!REVIEW_STATUSES.includes(status)) return res.status(400).json({ error: 'status must be pending, shortlisted or rejected' });
+        if (registrationIds.length > 10) return res.status(400).json({ error: 'Send at most 10 registrations per request' });
+
+        const eventSnap = await db.collection('events').doc(eventId).get();
+        if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
+        const eventData = eventSnap.data();
+        if (eventData.requiresShortlisting !== true) return res.status(400).json({ error: "This event doesn't use shortlisting" });
+
+        const origin = trustedRequestOrigin(req);
+        const banner = status === 'shortlisted' ? await loadEventBanner(eventData, origin) : null;
+        const results = [];
+        for (const id of [...new Set(registrationIds)]) {
+            const ref = db.collection('event_registrations').doc(String(id));
+            const snap = await ref.get();
+            if (!snap.exists || snap.data().eventId !== eventId) { results.push({ id, ok: false, error: 'Not found' }); continue; }
+            const reg = snap.data();
+            const previous = reg.status || 'pending';
+            await ref.update({ status, statusUpdatedAt: Timestamp.now(), statusUpdatedBy: caller.uid });
+            const result = { id, ok: true, status, emailSent: false };
+            if (status === 'shortlisted' && previous !== 'shortlisted') {
+                try {
+                    await sendPassEmail({
+                        eventId, registrationId: id, passToken: reg.passToken, name: reg.name, email: reg.email,
+                        answers: reg.answers, origin, variant: 'shortlisted', banner,
+                    }, eventData);
+                    await ref.update({ passSentAt: Timestamp.now() });
+                    result.emailSent = true;
+                } catch (emailErr) {
+                    console.error(`Shortlist pass email failed for ${reg.email}: ${emailErr.message}`);
+                    result.emailError = emailErr.message;
+                }
+            }
+            results.push(result);
+        }
+
+        await writeAuditLog({
+            actorUid: caller.uid,
+            actorRole: Array.isArray(caller.roles) ? caller.roles[0] : null,
+            action: 'event_registration_review',
+            targetType: 'event',
+            targetId: eventId,
+            metadata: { status, count: results.filter((r) => r.ok).length, registrationIds: results.filter((r) => r.ok).map((r) => r.id) },
+        });
+        return res.status(200).json({ success: true, results });
+    } catch (error) {
+        if (error.status) return sendRbacError(res, error);
+        console.error('Error setting registration status:', error);
+        return res.status(500).json({ error: 'Failed to update the registrations' });
     }
 }
 
@@ -1787,17 +1929,19 @@ async function handleExportRegistrations(req, res) {
         // Questions beyond name/email/phone that this event's form asked.
         const extraFields = (Array.isArray(eventSnap.data().registrationFields) ? eventSnap.data().registrationFields : [])
             .filter((f) => !['name', 'email', 'phone'].includes(f.key));
+        const gated = eventSnap.data().requiresShortlisting === true;
         const rows = snap.docs
             .map((d) => d.data())
             .sort((a, b) => (a.registeredAt?.toMillis?.() || 0) - (b.registeredAt?.toMillis?.() || 0))
             .map((r) => [
                 r.name || '', r.email || '', r.phone || '',
                 ...extraFields.map((f) => r.answers?.[f.key] || ''),
+                ...(gated ? [regStatus(r, eventSnap.data()), istStamp(r.passSentAt)] : []),
                 istStamp(r.registeredAt), r.checkedIn ? 'Yes' : 'No', istStamp(r.checkedInAt),
             ]);
 
         const csv = toCsv([
-            ['Name', 'Email', 'Phone', ...extraFields.map((f) => f.label), 'Registered (IST)', 'Checked In', 'Checked In At (IST)'],
+            ['Name', 'Email', 'Phone', ...extraFields.map((f) => f.label), ...(gated ? ['Status', 'Pass Sent At (IST)'] : []), 'Registered (IST)', 'Checked In', 'Checked In At (IST)'],
             ...rows,
         ]);
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');

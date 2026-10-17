@@ -48,7 +48,7 @@ const EventRegisterPage = () => {
                 </div>
             </section>
             <SectionShell id="register" tone="brand">
-                <RegisterSection event={event} heading="Register *Now*" />
+                <RegisterSection event={event} heading={event.requiresShortlisting ? 'Apply *Now*' : 'Register *Now*'} />
             </SectionShell>
         </div>
     );
