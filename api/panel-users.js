@@ -536,7 +536,9 @@ async function handleUpdateAccess(req, res) {
 
     const { uid, roles, permissions, verticals, publicTitle, avatarUrl, avatarPosition, ecellJoinDate, membershipStatus, displayStatus } = req.body || {};
     if (!uid) return res.status(400).json({ error: 'Target uid is required' });
-    if (uid === caller.uid) return res.status(400).json({ error: "You can't change your own access" });
+    if (uid === caller.uid && !isSystemOwner(caller)) {
+        return res.status(400).json({ error: "You can't change your own access" });
+    }
 
     const targetRef = db.collection('members').doc(uid);
     const targetSnap = await targetRef.get();

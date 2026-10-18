@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, RotateCcw, RotateCw, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 const SIZE = 320;
+const FRAME_SIZE = 240;
+const FRAME_OFFSET = (SIZE - FRAME_SIZE) / 2;
+const BLEED_SIZE = FRAME_SIZE + 32;
+const BLEED_OFFSET = (SIZE - BLEED_SIZE) / 2;
 
 const PhotoEditor = ({ src, onCancel, onSave }) => {
     const canvasRef = useRef(null);
@@ -12,6 +16,27 @@ const PhotoEditor = ({ src, onCancel, onSave }) => {
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [ready, setReady] = useState(false);
     const [error, setError] = useState('');
+
+    const getBounds = () => {
+        const image = imageRef.current;
+        if (!image) return { x: 0, y: 0 };
+        const baseScale = Math.max(FRAME_SIZE / image.width, FRAME_SIZE / image.height) * zoom;
+        const quarterTurn = Math.abs(rotation % 180) === 90;
+        const width = (quarterTurn ? image.height : image.width) * baseScale;
+        const height = (quarterTurn ? image.width : image.height) * baseScale;
+        return {
+            x: Math.max(0, (width - FRAME_SIZE) / 2),
+            y: Math.max(0, (height - FRAME_SIZE) / 2),
+        };
+    };
+
+    const clampOffset = (next) => {
+        const bounds = getBounds();
+        return {
+            x: Math.max(-bounds.x, Math.min(bounds.x, next.x)),
+            y: Math.max(-bounds.y, Math.min(bounds.y, next.y)),
+        };
+    };
 
     useEffect(() => {
         const image = new Image();
@@ -31,16 +56,43 @@ const PhotoEditor = ({ src, onCancel, onSave }) => {
         ctx.clearRect(0, 0, SIZE, SIZE);
         ctx.fillStyle = '#101217';
         ctx.fillRect(0, 0, SIZE, SIZE);
+
+        // The image is only visible inside the crop frame. The surrounding
+        // shaded area is the bleed boundary and makes the final crop obvious.
         ctx.save();
         ctx.beginPath();
-        ctx.rect(0, 0, SIZE, SIZE);
+        ctx.rect(FRAME_OFFSET, FRAME_OFFSET, FRAME_SIZE, FRAME_SIZE);
         ctx.clip();
-        ctx.translate(SIZE / 2 + offset.x, SIZE / 2 + offset.y);
+        ctx.translate(FRAME_OFFSET + FRAME_SIZE / 2 + offset.x, FRAME_OFFSET + FRAME_SIZE / 2 + offset.y);
         ctx.rotate((rotation * Math.PI) / 180);
-        const coverScale = Math.max(SIZE / image.width, SIZE / image.height) * zoom;
+        const coverScale = Math.max(FRAME_SIZE / image.width, FRAME_SIZE / image.height) * zoom;
         ctx.drawImage(image, -(image.width * coverScale) / 2, -(image.height * coverScale) / 2, image.width * coverScale, image.height * coverScale);
         ctx.restore();
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+        ctx.fillRect(0, 0, SIZE, FRAME_OFFSET);
+        ctx.fillRect(0, FRAME_OFFSET + FRAME_SIZE, SIZE, FRAME_OFFSET);
+        ctx.fillRect(0, FRAME_OFFSET, FRAME_OFFSET, FRAME_SIZE);
+        ctx.fillRect(FRAME_OFFSET + FRAME_SIZE, FRAME_OFFSET, FRAME_OFFSET, FRAME_SIZE);
+
+        ctx.save();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = 'rgba(255, 178, 44, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(BLEED_OFFSET, BLEED_OFFSET, BLEED_SIZE, BLEED_SIZE);
+        ctx.setLineDash([]);
+        ctx.strokeStyle = '#FFB22C';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(FRAME_OFFSET, FRAME_OFFSET, FRAME_SIZE, FRAME_SIZE);
+        ctx.restore();
     }, [ready, zoom, rotation, offset]);
+
+    useEffect(() => {
+        setOffset((previous) => {
+            const next = clampOffset(previous);
+            return next.x === previous.x && next.y === previous.y ? previous : next;
+        });
+    }, [zoom, rotation, ready]);
 
     const startDrag = (event) => {
         event.preventDefault();
@@ -51,18 +103,33 @@ const PhotoEditor = ({ src, onCancel, onSave }) => {
     const moveDrag = (event) => {
         if (!dragRef.current) return;
         const point = event.touches?.[0] || event;
-        setOffset({
+        setOffset(clampOffset({
             x: dragRef.current.offset.x + point.clientX - dragRef.current.x,
             y: dragRef.current.offset.y + point.clientY - dragRef.current.y,
-        });
+        }));
     };
 
     const stopDrag = () => { dragRef.current = null; };
 
     const save = () => {
-        const canvas = canvasRef.current;
-        if (!canvas || !ready) return;
-        canvas.toBlob((blob) => {
+        const image = imageRef.current;
+        if (!image || !ready) return;
+        const output = document.createElement('canvas');
+        output.width = FRAME_SIZE;
+        output.height = FRAME_SIZE;
+        const ctx = output.getContext('2d');
+        ctx.fillStyle = '#101217';
+        ctx.fillRect(0, 0, FRAME_SIZE, FRAME_SIZE);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, FRAME_SIZE, FRAME_SIZE);
+        ctx.clip();
+        ctx.translate(FRAME_SIZE / 2 + offset.x, FRAME_SIZE / 2 + offset.y);
+        ctx.rotate((rotation * Math.PI) / 180);
+        const coverScale = Math.max(FRAME_SIZE / image.width, FRAME_SIZE / image.height) * zoom;
+        ctx.drawImage(image, -(image.width * coverScale) / 2, -(image.height * coverScale) / 2, image.width * coverScale, image.height * coverScale);
+        ctx.restore();
+        output.toBlob((blob) => {
             if (!blob) return;
             const reader = new FileReader();
             reader.onload = () => onSave(reader.result);
@@ -82,6 +149,7 @@ const PhotoEditor = ({ src, onCancel, onSave }) => {
                 </div>
 
                 <div className="flex justify-center">
+                    <div className="relative">
                     <canvas
                         ref={canvasRef}
                         width={SIZE}
@@ -95,6 +163,10 @@ const PhotoEditor = ({ src, onCancel, onSave }) => {
                         onTouchEnd={stopDrag}
                         className="w-72 h-72 sm:w-80 sm:h-80 rounded-2xl border-2 border-white/30 cursor-grab active:cursor-grabbing touch-none"
                     />
+                    <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-2">
+                        <span className="rounded-full bg-black/70 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-brand-yellow">Crop frame · bleed outside</span>
+                    </div>
+                    </div>
                 </div>
 
                 {error && <p className="text-xs font-bold text-[var(--danger-color)] mt-3">{error}</p>}
