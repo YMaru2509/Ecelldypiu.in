@@ -1406,6 +1406,17 @@ const QrCodeModal = ({ link, onClose, showToast }) => {
 
 // --- LINK DETAILED ANALYTICS STATS MODAL ---
 const LinkStatsModal = ({ link, onClose }) => {
+    useEffect(() => {
+        const previousOverflow = document.body.style.overflow;
+        const previousOverscroll = document.body.style.overscrollBehavior;
+        document.body.style.overflow = 'hidden';
+        document.body.style.overscrollBehavior = 'none';
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.body.style.overscrollBehavior = previousOverscroll;
+        };
+    }, []);
+
     const rawOpens = link.totalOpens || link.clicks || 0;
     const rawWentBack = link.wentBack || 0;
     const rawRedirectCompleted = link.redirectCompleted || 0;
@@ -1437,8 +1448,12 @@ const LinkStatsModal = ({ link, onClose }) => {
         : `https://ecell.dypiu.ac.in/s/${link.slug}`;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-zinc-900 border-4 border-white rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-[8px_8px_0px_#FFB22C] space-y-6 my-auto">
+        <div className="fixed inset-0 z-50 h-[100dvh] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto overscroll-contain">
+            <div
+                className="bg-zinc-900 border-4 border-white rounded-2xl p-6 max-w-3xl w-full max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain shadow-[8px_8px_0px_#FFB22C] space-y-6 my-auto"
+                onWheel={(event) => event.stopPropagation()}
+                onTouchMove={(event) => event.stopPropagation()}
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                     <div>

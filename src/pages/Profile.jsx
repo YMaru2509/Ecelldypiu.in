@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { getMembershipDuration, getMilestone } from '../utils/membershipDuration';
 import { renderCertificateToCanvas, downloadCanvasAsPng, memberToFieldValues, appreciationFieldValues } from '../utils/certificateCanvas';
-import { resizeImageWithBudget } from '../utils/imageResize';
+import PhotoEditor from '../components/PhotoEditor';
 import {
     User, Phone, GraduationCap, Calendar, Building, Edit2, LogOut,
     CheckCircle2, Award, CalendarDays, Sparkles, Clock, Save, X, Loader2,
@@ -111,7 +111,7 @@ const Profile = () => {
         bio: ''
     });
     const [editPhotoDataUrl, setEditPhotoDataUrl] = useState('');
-    const [editPhotoPosition, setEditPhotoPosition] = useState({ x: 50, y: 50 });
+    const [photoEditorSrc, setPhotoEditorSrc] = useState('');
     const [photoError, setPhotoError] = useState('');
 
     const [saving, setSaving] = useState(false);
@@ -223,7 +223,7 @@ const Profile = () => {
             bio: userProfile?.bio || ''
         });
         setEditPhotoDataUrl('');
-        setEditPhotoPosition({ x: Number(userProfile?.avatarPosition?.x) || 50, y: Number(userProfile?.avatarPosition?.y) || 50 });
+        setPhotoEditorSrc('');
         setPhotoError('');
         setIsEditing(true);
         setSaveSuccess('');
@@ -235,7 +235,9 @@ const Profile = () => {
         if (!file) return;
         setPhotoError('');
         try {
-            setEditPhotoDataUrl(await resizeImageWithBudget(file));
+            const reader = new FileReader();
+            reader.onload = () => setPhotoEditorSrc(reader.result);
+            reader.readAsDataURL(file);
         } catch (err) {
             setPhotoError(err.message || 'Could not process that image. Try a different file.');
         }
@@ -265,7 +267,7 @@ const Profile = () => {
                 bio: editForm.bio.trim()
             };
             if (editPhotoDataUrl) payload.avatarUrl = editPhotoDataUrl;
-            payload.avatarPosition = editPhotoPosition;
+            payload.avatarPosition = { x: 50, y: 50 };
 
             await updateProfileData(payload);
 
@@ -473,7 +475,7 @@ const Profile = () => {
                                 <div className="flex items-center gap-4">
                                     <div className="w-16 h-16 rounded-xl bg-[var(--bg-secondary)] border-2 border-zinc-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                                         {editPhotoDataUrl || userProfile.avatarUrl ? (
-                                            <img src={editPhotoDataUrl || userProfile.avatarUrl} alt="Preview" style={{ objectPosition: `${editPhotoPosition.x}% ${editPhotoPosition.y}%` }} className="w-full h-full object-cover" />
+                                            <img src={editPhotoDataUrl || userProfile.avatarUrl} alt="Preview" className="w-full h-full object-cover" />
                                         ) : (
                                             <Camera className="w-6 h-6 text-zinc-600" />
                                         )}
@@ -490,18 +492,7 @@ const Profile = () => {
                                         {photoError && <p className="text-xs text-[var(--danger-color)] mt-1">{photoError}</p>}
                                     </div>
                                 </div>
-                                {(editPhotoDataUrl || userProfile.avatarUrl) && (
-                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md">
-                                        <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
-                                            Horizontal alignment: {editPhotoPosition.x}%
-                                            <input type="range" min="0" max="100" value={editPhotoPosition.x} onChange={(e) => setEditPhotoPosition((p) => ({ ...p, x: Number(e.target.value) }))} className="w-full accent-brand-yellow" />
-                                        </label>
-                                        <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
-                                            Vertical alignment: {editPhotoPosition.y}%
-                                            <input type="range" min="0" max="100" value={editPhotoPosition.y} onChange={(e) => setEditPhotoPosition((p) => ({ ...p, y: Number(e.target.value) }))} className="w-full accent-brand-yellow" />
-                                        </label>
-                                    </div>
-                                )}
+                                {(editPhotoDataUrl || userProfile.avatarUrl) && <p className="text-[10px] text-[var(--text-muted)] mt-2">Use Change Photo to crop, rotate, resize and position the image.</p>}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -791,6 +782,13 @@ const Profile = () => {
                     </div>
                 </div>
             </div>
+            {photoEditorSrc && (
+                <PhotoEditor
+                    src={photoEditorSrc}
+                    onCancel={() => setPhotoEditorSrc('')}
+                    onSave={(dataUrl) => { setEditPhotoDataUrl(dataUrl); setPhotoEditorSrc(''); }}
+                />
+            )}
         </div>
     );
 };

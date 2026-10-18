@@ -7,7 +7,7 @@ import { MODULES, PERMISSION_LEVELS, isSystemOwner, hasPermission } from '../../
 import { usePanelAccess } from '../../context/panelAccessContext';
 import TeamRosterControl from '../../components/TeamRosterControl';
 import { adminAuthHeaders } from '../../utils/adminAuth';
-import { resizeImageWithBudget } from '../../utils/imageResize';
+import PhotoEditor from '../../components/PhotoEditor';
 
 // Permanently capped to these two accounts — mirrors api/panel-users.js's
 // PERMANENT_SYSTEM_OWNER_UIDS. The server is the real enforcement point; this
@@ -295,6 +295,7 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
     const [publicTitle, setPublicTitle] = useState(member.publicTitle || '');
     const [avatarUrl, setAvatarUrl] = useState(member.avatarUrl || '');
     const [avatarPosition, setAvatarPosition] = useState({ x: Number(member.avatarPosition?.x) || 50, y: Number(member.avatarPosition?.y) || 50 });
+    const [photoEditorSrc, setPhotoEditorSrc] = useState('');
     const [ecellJoinDate, setEcellJoinDate] = useState(member.ecellJoinDate?.slice?.(0, 10) || '');
     const [membershipStatus, setMembershipStatus] = useState(member.membershipStatus || 'active');
     const [displayStatus, setDisplayStatus] = useState(member.displayStatus || 'active');
@@ -318,7 +319,9 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
         const file = event.target.files?.[0];
         if (!file) return;
         try {
-            setAvatarUrl(await resizeImageWithBudget(file));
+            const reader = new FileReader();
+            reader.onload = () => setPhotoEditorSrc(reader.result);
+            reader.readAsDataURL(file);
         } catch (err) {
             setError(err.message || 'Could not process that image.');
         }
@@ -375,8 +378,7 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
                         </div>
                         <div className="space-y-2 flex-1">
                             <input type="file" accept="image/*" onChange={handleAvatarChange} className="block w-full text-xs text-[var(--text-secondary)]" />
-                            <label className="block text-[10px] uppercase text-[var(--text-muted)]">Horizontal: {avatarPosition.x}% <input type="range" min="0" max="100" value={avatarPosition.x} onChange={(e) => setAvatarPosition((p) => ({ ...p, x: Number(e.target.value) }))} className="w-full accent-brand-yellow" /></label>
-                            <label className="block text-[10px] uppercase text-[var(--text-muted)]">Vertical: {avatarPosition.y}% <input type="range" min="0" max="100" value={avatarPosition.y} onChange={(e) => setAvatarPosition((p) => ({ ...p, y: Number(e.target.value) }))} className="w-full accent-brand-yellow" /></label>
+                            <p className="text-[10px] text-[var(--text-muted)]">The photo editor opens after selecting an image.</p>
                         </div>
                     </div>
                 </div>
@@ -488,6 +490,13 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
                     </button>
                 </div>
             </div>
+            {photoEditorSrc && (
+                <PhotoEditor
+                    src={photoEditorSrc}
+                    onCancel={() => setPhotoEditorSrc('')}
+                    onSave={(dataUrl) => { setAvatarUrl(dataUrl); setAvatarPosition({ x: 50, y: 50 }); setPhotoEditorSrc(''); }}
+                />
+            )}
         </div>
     );
 };
