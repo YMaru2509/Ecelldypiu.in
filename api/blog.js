@@ -562,11 +562,7 @@ async function handleDeleteBlog(req, res) {
 }
 
 async function handleSendNotification(req, res) {
-    // Verify admin API key for security
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
+    if (!(await callerCan(req, 'mass-mail', 'manage'))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

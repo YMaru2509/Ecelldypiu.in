@@ -31,16 +31,6 @@ try {
     console.warn('⚠️  Firebase not available for event API:', e.message);
 }
 
-function isAuthorized(authHeader) {
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || !authHeader) return false;
-    const token = authHeader.replace(/^Bearer\s+/, '').trim().replace(/^["'`]|["'`]$/g, '');
-    const cleanAdminKey = adminKey.trim().replace(/^["'`]|["'`]$/g, '');
-    if (token === cleanAdminKey) return true;
-    const validKeys = cleanAdminKey.split(',').map(k => k.trim().replace(/^["'`]|["'`]$/g, ''));
-    return validKeys.includes(token);
-}
-
 function getEventKeywords(eventId) {
     return eventId.split(/[-_]/).filter(w => w.length > 2 && !['for', 'the', 'and'].includes(w));
 }
@@ -213,8 +203,7 @@ export default async function handler(req, res) {
 }
 
 async function handleListApplications(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'team', 'view'))) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -560,16 +549,10 @@ async function handleSubmitApplication(req, res) {
 }
 
 async function handleVerifyAdmin(req, res) {
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-
-    if (!adminKey) return res.status(500).json({ error: 'Admin key not configured on server' });
-
-    if (!isAuthorized(authHeader)) {
-        return res.status(401).json({ error: 'Unauthorized', message: 'Invalid admin key' });
-    }
-
-    return res.status(200).json({ success: true, message: 'Authenticated successfully' });
+    const allowed = await callerCanAny(req, [['team', 'view'], ['events', 'view']]);
+    return allowed
+        ? res.status(200).json({ success: true, message: 'Authenticated successfully' })
+        : res.status(401).json({ error: 'Unauthorized', message: 'A Firebase staff session is required' });
 }
 
 async function handleImportAttendees(req, res) {
@@ -603,18 +586,10 @@ async function handleGetEvents(req, res) {
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
     try {
-        const authHeader = req.headers.authorization;
-        let isAdmin = isAuthorized(authHeader);
+        let isAdmin = await callerCan(req, 'events', 'view');
         // A staff member signed in with their own account (not the shared admin
         // key) who may view events sees internal events too. Anonymous visitors
         // send no header and skip this entirely.
-        if (!isAdmin && authHeader?.startsWith('Bearer ')) {
-            try {
-                isAdmin = hasPermission(await getCallerMember(req), 'events', 'view');
-            } catch {
-                isAdmin = false;
-            }
-        }
         const { slug } = req.query || {};
 
         // Single-event lookup for the public event detail page — docId is
@@ -721,8 +696,7 @@ async function handleDeleteEvent(req, res) {
 }
 
 async function handleUpdateApplication(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!isAuthorized(authHeader)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'team', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 
@@ -744,9 +718,7 @@ async function handleUpdateApplication(req, res) {
 }
 
 async function handleDeleteApplication(req, res) {
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) return res.status(401).json({ error: 'Unauthorized' });
+    if (!(await callerCan(req, 'team', 'manage'))) return res.status(401).json({ error: 'Unauthorized' });
 
     if (!db) return res.status(503).json({ error: 'Database not available' });
 

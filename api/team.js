@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { callerCan } from './_lib/rbac.js';
 
 let db = null;
 
@@ -56,14 +57,7 @@ export default async function handler(req, res) {
 }
 
 // Check Admin API Authorization
-function checkAuth(req) {
-    const authHeader = req.headers.authorization;
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || authHeader !== `Bearer ${adminKey}`) {
-        return false;
-    }
-    return true;
-}
+const checkAuth = (req) => callerCan(req, 'team', 'manage');
 
 async function handleGetTeam(req, res) {
     try {
@@ -111,7 +105,7 @@ async function handleGetTeam(req, res) {
 }
 
 async function handleSaveTeam(req, res) {
-    if (!checkAuth(req)) {
+    if (!(await checkAuth(req))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -213,7 +207,7 @@ async function handleSaveTeam(req, res) {
 }
 
 async function handleDeleteTeam(req, res) {
-    if (!checkAuth(req)) {
+    if (!(await checkAuth(req))) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

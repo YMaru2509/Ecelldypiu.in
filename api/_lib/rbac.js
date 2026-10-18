@@ -18,42 +18,8 @@ export class RbacError extends Error {
     }
 }
 
-// Synthetic actor used when the caller presents the shared /admin panel key
-// instead of a personal Firebase session — deliberate: Attendance Management is
-// reached from /admin now and is gated by the same admin credentials as the
-// rest of it, by explicit choice. Carries full system_owner-equivalent access.
-// There is no individual identity behind this key, so actions taken this way
-// are attributed to "Admin" generically in audit logs/approval history, not to
-// a specific person — that tradeoff was confirmed deliberately, not an oversight.
-const ADMIN_PANEL_ACTOR = {
-    uid: 'admin-panel',
-    name: 'Admin',
-    email: 'admin@ecelldypiu.in',
-    roles: ['system_owner'],
-    permissions: {},
-    verticals: [],
-    isAdminPanelActor: true,
-};
-
-// Mirrors api/admin-users.js's isApiKeyValid: ADMIN_API_KEY may be a single
-// value or a comma-separated list, and env vars pasted into a dashboard
-// commonly pick up stray wrapping quotes or whitespace — strip both before
-// comparing. A naive `token === process.env.ADMIN_API_KEY` here previously
-// caused real admin-panel logins to fail with "Invalid or expired session"
-// whenever the raw env var carried such whitespace/quoting, even though the
-// key was "correct" and the login endpoint's own check (which already
-// normalizes) accepted it.
-function isAdminApiKey(token) {
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey || !token) return false;
-    const strip = (s) => s.trim().replace(/^["'`]|["'`]$/g, '');
-    const cleanToken = strip(token);
-    return strip(adminKey).split(',').map(strip).includes(cleanToken);
-}
-
 // Verifies the bearer credential and loads the caller's members/{uid} doc —
-// or, if the bearer token is the shared ADMIN_API_KEY, returns the synthetic
-// admin-panel actor instead. Throws RbacError(401) if the token is missing/
+// from the authenticated Firebase account. Throws RbacError(401) if the token is missing/
 // invalid, RbacError(403) if there's no member profile or the account is disabled.
 export async function getCallerMember(req) {
     const authHeader = req.headers.authorization;
@@ -61,10 +27,6 @@ export async function getCallerMember(req) {
         throw new RbacError(401, 'Missing or invalid Authorization header');
     }
     const token = authHeader.slice('Bearer '.length);
-
-    if (isAdminApiKey(token)) {
-        return ADMIN_PANEL_ACTOR;
-    }
 
     let decoded;
     try {

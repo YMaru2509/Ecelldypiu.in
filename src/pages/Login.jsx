@@ -53,7 +53,16 @@ const Login = () => {
             navigate(destination, { replace: true });
         } catch (err) {
             console.error('Login error:', err);
-            setError('Invalid email or password.');
+            const code = err?.code || '';
+            if (code === 'auth/user-disabled') {
+                setError('This account has been disabled. Please contact a system owner.');
+            } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+                setError('Invalid email or password. If you previously used /admin, use the Firebase account created for you or reset its password here.');
+            } else if (code === 'auth/too-many-requests') {
+                setError('Too many failed attempts. Please wait a few minutes and try again.');
+            } else {
+                setError('Unable to sign in right now. Please try again.');
+            }
         } finally {
             setLoading(false);
         }
