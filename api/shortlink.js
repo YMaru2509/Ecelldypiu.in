@@ -164,29 +164,16 @@ async function handleRedirect(req, res, slugFromQuery) {
         const referrer = detectReferrer(clientRef);
         const todayStr = new Date().toISOString().split('T')[0];
 
-        const logEntry = {
-            id: Math.random().toString(36).substring(2, 9),
-            timestamp: new Date().toISOString(),
-            event: 'redirect_completed',
-            device,
-            browser,
-            referrer
-        };
-
-        const existingLogs = data.recentLogs || [];
-        const updatedLogs = [logEntry, ...existingLogs].slice(0, 50);
-
-        // Increment analytics counters and log activity asynchronously
+        // Count the link open here. Completion is recorded separately by the
+        // redirect page's beacon, so a successful redirect is never counted twice.
         await docRef.update({
             clicks: FieldValue.increment(1),
             totalOpens: FieldValue.increment(1),
-            redirectCompleted: FieldValue.increment(1),
             lastClickedAt: Timestamp.now(),
             [`devices.${device}`]: FieldValue.increment(1),
             [`browsers.${browser}`]: FieldValue.increment(1),
             [`referrers.${referrer}`]: FieldValue.increment(1),
-            [`dailyClicks.${todayStr}`]: FieldValue.increment(1),
-            recentLogs: updatedLogs
+            [`dailyClicks.${todayStr}`]: FieldValue.increment(1)
         });
 
         // Return ONLY success, originalUrl, and destinationName
@@ -255,7 +242,7 @@ async function handleTrackEvent(req, res) {
 
 // ACTION: create (PROTECTED)
 async function handleCreate(req, res) {
-    const { originalUrl, destinationName, slug } = req.body || {};
+    const { originalUrl, destinationName, slug, aliases } = req.body || {};
 
     if (!isValidUrl(originalUrl)) {
         return res.status(400).json({ error: 'Invalid URL. Please enter a valid URL starting with http:// or https://' });
@@ -267,8 +254,7 @@ async function handleCreate(req, res) {
 
     const trimmedUrl = originalUrl.trim();
     const trimmedDestName = destinationName.trim();
-    let finalSlug = '';
-    let isCustomSlug = false;
+    let requestedSlugs = [];
 
     if (slug && slug.trim()) {
         const cleanSlug = slug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
@@ -276,15 +262,26 @@ async function handleCreate(req, res) {
             return res.status(400).json({ error: 'Custom slug contains invalid characters' });
         }
 
-        // Check uniqueness
-        const docSnap = await db.collection('shortlinks').doc(cleanSlug).get();
-        if (docSnap.exists) {
-            return res.status(409).json({ error: 'Slug already exists. Please choose a different custom slug.' });
-        }
+        requestedSlugs.push(cleanSlug);
+    }
 
-        finalSlug = cleanSlug;
-        isCustomSlug = true;
-    } else {
+    if (Array.isArray(aliases)) {
+        for (const alias of aliases) {
+            if (typeof alias !== 'string' || !alias.trim()) continue;
+            const cleanAlias = alias.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            if (!cleanAlias) {
+                return res.status(400).json({ error: 'Each alias must contain letters, numbers, hyphens, or underscores.' });
+            }
+            requestedSlugs.push(cleanAlias);
+        }
+    }
+
+    requestedSlugs = [...new Set(requestedSlugs)];
+    if (requestedSlugs.length > 20) {
+        return res.status(400).json({ error: 'You can create at most 20 aliases at once.' });
+    }
+
+    if (requestedSlugs.length === 0) {
         // Auto-generate 6-char alphanumeric slug, retry up to 5 times on collision
         let attempts = 0;
         let generated = '';
@@ -303,15 +300,26 @@ async function handleCreate(req, res) {
             return res.status(409).json({ error: 'Failed to generate a unique short slug after multiple attempts. Please try again.' });
         }
 
-        finalSlug = generated;
-        isCustomSlug = false;
+        requestedSlugs.push(generated);
     }
 
+    const existingSlugs = await Promise.all(requestedSlugs.map((candidate) =>
+        db.collection('shortlinks').doc(candidate).get()
+    ));
+    if (existingSlugs.some((snapshot) => snapshot.exists)) {
+        return res.status(409).json({ error: 'One or more aliases already exist. Please choose different aliases.' });
+    }
+
+    const finalSlug = requestedSlugs[0];
+    const isCustomSlug = Boolean(slug && slug.trim());
+
     const now = Timestamp.now();
-    const docData = {
-        slug: finalSlug,
+    const aliasGroup = finalSlug;
+    const baseDocData = {
         originalUrl: trimmedUrl,
         destinationName: trimmedDestName,
+        aliasGroup,
+        aliases: requestedSlugs,
         createdAt: now,
         createdBy: 'admin',
         clicks: 0,
@@ -328,7 +336,9 @@ async function handleCreate(req, res) {
         customSlug: isCustomSlug
     };
 
-    await db.collection('shortlinks').doc(finalSlug).set(docData);
+    await Promise.all(requestedSlugs.map((alias) =>
+        db.collection('shortlinks').doc(alias).set({ ...baseDocData, slug: alias })
+    ));
 
     const createdAtIso = now.toDate().toISOString();
 
@@ -338,6 +348,8 @@ async function handleCreate(req, res) {
         shortUrl: `https://ecell.dypiu.ac.in/s/${finalSlug}`,
         originalUrl: trimmedUrl,
         destinationName: trimmedDestName,
+        aliases: requestedSlugs,
+        links: requestedSlugs.map((alias) => ({ slug: alias, shortUrl: `https://ecell.dypiu.ac.in/s/${alias}` })),
         clicks: 0,
         totalOpens: 0,
         redirectCompleted: 0,
@@ -372,7 +384,9 @@ async function handleList(req, res) {
             recentLogs: data.recentLogs || [],
             lastClickedAt: data.lastClickedAt?.toDate ? data.lastClickedAt.toDate().toISOString() : (data.lastClickedAt || null),
             isActive: data.isActive !== undefined ? data.isActive : true,
-            customSlug: data.customSlug || false
+            customSlug: data.customSlug || false,
+            aliasGroup: data.aliasGroup || data.slug || doc.id,
+            aliases: Array.isArray(data.aliases) && data.aliases.length > 0 ? data.aliases : [data.slug || doc.id]
         });
     });
 

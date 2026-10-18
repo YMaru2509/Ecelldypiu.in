@@ -921,7 +921,7 @@ async function handleCreateCheckinSession(req, res) {
                 const email = doc.data().email;
                 if (!email) continue;
                 try {
-                    await sendEmail(email, subject, html, provider || 'resend');
+                    await sendEmail(email, subject, html, provider || 'zeptomail');
                     notified++;
                 } catch (err) {
                     console.error(`Check-in notify failed for ${email}: ${err.message}`);

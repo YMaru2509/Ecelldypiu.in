@@ -151,6 +151,14 @@ const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = 
     };
     const [sendingInterviewMail, setSendingInterviewMail] = useState(false);
 
+    // Every bulk send must be explicitly confirmed with the chosen provider and
+    // the operator's password immediately before dispatch.
+    const [showMailDispatchConfirm, setShowMailDispatchConfirm] = useState(false);
+    const [mailConfirmProvider, setMailConfirmProvider] = useState('zeptomail');
+    const [mailDispatchPassword, setMailDispatchPassword] = useState('');
+    const [mailDispatchPasswordError, setMailDispatchPasswordError] = useState('');
+    const [mailConfirmAction, setMailConfirmAction] = useState(null);
+
     // Mailer state variables
     const [mailerTo, setMailerTo] = useState('all'); // 'all', 'selected', 'manual'
     const [mailerManualEmails, setMailerManualEmails] = useState('');
@@ -514,8 +522,16 @@ const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = 
     };
 
     // Dispatch Emails via Mailer API
-    const handleSendMailerEmail = async (e) => {
+    const handleSendMailerEmail = (e) => {
         e.preventDefault();
+        setMailConfirmProvider(mailerProvider);
+        setMailConfirmAction('mailer');
+        setMailDispatchPassword('');
+        setMailDispatchPasswordError('');
+        setShowMailDispatchConfirm(true);
+    };
+
+    const dispatchMailerEmail = async () => {
         setLoading(true);
         setError(null);
         setResult(null);
@@ -551,7 +567,7 @@ const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = 
                     subject: mailerSubject,
                     data: payloadData,
                     selectedSubscribers: selectedSubs,
-                    provider: mailerProvider,
+                    provider: mailConfirmProvider,
                     attachments: isComposer ? composerAttachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })) : [],
                     cc: isComposer ? composerCc.map(c => ({ name: c.name, email: c.email })) : [],
                     bcc: isComposer ? composerBcc.map(b => ({ name: b.name, email: b.email })) : []
@@ -597,6 +613,42 @@ const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = 
             setError(err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const requestInterviewMail = () => {
+        if (selectedApplications.length === 0) {
+            setError('Please select at least one applicant.');
+            return;
+        }
+        setMailConfirmProvider(interviewData.provider);
+        setMailConfirmAction('interview');
+        setMailDispatchPassword('');
+        setMailDispatchPasswordError('');
+        setShowMailDispatchConfirm(true);
+    };
+
+    const confirmMailDispatch = async () => {
+        const password = mailDispatchPassword.trim();
+        if (!password) {
+            setMailDispatchPasswordError('Enter your password to continue.');
+            return;
+        }
+        // Standalone admin sessions retain the password used to authenticate.
+        // Embedded staff sessions still require a non-empty confirmation value;
+        // their Firebase credential remains the server-side authorization gate.
+        if (!embedded && adminPassword && password !== adminPassword.trim() && password !== adminKey.trim()) {
+            setMailDispatchPasswordError('Incorrect password.');
+            return;
+        }
+        const action = mailConfirmAction;
+        setShowMailDispatchConfirm(false);
+        setMailDispatchPassword('');
+        setMailDispatchPasswordError('');
+        if (action === 'mailer') {
+            await dispatchMailerEmail();
+        } else if (action === 'interview') {
+            await dispatchInterviewScheduleEmails();
         }
     };
 
@@ -1664,8 +1716,7 @@ const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = 
 </html>`;
     };
 
-    const handleSendInterviewScheduleEmails = async (e) => {
-        if (e && e.preventDefault) e.preventDefault();
+    const dispatchInterviewScheduleEmails = async () => {
         if (selectedApplications.length === 0) {
             setError('Please select at least one applicant.');
             return;
@@ -1717,7 +1768,7 @@ const AdminPortal = ({ embedded = false, initialTab = 'dashboard', credential = 
                     subject: interviewData.subject,
                     data: payloadData,
                     selectedSubscribers,
-                    provider: interviewData.provider
+                    provider: mailConfirmProvider
                 })
             });
 
@@ -4728,6 +4779,54 @@ More content..."
                 </div>
             )}
 
+            {showMailDispatchConfirm && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+                    <div className="bg-zinc-900 border-4 border-brand-yellow rounded-2xl max-w-md w-full p-6 shadow-[10px_10px_0px_#FFB22C]">
+                        <div className="flex items-start justify-between gap-4 mb-5">
+                            <div>
+                                <h2 className="text-xl font-black uppercase text-white">Confirm Mail Dispatch</h2>
+                                <p className="text-sm text-zinc-400 mt-1">Choose the mail bridge and re-enter your password before sending.</p>
+                            </div>
+                            <button type="button" onClick={() => setShowMailDispatchConfirm(false)} className="text-zinc-500 hover:text-white">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <label className="block text-xs font-bold uppercase text-zinc-400 mb-2">Mail bridge</label>
+                        <MailProviderSelect
+                            value={mailConfirmProvider}
+                            onChange={(value) => {
+                                setMailConfirmProvider(value);
+                                if (mailConfirmAction === 'mailer') setMailerProvider(value);
+                                if (mailConfirmAction === 'interview') setInterviewData(prev => ({ ...prev, provider: value }));
+                            }}
+                            className="w-full mb-4"
+                        />
+                        <label className="block text-xs font-bold uppercase text-zinc-400 mb-2">Password</label>
+                        <input
+                            type="password"
+                            value={mailDispatchPassword}
+                            onChange={(e) => {
+                                setMailDispatchPassword(e.target.value);
+                                setMailDispatchPasswordError('');
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') confirmMailDispatch(); }}
+                            autoFocus
+                            className={`w-full bg-black border-2 p-3 text-white rounded-lg focus:outline-none ${mailDispatchPasswordError ? 'border-red-500' : 'border-zinc-700 focus:border-brand-yellow'}`}
+                            placeholder="Enter password"
+                        />
+                        {mailDispatchPasswordError && <p className="text-red-400 text-xs font-bold mt-2">{mailDispatchPasswordError}</p>}
+                        <div className="flex justify-end gap-3 mt-6">
+                            <button type="button" onClick={() => setShowMailDispatchConfirm(false)} className="px-5 py-2.5 bg-zinc-800 text-zinc-300 font-bold uppercase text-xs rounded-xl hover:bg-zinc-700">
+                                Cancel
+                            </button>
+                            <button type="button" onClick={confirmMailDispatch} className="px-5 py-2.5 bg-brand-yellow text-black font-black uppercase text-xs rounded-xl hover:bg-white flex items-center gap-2">
+                                <Send className="w-4 h-4" /> Send Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Interview Schedule & Email Editor Modal */}
             {showInterviewModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
@@ -5072,7 +5171,7 @@ More content..."
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={handleSendInterviewScheduleEmails}
+                                    onClick={requestInterviewMail}
                                     disabled={sendingInterviewMail || selectedApplications.length === 0}
                                     className="px-6 py-2.5 bg-brand-yellow text-black font-black uppercase text-xs rounded-xl hover:bg-white transition-colors border-2 border-black flex items-center gap-2 disabled:opacity-50 shadow-[4px_4px_0px_#fff]"
                                 >

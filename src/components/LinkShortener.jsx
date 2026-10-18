@@ -8,7 +8,7 @@ import {
     PieChart, Smartphone, Laptop, Tablet, Globe, Activity
 } from 'lucide-react';
 
-const LinkShortener = ({ adminKey, onBack }) => {
+const LinkShortener = ({ adminKey, onBack, onViewLink, initialSlug }) => {
     // Links data state
     const [links, setLinks] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -24,6 +24,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
     const [longUrl, setLongUrl] = useState('');
     const [destinationName, setDestinationName] = useState('');
     const [customSlug, setCustomSlug] = useState('');
+    const [aliasSlugs, setAliasSlugs] = useState('');
     const [creating, setCreating] = useState(false);
     const [createdLink, setCreatedLink] = useState(null);
     const [formValidationError, setFormValidationError] = useState('');
@@ -95,6 +96,12 @@ const LinkShortener = ({ adminKey, onBack }) => {
         fetchLinks();
     }, [fetchLinks]);
 
+    useEffect(() => {
+        if (!initialSlug || loading || statsModalLink || links.length === 0) return;
+        const matchingLink = links.find((link) => link.slug === initialSlug.trim().toLowerCase());
+        if (matchingLink) setStatsModalLink(matchingLink);
+    }, [initialSlug, loading, links, statsModalLink]);
+
     // Summary Statistics
     const totalClicks = useMemo(() => {
         return links.reduce((sum, item) => sum + (item.clicks || 0), 0);
@@ -139,7 +146,8 @@ const LinkShortener = ({ adminKey, onBack }) => {
                     action: 'create',
                     originalUrl: longUrl.trim(),
                     destinationName: destTrimmed,
-                    slug: customSlug.trim()
+                    slug: customSlug.trim(),
+                    aliases: aliasSlugs.split(',').map((alias) => alias.trim()).filter(Boolean)
                 })
             });
 
@@ -152,6 +160,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
             setLongUrl('');
             setDestinationName('');
             setCustomSlug('');
+            setAliasSlugs('');
             showToast('Shortlink created successfully!');
             fetchLinks(true);
         } catch (err) {
@@ -169,6 +178,11 @@ const LinkShortener = ({ adminKey, onBack }) => {
             setTimeout(() => setCopiedSlug(null), 2000);
         }
         showToast('Copied short URL to clipboard!');
+    };
+
+    const openStats = (link) => {
+        if (onViewLink) onViewLink(link);
+        else setStatsModalLink(link);
     };
 
     // Handle Edit Link
@@ -506,6 +520,20 @@ const LinkShortener = ({ adminKey, onBack }) => {
                             />
                             <p className="text-zinc-500 text-xs mt-1">Leave empty to auto-generate</p>
                         </div>
+
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-gray-300 mb-2">
+                                Additional Aliases <span className="text-gray-500">(Optional)</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={aliasSlugs}
+                                onChange={(e) => setAliasSlugs(e.target.value)}
+                                placeholder="e.g. apply-now, admissions, join-us"
+                                className="w-full bg-black border-2 border-zinc-700 p-3 text-white rounded-xl focus:border-brand-yellow focus:outline-none transition-colors text-sm"
+                            />
+                            <p className="text-zinc-500 text-xs mt-1">Comma-separated aliases that point to the same destination. Up to 20.</p>
+                        </div>
                     </div>
 
                     {/* Field 4: Create Button */}
@@ -658,7 +686,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                                 {/* Destination Name */}
                                                 <td className="py-4 px-4 font-bold text-white">
                                                     <button
-                                                        onClick={() => setStatsModalLink(link)}
+                                                        onClick={() => openStats(link)}
                                                         className="flex items-center gap-2 hover:text-brand-yellow transition-colors cursor-pointer text-left group"
                                                         title="Click to view detailed analytics"
                                                     >
@@ -671,7 +699,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                                 <td className="py-4 px-4 font-mono font-bold text-brand-yellow">
                                                     <div className="flex items-center gap-2">
                                                         <button
-                                                            onClick={() => setStatsModalLink(link)}
+                                                            onClick={() => openStats(link)}
                                                             className="hover:underline cursor-pointer text-brand-yellow"
                                                             title="Click to view detailed analytics"
                                                         >
@@ -707,7 +735,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                                 {/* Clicks */}
                                                 <td className="py-4 px-4 font-mono">
                                                     <button
-                                                        onClick={() => setStatsModalLink(link)}
+                                                        onClick={() => openStats(link)}
                                                         className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-black hover:bg-zinc-800 hover:border-brand-yellow rounded-lg border border-zinc-700 cursor-pointer transition-colors group"
                                                         title="Click to view detailed analytics"
                                                     >
@@ -738,7 +766,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                                 <td className="py-4 px-4 text-right">
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button
-                                                            onClick={() => setStatsModalLink(link)}
+                                                            onClick={() => openStats(link)}
                                                             className="p-2 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded-lg text-brand-yellow transition-colors cursor-pointer"
                                                             title="Detailed Link Analytics"
                                                         >
@@ -782,7 +810,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                     <div key={link.id || link.slug} className="bg-black border-2 border-zinc-800 rounded-xl p-4 space-y-3">
                                         <div className="flex items-center justify-between">
                                             <button
-                                                onClick={() => setStatsModalLink(link)}
+                                                onClick={() => openStats(link)}
                                                 className="font-bold text-white text-base flex items-center gap-1.5 hover:text-brand-yellow transition-colors cursor-pointer text-left"
                                                 title="Click to view detailed analytics"
                                             >
@@ -799,7 +827,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
                                         </div>
 
                                         <button
-                                            onClick={() => setStatsModalLink(link)}
+                                            onClick={() => openStats(link)}
                                             className="text-xs text-brand-yellow font-mono font-bold hover:underline cursor-pointer text-left block"
                                             title="Click to view detailed analytics"
                                         >
@@ -815,7 +843,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
 
                                         <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-zinc-800">
                                             <button
-                                                onClick={() => setStatsModalLink(link)}
+                                                onClick={() => openStats(link)}
                                                 className="flex items-center gap-1 font-mono hover:text-brand-yellow cursor-pointer"
                                                 title="Click to view detailed analytics"
                                             >
@@ -825,7 +853,7 @@ const LinkShortener = ({ adminKey, onBack }) => {
 
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    onClick={() => setStatsModalLink(link)}
+                                                    onClick={() => openStats(link)}
                                                     className="p-1.5 bg-zinc-800 hover:bg-brand-yellow hover:text-[var(--text-on-brand)] rounded text-brand-yellow transition-colors"
                                                     title="Analytics"
                                                 >
@@ -1027,7 +1055,10 @@ const LinkShortener = ({ adminKey, onBack }) => {
             {statsModalLink && (
                 <LinkStatsModal
                     link={statsModalLink}
-                    onClose={() => setStatsModalLink(null)}
+                    onClose={() => {
+                        setStatsModalLink(null);
+                        if (onBack) onBack();
+                    }}
                 />
             )}
         </div>
@@ -1327,10 +1358,7 @@ const LinkStatsModal = ({ link, onClose }) => {
     const rawWentBack = link.wentBack || 0;
     const rawRedirectCompleted = link.redirectCompleted || 0;
 
-    // Normalization: if link has existing clicks prior to track_event, infer completed count
-    const redirectCompleted = rawRedirectCompleted > 0
-        ? rawRedirectCompleted
-        : (rawOpens > 0 ? Math.max(1, rawOpens - rawWentBack) : 0);
+    const redirectCompleted = rawRedirectCompleted;
 
     const totalOpens = Math.max(rawOpens, redirectCompleted + rawWentBack);
     const wentBack = rawWentBack;
@@ -1338,46 +1366,16 @@ const LinkStatsModal = ({ link, onClose }) => {
     const completionRate = totalOpens > 0 ? Math.round((redirectCompleted / totalOpens) * 100) : 0;
     const bounceRate = totalOpens > 0 ? Math.round((wentBack / totalOpens) * 100) : 0;
 
-    // Devices breakdown (with baseline fallback for historical links)
-    let devices = link.devices && Object.keys(link.devices).length > 0 ? link.devices : {};
-    if (Object.keys(devices).length === 0 && totalOpens > 0) {
-        const mob = Math.ceil(totalOpens * 0.65);
-        const desk = Math.max(0, totalOpens - mob);
-        devices = { Mobile: mob, Desktop: desk };
-    }
+    const devices = link.devices && Object.keys(link.devices).length > 0 ? link.devices : {};
     const totalDeviceCount = Object.values(devices).reduce((a, b) => a + b, 0) || 1;
 
-    // Browsers breakdown (with baseline fallback for historical links)
-    let browsers = link.browsers && Object.keys(link.browsers).length > 0 ? link.browsers : {};
-    if (Object.keys(browsers).length === 0 && totalOpens > 0) {
-        const chr = Math.ceil(totalOpens * 0.7);
-        const saf = Math.max(0, totalOpens - chr);
-        browsers = { Chrome: chr, Safari: saf };
-    }
+    const browsers = link.browsers && Object.keys(link.browsers).length > 0 ? link.browsers : {};
     const totalBrowserCount = Object.values(browsers).reduce((a, b) => a + b, 0) || 1;
 
-    // Referrers breakdown (with baseline fallback for historical links)
-    let referrers = link.referrers && Object.keys(link.referrers).length > 0 ? link.referrers : {};
-    if (Object.keys(referrers).length === 0 && totalOpens > 0) {
-        const dir = Math.ceil(totalOpens * 0.6);
-        const insta = Math.max(0, totalOpens - dir);
-        referrers = { Direct: dir, Instagram: insta };
-    }
+    const referrers = link.referrers && Object.keys(link.referrers).length > 0 ? link.referrers : {};
     const totalReferrerCount = Object.values(referrers).reduce((a, b) => a + b, 0) || 1;
 
-    // Recent activity log (with baseline fallback for historical links)
-    let recentLogs = link.recentLogs || [];
-    if (recentLogs.length === 0 && totalOpens > 0) {
-        const baseTime = new Date(link.lastClickedAt || link.createdAt || Date.now()).getTime();
-        recentLogs = Array.from({ length: Math.min(totalOpens, 10) }, (_, i) => ({
-            id: `historical-${i}`,
-            timestamp: new Date(baseTime - i * 3600000).toISOString(),
-            event: 'redirect_completed',
-            device: i % 2 === 0 ? 'Mobile' : 'Desktop',
-            browser: i % 2 === 0 ? 'Chrome' : 'Safari',
-            referrer: i % 3 === 0 ? 'Instagram' : 'Direct'
-        }));
-    }
+    const recentLogs = link.recentLogs || [];
 
     const fullShortUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/s/${link.slug}`
@@ -1415,6 +1413,16 @@ const LinkStatsModal = ({ link, onClose }) => {
                         </a>
                     </div>
                 </div>
+                {Array.isArray(link.aliases) && link.aliases.length > 1 && (
+                    <div className="bg-black border border-zinc-800 rounded-xl p-4">
+                        <span className="text-gray-400 font-bold uppercase block mb-2">Aliases for this destination:</span>
+                        <div className="flex flex-wrap gap-2">
+                            {link.aliases.map((alias) => (
+                                <span key={alias} className="px-2.5 py-1 rounded-lg bg-zinc-800 text-brand-yellow font-mono text-xs">/s/{alias}</span>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* KPI Metrics Cards (4 Grid) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -1,13 +1,12 @@
 // Unified email sender supporting multiple providers/"mail bridges":
 //   - 'bridge1' / 'bridge2': external mail bridge webhooks (MAIL_BRIDGE_1 / MAIL_BRIDGE_2)
 //   - 'zeptomail': ZeptoMail HTTP API
-//   - 'resend' (default): Resend API
 // Mirrors the provider logic already used by api/certificate.js so every mailer in the
 // admin panel can pick the same set of mail bridges. Attachments are optional and use a
 // permissive shape: { filename, content (base64), contentType }. cc/bcc are optional
 // arrays of { name, email }.
 // Shared by api/mailer.js and api/collaboration.js.
-export async function sendEmail(to, subject, htmlContent, provider = 'resend', attachments = [], cc = [], bcc = []) {
+export async function sendEmail(to, subject, htmlContent, provider = 'zeptomail', attachments = [], cc = [], bcc = []) {
     if (provider === 'bridge1' || provider === 'bridge2') {
         const url = provider === 'bridge1' ? process.env.MAIL_BRIDGE_1 : process.env.MAIL_BRIDGE_2;
         if (!url) {
@@ -49,7 +48,7 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
         return data;
     }
 
-    if (provider === 'zeptomail' || (!process.env.RESEND_API_KEY && process.env.ZEPTOMAIL_API_KEY)) {
+    if (provider === 'zeptomail') {
         if (!process.env.ZEPTOMAIL_API_KEY) {
             throw new Error('ZEPTOMAIL_API_KEY is not set');
         }
@@ -131,39 +130,5 @@ export async function sendEmail(to, subject, htmlContent, provider = 'resend', a
         return response.json();
     }
 
-    // Fallback / default: Resend
-    if (!process.env.RESEND_API_KEY) {
-        throw new Error('No email sending service configured (ZeptoMail or Resend)');
-    }
-
-    const formattedAttachments = (attachments || []).map(att => ({
-        filename: att.filename || att.name || 'attachment',
-        content: att.content || att.base64 || att.data
-    }));
-
-    const toResendAddress = (person) => person.name ? `${person.name} <${person.email}>` : person.email;
-
-    const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            from: process.env.EMAIL_FROM || 'E-Cell DYPIU <noreply@ecelldypiu.in>',
-            to: [to],
-            cc: (cc || []).length > 0 ? cc.map(toResendAddress) : undefined,
-            bcc: (bcc || []).length > 0 ? bcc.map(toResendAddress) : undefined,
-            subject,
-            html: htmlContent,
-            attachments: formattedAttachments.length > 0 ? formattedAttachments : undefined,
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Email send failed: ${JSON.stringify(error)}`);
-    }
-
-    return response.json();
+    throw new Error(`Unsupported mail provider: ${provider}`);
 }

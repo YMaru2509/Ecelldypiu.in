@@ -189,6 +189,7 @@ function App() {
                       <Route path="collaborations" element={<RequirePanelModule module="collaborations"><EmbeddedToolPanel title="Collaborations" module="collaborations" label="collaborations" tabs={COLLAB_TABS} /></RequirePanelModule>} />
                       <Route path="mass-mail" element={<RequirePanelModule module="mass-mail"><EmbeddedToolPanel title="Mass Mail" module="mass-mail" label="mass mail" tabs={MAIL_TABS} /></RequirePanelModule>} />
                       <Route path="links" element={<RequirePanelModule module="links"><LinksPanel /></RequirePanelModule>} />
+                      <Route path="links/:slug" element={<RequirePanelModule module="links"><LinksPanel /></RequirePanelModule>} />
                       <Route path="audit" element={<RequirePanelModule module="audit"><AuditPanel /></RequirePanelModule>} />
                       <Route path="settings" element={<RequirePanelModule module="settings"><SettingsPanel /></RequirePanelModule>} />
                       <Route path="attendance" element={<RequirePanelModule module="attendance-queue"><AttendanceQueue /></RequirePanelModule>} />

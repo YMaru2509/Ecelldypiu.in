@@ -524,7 +524,7 @@ export default async function handler(req, res) {
                     htmlContent = generateGenericHTML(data, recipient);
                 }
 
-                await sendEmail(recipient.email, recipientSubject, htmlContent, provider || 'resend', attachments || [], cc || [], bcc || []);
+                await sendEmail(recipient.email, recipientSubject, htmlContent, provider || 'zeptomail', attachments || [], cc || [], bcc || []);
                 results.sent++;
                 results.details.push({
                     name: recipient.name,
@@ -553,7 +553,7 @@ export default async function handler(req, res) {
             await db.collection('EMAIL_LOGS').add({
                 type,
                 subject,
-                provider: provider || 'resend',
+                provider: provider || 'zeptomail',
                 to,
                 recipients: results.details,
                 cc: (cc || []).map(c => ({ name: c.name || '', email: c.email })),

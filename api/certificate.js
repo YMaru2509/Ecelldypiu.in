@@ -65,7 +65,7 @@ function getCertificateConfigId(eventId, audience) {
         : eventId;
 }
 
-async function sendEmail(to, subject, html, provider = 'resend', attachments = []) {
+async function sendEmail(to, subject, html, provider = 'zeptomail', attachments = []) {
     if (provider === 'bridge1' || provider === 'bridge2') {
         const url = provider === 'bridge1' ? process.env.MAIL_BRIDGE_1 : process.env.MAIL_BRIDGE_2;
         if (!url) {
@@ -107,7 +107,7 @@ async function sendEmail(to, subject, html, provider = 'resend', attachments = [
         return data;
     }
 
-    if (provider === 'zeptomail' || (!process.env.RESEND_API_KEY && process.env.ZEPTOMAIL_API_KEY)) {
+    if (provider === 'zeptomail') {
         if (!process.env.ZEPTOMAIL_API_KEY) {
             throw new Error('ZEPTOMAIL_API_KEY is not set');
         }
@@ -173,29 +173,7 @@ async function sendEmail(to, subject, html, provider = 'resend', attachments = [
         return res.json();
     }
 
-    if (!process.env.RESEND_API_KEY) {
-        throw new Error('RESEND_API_KEY is not set');
-    }
-    const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-            from: process.env.EMAIL_FROM || 'CIIE Bridge <noreply@ecelldypiu.in>',
-            to: [to],
-            subject,
-            html,
-            attachments: attachments.length > 0 ? attachments : undefined,
-        }),
-    });
-
-    if (!res.ok) {
-        const error = await res.text();
-        throw new Error(`Email send failed: ${error}`);
-    }
-    return res.json();
+    throw new Error(`Unsupported mail provider: ${provider}`);
 }
 
 function maskEmail(email) {
@@ -844,7 +822,7 @@ async function handleDispatchCertificates(req, res) {
                     }
                 }
 
-                await sendEmail(attendee.email, finalSubject, finalHTML, provider || 'resend', attachments);
+                await sendEmail(attendee.email, finalSubject, finalHTML, provider || 'zeptomail', attachments);
                 sentCount++;
                 
                 await new Promise(r => setTimeout(r, 100)); // Rate limit

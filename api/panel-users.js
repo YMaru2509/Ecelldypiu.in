@@ -13,7 +13,7 @@ const PERMANENT_SYSTEM_OWNER_UIDS = ['SPWSYZ3Ggid0rosU2cJ76CGIovY2', 'DjWLl7JtX9
 const LEVEL_RANK = { none: 0, view: 1, manage: 2 };
 // Mirrors MailProviderSelect.jsx's options — the "mail bridge" an invite's
 // credential email is sent through.
-const MAIL_PROVIDERS = ['resend', 'zeptomail', 'bridge1', 'bridge2'];
+const MAIL_PROVIDERS = ['zeptomail', 'bridge1', 'bridge2'];
 // Single doc holding whether the public Team page shows the live `members`
 // roster yet, or still the old hardcoded fallback — flipped once from the
 // panel by a system owner when the real roster is ready, not automatically.
@@ -52,7 +52,7 @@ async function getReadyEcellMembersDocs() {
 
 async function sendEmailBestEffort(to, subject, html, provider) {
     try {
-        await sendEmail(to, subject, html, provider || 'resend');
+        await sendEmail(to, subject, html, provider || 'zeptomail');
     } catch (err) {
         console.error(`panel-users email send failed: ${err.message}`);
     }

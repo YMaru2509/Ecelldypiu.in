@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Loader2, AlertCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 
@@ -15,6 +15,9 @@ const Redirect = () => {
     const { slug } = useParams();
     const [destinationName, setDestinationName] = useState('');
     const [error, setError] = useState(false);
+    const redirectReadyRef = useRef(false);
+    const redirectCompletedRef = useRef(false);
+    const wentBackTrackedRef = useRef(false);
 
     // Pick random phrase ONCE on mount so it does not change on re-renders
     const randomPhrase = useMemo(() => {
@@ -48,6 +51,16 @@ const Redirect = () => {
             console.error('Track event error:', err);
         }
     }, [slug]);
+
+    // A visitor can leave by closing the tab, pressing the browser Back button,
+    // switching away, or navigating somewhere else. Those paths do not click
+    // the visible Back button, so page lifecycle events are the reliable signal
+    // that the redirect was abandoned before completion.
+    const trackWentBack = useCallback(() => {
+        if (!redirectReadyRef.current || redirectCompletedRef.current || wentBackTrackedRef.current) return;
+        wentBackTrackedRef.current = true;
+        trackEvent('went_back');
+    }, [trackEvent]);
 
     const performRedirect = useCallback(async (isRetry = false) => {
         if (isRetry) {
@@ -85,9 +98,13 @@ const Redirect = () => {
                 : 'your destination';
 
             setDestinationName(name);
+            redirectReadyRef.current = true;
+            redirectCompletedRef.current = false;
+            wentBackTrackedRef.current = false;
 
             // Wait ~900ms before replacing window location for smooth branded feedback
             const timer = setTimeout(() => {
+                redirectCompletedRef.current = true;
                 trackEvent('redirect_completed');
                 window.location.replace(data.originalUrl);
             }, 900);
@@ -98,6 +115,19 @@ const Redirect = () => {
             setError(true);
         }
     }, [slug, trackEvent]);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') trackWentBack();
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pagehide', trackWentBack);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pagehide', trackWentBack);
+        };
+    }, [trackWentBack]);
 
     useEffect(() => {
         let cleanupTimer;
@@ -179,7 +209,7 @@ const Redirect = () => {
                         <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
                             <Link
                                 to="/"
-                                onClick={() => trackEvent('went_back')}
+                                onClick={trackWentBack}
                                 className="w-full inline-flex items-center justify-center gap-2 bg-brand-yellow text-[var(--text-on-brand)] font-black px-5 py-3 rounded-xl uppercase text-xs hover:bg-white transition-colors"
                             >
                                 <ArrowLeft className="w-4 h-4" />
