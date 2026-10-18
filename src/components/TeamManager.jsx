@@ -823,8 +823,8 @@ const TeamManager = ({ adminKey }) => {
 
             {/* Modal for Add / Edit Team Member */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden">
-                    <div className="bg-zinc-900 border-4 border-zinc-700 rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col relative shadow-2xl overflow-hidden my-auto">
+                <div data-modal-scroll className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto overscroll-contain">
+                    <div data-modal-scroll className="bg-zinc-900 border-4 border-zinc-700 rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col relative shadow-2xl overflow-hidden my-auto">
                         
                         {/* Header (Sticky top) */}
                         <div className="p-6 pb-4 border-b border-zinc-800 relative bg-zinc-900 flex-shrink-0">
@@ -845,8 +845,8 @@ const TeamManager = ({ adminKey }) => {
                         </div>
 
                         {/* Scrollable Form Body */}
-                        <form onSubmit={handleSaveMember} className="flex flex-col flex-1 overflow-hidden">
-                            <div className="p-6 overflow-y-auto space-y-4 flex-1">
+                        <form onSubmit={handleSaveMember} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                            <div data-scroll-container className="p-6 overflow-y-auto overscroll-contain space-y-4 flex-1 min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
                                 <div className="grid md:grid-cols-2 gap-4">
                                     {/* Student Name */}
                                     <div>

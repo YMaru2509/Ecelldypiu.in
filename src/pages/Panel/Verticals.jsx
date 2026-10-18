@@ -159,7 +159,7 @@ const Verticals = () => {
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-2">Assigned members</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                                <div data-scroll-container className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                                     {members.map((m) => <label key={m.uid} className="flex items-center gap-2 text-xs p-2 rounded-lg border border-[var(--border-color)]"><input type="checkbox" checked={memberUids.includes(m.uid)} onChange={(e) => setDraft((p) => ({ ...p, [v.id]: { ...p[v.id], memberUids: e.target.checked ? [...new Set([...memberUids, m.uid])] : memberUids.filter((uid) => uid !== m.uid) } }))} className="accent-brand-yellow" />{m.name || m.email}</label>)}
                                 </div>
                             </div>

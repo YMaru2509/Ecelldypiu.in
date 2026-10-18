@@ -347,9 +347,11 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+        <div data-modal-scroll className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-4 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }} onClick={onClose}>
             <div
-                className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-6 w-full max-w-2xl my-8"
+                data-modal-scroll
+                className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-6 w-full max-w-2xl my-8 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
+                style={{ WebkitOverflowScrolling: 'touch' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between mb-5">
@@ -511,7 +513,7 @@ const AssignStaffSearch = ({ members, onPick, onClose }) => {
     }, [members, query]);
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+        <div data-modal-scroll className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-4 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }} onClick={onClose}>
             <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-6 w-full max-w-lg my-8" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                     <p className="font-black uppercase">Assign Staff</p>
@@ -530,7 +532,7 @@ const AssignStaffSearch = ({ members, onPick, onClose }) => {
                         className="w-full bg-black border-2 border-zinc-700 pl-9 pr-3 py-2.5 text-white rounded-xl text-sm"
                     />
                 </div>
-                <div className="max-h-80 overflow-y-auto space-y-1">
+                <div data-scroll-container className="max-h-80 overflow-y-auto overscroll-contain space-y-1 pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                     {results.length === 0 && <p className="text-xs text-[var(--text-secondary)] text-center py-6">No members match.</p>}
                     {results.map((m) => (
                         <button

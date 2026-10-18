@@ -22,6 +22,10 @@ const ScrollToTop = () => {
       mouseMultiplier: 1,
       smoothTouch: false,
       touchMultiplier: 2,
+      // Let native scrolling take over inside dialogs and nested list boxes.
+      // Without this, Lenis consumes the wheel/touch event before the child
+      // overflow container can move.
+      prevent: (node) => Boolean(node?.closest?.('[data-lenis-prevent], [data-modal-scroll], [data-scroll-container]')),
     });
 
     lenisRef.current = lenis;
