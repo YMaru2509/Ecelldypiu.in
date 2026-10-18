@@ -53,6 +53,7 @@ export default async function handler(req, res) {
             if (action === 'edit') return await handleEdit(req, res);
             if (action === 'decide') return await handleDecide(req, res);
             if (action === 'verticals-create') return await handleCreateVertical(req, res);
+            if (action === 'verticals-delete') return await handleDeleteVertical(req, res);
             if (action === 'sync-retry') return await handleSyncRetry(req, res);
             return res.status(400).json({ error: 'Unknown action' });
         }
@@ -446,7 +447,7 @@ async function handleListVerticals(req, res) {
 async function handleCreateVertical(req, res) {
     const caller = await requirePermission(req, 'attendance', 'manage');
 
-    const { name, headUid } = req.body || {};
+    const { name, headUid, memberUids = [] } = req.body || {};
     if (!name?.trim()) return res.status(400).json({ error: 'Vertical name is required' });
 
     let headNameSnapshot = null;
@@ -457,6 +458,7 @@ async function handleCreateVertical(req, res) {
     }
 
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const cleanMemberUids = Array.isArray(memberUids) ? [...new Set(memberUids.filter(Boolean))] : [];
     const docRef = await db.collection('ecell_verticals').add({
         name: name.trim(),
         slug,
@@ -466,6 +468,7 @@ async function handleCreateVertical(req, res) {
         createdAt: FieldValue.serverTimestamp(),
         createdBy: caller.uid,
         updatedAt: FieldValue.serverTimestamp(),
+        memberUids: cleanMemberUids,
     });
 
     await writeAuditLog({
@@ -483,7 +486,7 @@ async function handleCreateVertical(req, res) {
 async function handleUpdateVertical(req, res) {
     const caller = await requirePermission(req, 'attendance', 'manage');
 
-    const { id, name, headUid, active } = req.body || {};
+    const { id, name, headUid, active, memberUids } = req.body || {};
     if (!id) return res.status(400).json({ error: 'Vertical id is required' });
 
     const docRef = db.collection('ecell_verticals').doc(id);
@@ -505,6 +508,29 @@ async function handleUpdateVertical(req, res) {
         }
     }
 
+    if (memberUids !== undefined) {
+        if (!Array.isArray(memberUids) || memberUids.some((uid) => typeof uid !== 'string')) {
+            return res.status(400).json({ error: 'memberUids must be an array of member ids' });
+        }
+        const cleanMemberUids = [...new Set(memberUids.filter(Boolean))];
+        update.memberUids = cleanMemberUids;
+        const memberSnap = await db.collection('members').get();
+        const batch = db.batch();
+        memberSnap.docs.forEach((memberDoc) => {
+            const data = memberDoc.data();
+            const current = Array.isArray(data.verticals) ? data.verticals : [];
+            const has = current.includes(id);
+            const shouldHave = cleanMemberUids.includes(memberDoc.id);
+            if (has !== shouldHave) {
+                batch.update(memberDoc.ref, {
+                    verticals: shouldHave ? [...new Set([...current, id])] : current.filter((verticalId) => verticalId !== id),
+                    lastUpdated: FieldValue.serverTimestamp(),
+                });
+            }
+        });
+        await batch.commit();
+    }
+
     await docRef.update(update);
     await writeAuditLog({
         actorUid: caller.uid,
@@ -515,6 +541,27 @@ async function handleUpdateVertical(req, res) {
         metadata: update,
     });
 
+    return res.status(200).json({ success: true });
+}
+
+async function handleDeleteVertical(req, res) {
+    const caller = await requirePermission(req, 'attendance', 'manage');
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'Vertical id is required' });
+    const verticalRef = db.collection('ecell_verticals').doc(id);
+    const verticalSnap = await verticalRef.get();
+    if (!verticalSnap.exists) return res.status(404).json({ error: 'Vertical not found' });
+
+    const memberSnap = await db.collection('members').get();
+    const batch = db.batch();
+    memberSnap.docs.forEach((memberDoc) => {
+        const data = memberDoc.data();
+        const current = Array.isArray(data.verticals) ? data.verticals : [];
+        if (current.includes(id)) batch.update(memberDoc.ref, { verticals: current.filter((verticalId) => verticalId !== id), lastUpdated: FieldValue.serverTimestamp() });
+    });
+    batch.delete(verticalRef);
+    await batch.commit();
+    await writeAuditLog({ actorUid: caller.uid, actorRole: isSystemOwner(caller) ? 'system_owner' : 'attendance:manage', action: 'delete_vertical', targetType: 'ecell_vertical', targetId: id, metadata: {} });
     return res.status(200).json({ success: true });
 }
 

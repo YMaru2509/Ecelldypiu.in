@@ -7,6 +7,7 @@ import { MODULES, PERMISSION_LEVELS, isSystemOwner, hasPermission } from '../../
 import { usePanelAccess } from '../../context/panelAccessContext';
 import TeamRosterControl from '../../components/TeamRosterControl';
 import { adminAuthHeaders } from '../../utils/adminAuth';
+import { resizeImageWithBudget } from '../../utils/imageResize';
 
 // Permanently capped to these two accounts — mirrors api/panel-users.js's
 // PERMANENT_SYSTEM_OWNER_UIDS. The server is the real enforcement point; this
@@ -17,6 +18,10 @@ const ASSIGNABLE_ROLES = ['vertical_head', 'board_member'];
 const STATUS_BADGE = {
     banned: { label: 'Banned', icon: Ban, className: 'bg-[color-mix(in_srgb,var(--danger-bg)_30%,transparent)] text-[var(--danger-color)] border-red-500' },
     past_member: { label: 'Past Member', icon: History, className: 'border-[var(--border-color)] text-[var(--text-secondary)]' },
+};
+
+const DISPLAY_STATUS_BADGE = {
+    inactive: { label: 'Hidden from Team', className: 'border-zinc-600 text-zinc-400' },
 };
 
 // CSV parser for the "name,email,title" format (title is optional, a 2-column
@@ -288,6 +293,11 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
     const [permissions, setPermissions] = useState(member.permissions || {});
     const [memberVerticals, setMemberVerticals] = useState(member.verticals || []);
     const [publicTitle, setPublicTitle] = useState(member.publicTitle || '');
+    const [avatarUrl, setAvatarUrl] = useState(member.avatarUrl || '');
+    const [avatarPosition, setAvatarPosition] = useState({ x: Number(member.avatarPosition?.x) || 50, y: Number(member.avatarPosition?.y) || 50 });
+    const [ecellJoinDate, setEcellJoinDate] = useState(member.ecellJoinDate?.slice?.(0, 10) || '');
+    const [membershipStatus, setMembershipStatus] = useState(member.membershipStatus || 'active');
+    const [displayStatus, setDisplayStatus] = useState(member.displayStatus || 'active');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
@@ -304,6 +314,16 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
         setPermissions((prev) => ({ ...prev, [moduleKey]: level }));
     };
 
+    const handleAvatarChange = async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+            setAvatarUrl(await resizeImageWithBudget(file));
+        } catch (err) {
+            setError(err.message || 'Could not process that image.');
+        }
+    };
+
     const save = async () => {
         setSaving(true);
         setError('');
@@ -311,7 +331,7 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
             const res = await fetch('/api/panel-users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
-                body: JSON.stringify({ uid: member.uid, roles, permissions, verticals: memberVerticals, publicTitle }),
+                body: JSON.stringify({ uid: member.uid, roles, permissions, verticals: memberVerticals, publicTitle, avatarUrl, avatarPosition, ecellJoinDate: ecellJoinDate || null, membershipStatus, displayStatus }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to save');
@@ -346,6 +366,36 @@ const AssignAccessModal = ({ member, verticals, eventsById, onClose, onSaved }) 
                 )}
 
                 <FilledProfileSummary member={member} eventsById={eventsById} />
+
+                <div className="mb-5 p-4 rounded-xl border-2 border-[var(--border-color)] bg-black/20">
+                    <p className="text-[10px] font-bold uppercase text-[var(--text-muted)] mb-2">Profile photo and display position</p>
+                    <div className="flex items-center gap-4">
+                        <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-brand-yellow bg-zinc-800 flex items-center justify-center">
+                            {avatarUrl ? <img src={avatarUrl} alt="Member preview" style={{ objectPosition: `${avatarPosition.x}% ${avatarPosition.y}%` }} className="w-full h-full object-cover" /> : <span className="text-brand-yellow font-black">{(member.name || '?')[0]}</span>}
+                        </div>
+                        <div className="space-y-2 flex-1">
+                            <input type="file" accept="image/*" onChange={handleAvatarChange} className="block w-full text-xs text-[var(--text-secondary)]" />
+                            <label className="block text-[10px] uppercase text-[var(--text-muted)]">Horizontal: {avatarPosition.x}% <input type="range" min="0" max="100" value={avatarPosition.x} onChange={(e) => setAvatarPosition((p) => ({ ...p, x: Number(e.target.value) }))} className="w-full accent-brand-yellow" /></label>
+                            <label className="block text-[10px] uppercase text-[var(--text-muted)]">Vertical: {avatarPosition.y}% <input type="range" min="0" max="100" value={avatarPosition.y} onChange={(e) => setAvatarPosition((p) => ({ ...p, y: Number(e.target.value) }))} className="w-full accent-brand-yellow" /></label>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">E-Cell join date
+                        <input type="date" value={ecellJoinDate} onChange={(e) => setEcellJoinDate(e.target.value)} className="mt-1 w-full bg-black border-2 border-zinc-700 p-2.5 text-white rounded-xl text-sm" />
+                    </label>
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Membership status
+                        <select value={membershipStatus} onChange={(e) => setMembershipStatus(e.target.value)} className="mt-1 w-full bg-black border-2 border-zinc-700 p-2.5 text-white rounded-xl text-sm">
+                            <option value="active">Active member</option><option value="inactive">Inactive member</option><option value="past_member">Past member</option><option value="banned">Banned</option>
+                        </select>
+                    </label>
+                    <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">Team display status
+                        <select value={displayStatus} onChange={(e) => setDisplayStatus(e.target.value)} className="mt-1 w-full bg-black border-2 border-zinc-700 p-2.5 text-white rounded-xl text-sm">
+                            <option value="active">Visible on Team page</option><option value="inactive">Hidden from Team page</option>
+                        </select>
+                    </label>
+                </div>
 
                 <div className="mb-4">
                     <label className="block text-[10px] font-bold uppercase text-[var(--text-muted)] mb-1.5">Public Title (shown on Team page)</label>
@@ -766,6 +816,11 @@ const UsersRoles = () => {
                                             </span>
                                         );
                                     })()}
+                                    {DISPLAY_STATUS_BADGE[member.displayStatus] && (
+                                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border-2 whitespace-nowrap border-zinc-600 text-zinc-400">
+                                            Hidden from Team
+                                        </span>
+                                    )}
                                     {isSystemOwner(member) && (
                                         <span className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-yellow whitespace-nowrap">
                                             <ShieldCheck className="w-3.5 h-3.5" /> System Owner

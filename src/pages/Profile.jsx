@@ -111,6 +111,7 @@ const Profile = () => {
         bio: ''
     });
     const [editPhotoDataUrl, setEditPhotoDataUrl] = useState('');
+    const [editPhotoPosition, setEditPhotoPosition] = useState({ x: 50, y: 50 });
     const [photoError, setPhotoError] = useState('');
 
     const [saving, setSaving] = useState(false);
@@ -222,6 +223,7 @@ const Profile = () => {
             bio: userProfile?.bio || ''
         });
         setEditPhotoDataUrl('');
+        setEditPhotoPosition({ x: Number(userProfile?.avatarPosition?.x) || 50, y: Number(userProfile?.avatarPosition?.y) || 50 });
         setPhotoError('');
         setIsEditing(true);
         setSaveSuccess('');
@@ -263,6 +265,7 @@ const Profile = () => {
                 bio: editForm.bio.trim()
             };
             if (editPhotoDataUrl) payload.avatarUrl = editPhotoDataUrl;
+            payload.avatarPosition = editPhotoPosition;
 
             await updateProfileData(payload);
 
@@ -340,6 +343,7 @@ const Profile = () => {
                                 <img
                                     src={userProfile.avatarUrl}
                                     alt={userProfile.name}
+                                    style={{ objectPosition: `${userProfile.avatarPosition?.x ?? 50}% ${userProfile.avatarPosition?.y ?? 50}%` }}
                                     className="w-20 h-20 md:w-24 md:h-24 rounded-2xl border-4 border-brand-yellow object-cover"
                                 />
                             ) : (
@@ -469,7 +473,7 @@ const Profile = () => {
                                 <div className="flex items-center gap-4">
                                     <div className="w-16 h-16 rounded-xl bg-[var(--bg-secondary)] border-2 border-zinc-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                                         {editPhotoDataUrl || userProfile.avatarUrl ? (
-                                            <img src={editPhotoDataUrl || userProfile.avatarUrl} alt="Preview" className="w-full h-full object-cover" />
+                                            <img src={editPhotoDataUrl || userProfile.avatarUrl} alt="Preview" style={{ objectPosition: `${editPhotoPosition.x}% ${editPhotoPosition.y}%` }} className="w-full h-full object-cover" />
                                         ) : (
                                             <Camera className="w-6 h-6 text-zinc-600" />
                                         )}
@@ -486,6 +490,18 @@ const Profile = () => {
                                         {photoError && <p className="text-xs text-[var(--danger-color)] mt-1">{photoError}</p>}
                                     </div>
                                 </div>
+                                {(editPhotoDataUrl || userProfile.avatarUrl) && (
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md">
+                                        <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
+                                            Horizontal alignment: {editPhotoPosition.x}%
+                                            <input type="range" min="0" max="100" value={editPhotoPosition.x} onChange={(e) => setEditPhotoPosition((p) => ({ ...p, x: Number(e.target.value) }))} className="w-full accent-brand-yellow" />
+                                        </label>
+                                        <label className="text-[10px] font-bold uppercase text-[var(--text-muted)]">
+                                            Vertical alignment: {editPhotoPosition.y}%
+                                            <input type="range" min="0" max="100" value={editPhotoPosition.y} onChange={(e) => setEditPhotoPosition((p) => ({ ...p, y: Number(e.target.value) }))} className="w-full accent-brand-yellow" />
+                                        </label>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

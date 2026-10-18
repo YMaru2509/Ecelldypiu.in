@@ -10,6 +10,14 @@ import {
 
 const LinkShortener = ({ adminKey, onBack, onViewLink, initialSlug }) => {
     const normalizeLink = (link = {}) => {
+        const numericValue = (value, fallback = 0) => {
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+            if (value && typeof value === 'object') {
+                return numericValue(value.value ?? value.in ?? value._value, fallback);
+            }
+            return fallback;
+        };
         const displayText = (value, fallback = '') => {
             if (typeof value === 'string' || typeof value === 'number') return String(value);
             if (value && typeof value === 'object') {
@@ -22,12 +30,35 @@ const LinkShortener = ({ adminKey, onBack, onViewLink, initialSlug }) => {
             ? link.aliases.map((alias) => displayText(alias)).filter(Boolean)
             : [];
         const slug = displayText(link.slug, link.id || '');
+        const normalizeCounts = (value) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+            return Object.fromEntries(Object.entries(value).map(([key, count]) => [key, numericValue(count)]));
+        };
+        const recentLogs = Array.isArray(link.recentLogs)
+            ? link.recentLogs.map((log = {}) => ({
+                ...log,
+                id: displayText(log.id),
+                timestamp: displayText(log.timestamp, new Date().toISOString()),
+                event: displayText(log.event),
+                device: displayText(log.device, 'Unknown'),
+                browser: displayText(log.browser, 'Unknown'),
+                referrer: displayText(log.referrer, 'Direct'),
+            }))
+            : [];
         return {
             ...link,
             slug,
             originalUrl: displayText(link.originalUrl),
             destinationName: displayText(link.destinationName, 'your destination'),
             aliases: aliases.length > 0 ? aliases : [slug],
+            clicks: numericValue(link.clicks),
+            totalOpens: numericValue(link.totalOpens ?? link.clicks),
+            redirectCompleted: numericValue(link.redirectCompleted),
+            wentBack: numericValue(link.wentBack),
+            devices: normalizeCounts(link.devices),
+            browsers: normalizeCounts(link.browsers),
+            referrers: normalizeCounts(link.referrers),
+            recentLogs,
         };
     };
     // Links data state
@@ -1387,13 +1418,16 @@ const LinkStatsModal = ({ link, onClose }) => {
     const completionRate = totalOpens > 0 ? Math.round((redirectCompleted / totalOpens) * 100) : 0;
     const bounceRate = totalOpens > 0 ? Math.round((wentBack / totalOpens) * 100) : 0;
 
-    const devices = link.devices && Object.keys(link.devices).length > 0 ? link.devices : {};
+    const numericMap = (value) => Object.fromEntries(
+        Object.entries(value && typeof value === 'object' ? value : {}).map(([key, count]) => [key, Number(count) || 0])
+    );
+    const devices = numericMap(link.devices);
     const totalDeviceCount = Object.values(devices).reduce((a, b) => a + b, 0) || 1;
 
-    const browsers = link.browsers && Object.keys(link.browsers).length > 0 ? link.browsers : {};
+    const browsers = numericMap(link.browsers);
     const totalBrowserCount = Object.values(browsers).reduce((a, b) => a + b, 0) || 1;
 
-    const referrers = link.referrers && Object.keys(link.referrers).length > 0 ? link.referrers : {};
+    const referrers = numericMap(link.referrers);
     const totalReferrerCount = Object.values(referrers).reduce((a, b) => a + b, 0) || 1;
 
     const recentLogs = link.recentLogs || [];

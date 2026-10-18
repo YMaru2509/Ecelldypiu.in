@@ -46,7 +46,10 @@ function profileMissing(data) {
 
 async function getReadyEcellMembersDocs() {
     const snap = await getActiveEcellMembersSnap();
-    const ready = snap.docs.filter((doc) => profileMissing(doc.data()).length === 0);
+    const ready = snap.docs.filter((doc) => {
+        const data = doc.data();
+        return data.displayStatus !== 'inactive' && profileMissing(data).length === 0;
+    });
     return { ready, totalActive: snap.size };
 }
 
@@ -136,9 +139,12 @@ async function handleAuditLogs(req, res) {
 // enforce their own permission on every request.
 async function handleWhoami(req, res) {
     const caller = await getCallerMember(req);
-    if (caller.membershipStatus === 'banned' || caller.membershipStatus === 'past_member') {
+    if (caller.membershipStatus !== 'active') {
         throw new RbacError(403, 'Your membership is no longer active');
     }
+    const verticalIds = Array.isArray(caller.verticals) ? caller.verticals : [];
+    const verticalSnaps = await Promise.all(verticalIds.map((id) => db.collection('ecell_verticals').doc(id).get()));
+    const verticalNames = verticalSnaps.filter((snap) => snap.exists).map((snap) => snap.data().name).filter(Boolean);
     return res.status(200).json({
         success: true,
         member: {
@@ -147,8 +153,10 @@ async function handleWhoami(req, res) {
             email: caller.email || '',
             roles: Array.isArray(caller.roles) ? caller.roles : [],
             permissions: caller.permissions || {},
-            verticals: Array.isArray(caller.verticals) ? caller.verticals : [],
-            isAdminPanel: caller.isAdminPanelActor === true,
+            verticals: verticalIds,
+            verticalNames,
+            publicTitle: caller.publicTitle || '',
+            isAdminPanel: false,
         },
     });
 }
@@ -172,6 +180,7 @@ async function handleMemberDirectory(req, res) {
             email: data.email || '',
             memberType: data.memberType || 'normal_member',
             membershipStatus: data.membershipStatus || 'active',
+            verticals: Array.isArray(data.verticals) ? data.verticals : [],
         };
     });
     return res.status(200).json({ success: true, members });
@@ -200,6 +209,7 @@ async function handleList(req, res) {
             mustChangePassword: data.mustChangePassword === true,
             profileMissing: profileMissing(data),
             avatarUrl: data.avatarUrl || '',
+            avatarPosition: data.avatarPosition || { x: 50, y: 50 },
             phone: data.phone || '',
             branch: data.branch || '',
             year: data.year || '',
@@ -210,6 +220,7 @@ async function handleList(req, res) {
             certificatesAsOrganiser: Array.isArray(data.certificatesAsOrganiser) ? data.certificatesAsOrganiser : [],
             certificatesAsParticipant: Array.isArray(data.certificatesAsParticipant) ? data.certificatesAsParticipant : [],
             publicTitle: data.publicTitle || '',
+            displayStatus: data.displayStatus || 'active',
             priority: typeof data.priority === 'number' ? data.priority : 9999,
         };
     });
@@ -523,7 +534,7 @@ async function handleDeletePermanently(req, res) {
 async function handleUpdateAccess(req, res) {
     const caller = await requirePermission(req, 'users', 'manage');
 
-    const { uid, roles, permissions, verticals, publicTitle } = req.body || {};
+    const { uid, roles, permissions, verticals, publicTitle, avatarUrl, avatarPosition, ecellJoinDate, membershipStatus, displayStatus } = req.body || {};
     if (!uid) return res.status(400).json({ error: 'Target uid is required' });
     if (uid === caller.uid) return res.status(400).json({ error: "You can't change your own access" });
 
@@ -594,6 +605,48 @@ async function handleUpdateAccess(req, res) {
         }
         update.publicTitle = publicTitle.trim();
         changes.publicTitle = { from: targetData.publicTitle || '', to: update.publicTitle };
+    }
+
+    if (avatarUrl !== undefined) {
+        if (typeof avatarUrl !== 'string' || avatarUrl.length > 2_000_000) {
+            return res.status(400).json({ error: 'avatarUrl must be a valid image under 2 MB' });
+        }
+        update.avatarUrl = avatarUrl.trim();
+        changes.avatarUrl = { changed: true };
+    }
+
+    if (avatarPosition !== undefined) {
+        const x = Number(avatarPosition?.x);
+        const y = Number(avatarPosition?.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 100 || y < 0 || y > 100) {
+            return res.status(400).json({ error: 'avatarPosition x and y must be between 0 and 100' });
+        }
+        update.avatarPosition = { x, y };
+        changes.avatarPosition = update.avatarPosition;
+    }
+
+    if (ecellJoinDate !== undefined) {
+        if (ecellJoinDate !== null && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(ecellJoinDate) || Number.isNaN(new Date(`${ecellJoinDate}T00:00:00Z`).getTime()))) {
+            return res.status(400).json({ error: 'ecellJoinDate must be a valid date' });
+        }
+        update.ecellJoinDate = ecellJoinDate || null;
+        changes.ecellJoinDate = update.ecellJoinDate;
+    }
+
+    if (membershipStatus !== undefined) {
+        if (!['active', 'inactive', 'banned', 'past_member'].includes(membershipStatus)) {
+            return res.status(400).json({ error: 'membershipStatus must be active, inactive, banned, or past_member' });
+        }
+        update.membershipStatus = membershipStatus;
+        changes.membershipStatus = membershipStatus;
+    }
+
+    if (displayStatus !== undefined) {
+        if (!['active', 'inactive'].includes(displayStatus)) {
+            return res.status(400).json({ error: 'displayStatus must be active or inactive' });
+        }
+        update.displayStatus = displayStatus;
+        changes.displayStatus = displayStatus;
     }
 
     if (Object.keys(changes).length === 0) {

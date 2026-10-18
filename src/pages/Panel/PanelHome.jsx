@@ -2,20 +2,29 @@ import { Link } from 'react-router-dom';
 import PanelShell from './PanelShell';
 import { PANEL_MODULES } from '../../utils/panelModules';
 import { usePanelAccess } from '../../context/panelAccessContext';
+import { hasRole, isSystemOwner } from '../../utils/rbac';
 
 const PanelHome = () => {
     const { mode, name, profile } = usePanelAccess();
     const modules = PANEL_MODULES.filter((m) => m.key !== 'dashboard' && m.access(profile));
+    const identity = isSystemOwner(profile)
+        ? 'Owner'
+        : hasRole(profile, 'vertical_head')
+            ? 'Vertical Head'
+            : hasRole(profile, 'board_member')
+                ? 'Board Member'
+                : 'Staff';
+    const domains = (profile?.verticalNames || []).join(', ');
 
     return (
         <PanelShell>
             <div className="bg-[var(--bg-card)] border-2 border-[var(--border-color)] rounded-2xl p-6 md:p-8 mb-6">
                 <h1 className="text-2xl md:text-4xl font-black uppercase mb-2">
-                    {mode === 'member' ? `Welcome, ${name?.split(' ')[0] || 'Staff'}` : 'Attendance Management'}
+                    {mode === 'member' ? `Welcome, ${name?.split(' ')[0] || identity}` : 'Owner Console'}
                 </h1>
                 <p className="text-[var(--text-secondary)]">
                     {mode === 'member'
-                        ? 'You’re signed in with your own account. Only the modules you’ve been given access to are shown.'
+                        ? `${identity}${domains ? ` · ${domains}` : ''}. Only the modules you’ve been given access to are shown.`
                         : 'Manage member roles, E-Cell verticals, and attendance request approvals. Everything here is gated by your admin panel login.'}
                 </p>
             </div>

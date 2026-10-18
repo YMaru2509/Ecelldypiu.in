@@ -3,6 +3,21 @@ import { Shield, LogOut, ArrowLeft } from 'lucide-react';
 import { adminLogout } from '../../utils/adminAuth';
 import { PANEL_MODULES } from '../../utils/panelModules';
 import { usePanelAccess } from '../../context/panelAccessContext';
+import { hasRole, isSystemOwner } from '../../utils/rbac';
+
+const panelIdentity = (profile, name) => {
+    if (isSystemOwner(profile)) return `Owner · ${name || 'Account'}`;
+    if (hasRole(profile, 'vertical_head')) return `Vertical Head · ${(profile?.verticalNames || []).join(', ') || 'Assigned domain'}`;
+    if (hasRole(profile, 'board_member')) return `Board Member · ${(profile?.verticalNames || []).join(', ') || 'Board'}`;
+    return `Staff · ${(profile?.verticalNames || []).join(', ') || 'E-Cell'}`;
+};
+
+const panelTitle = (profile) => {
+    if (isSystemOwner(profile)) return 'Owner Dashboard';
+    if (hasRole(profile, 'vertical_head')) return 'Vertical Head Dashboard';
+    if (hasRole(profile, 'board_member')) return 'Board Dashboard';
+    return 'Staff Dashboard';
+};
 
 const PanelShell = ({ children }) => {
     const location = useLocation();
@@ -24,9 +39,9 @@ const PanelShell = ({ children }) => {
                         <div className="flex items-center gap-2 px-2 pb-4 mb-2 border-b border-[var(--border-color)]">
                             <Shield className="w-5 h-5 text-brand-yellow flex-shrink-0" />
                             <div className="min-w-0">
-                                <p className="font-black uppercase text-sm leading-tight">Attendance Management</p>
+                                <p className="font-black uppercase text-sm leading-tight">{isMember ? panelTitle(profile) : 'Owner Console'}</p>
                                 <p className="text-[10px] font-bold uppercase text-brand-yellow truncate">
-                                    {isMember ? `Staff · ${name || 'Member'}` : 'Admin Console'}
+                                    {isMember ? panelIdentity(profile, name) : 'Owner Console'}
                                 </p>
                             </div>
                         </div>

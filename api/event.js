@@ -5,7 +5,7 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { sendEmail } from './_lib/emailTransport.js';
 import { writeAuditLog } from './_lib/auditLog.js';
-import { requirePermission, requireAnyPermission, getCallerMember, hasPermission, callerCan, callerCanAny, sendRbacError } from './_lib/rbac.js';
+import { requirePermission, requireAnyPermission, getCallerMember, callerCan, callerCanAny, sendRbacError } from './_lib/rbac.js';
 
 let db = null;
 

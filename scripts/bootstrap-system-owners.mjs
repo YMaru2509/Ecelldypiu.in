@@ -29,6 +29,7 @@ if (!getApps().length) {
 
 const auth = getAuth();
 const db = getFirestore();
+const RESET_PASSWORDS = process.argv.includes('--reset-passwords');
 
 const SYSTEM_OWNERS = [
     { email: 'yashkr.tripathi@gmail.com', name: 'Yash Tripathi' },
@@ -44,8 +45,14 @@ function generateTempPassword() {
 async function ensureAuthUser(email, displayName) {
     try {
         const existing = await auth.getUserByEmail(email);
+        if (RESET_PASSWORDS) {
+            const tempPassword = generateTempPassword();
+            await auth.updateUser(existing.uid, { password: tempPassword });
+            console.log(`  Reset the Firebase password for ${email} (uid: ${existing.uid}).`);
+            return { uid: existing.uid, tempPassword, created: false, reset: true };
+        }
         console.log(`  Auth account already exists for ${email} (uid: ${existing.uid}) — leaving password unchanged.`);
-        return { uid: existing.uid, tempPassword: null, created: false };
+        return { uid: existing.uid, tempPassword: null, created: false, reset: false };
     } catch (err) {
         if (err.code !== 'auth/user-not-found') throw err;
         const tempPassword = generateTempPassword();
@@ -55,7 +62,7 @@ async function ensureAuthUser(email, displayName) {
             displayName,
             emailVerified: true,
         });
-        return { uid: created.uid, tempPassword, created: true };
+        return { uid: created.uid, tempPassword, created: true, reset: false };
     }
 }
 
@@ -102,19 +109,21 @@ async function ensureMemberDoc(uid, email, name) {
 
 async function main() {
     console.log('Bootstrapping system_owner accounts...\n');
-    const createdCredentials = [];
+    const credentials = [];
 
     for (const { email, name } of SYSTEM_OWNERS) {
         console.log(`Processing ${email}:`);
-        const { uid, tempPassword, created } = await ensureAuthUser(email, name);
+        const { uid, tempPassword, created, reset } = await ensureAuthUser(email, name);
         await ensureMemberDoc(uid, email, name);
-        if (created) createdCredentials.push({ email, tempPassword });
+        if (created || reset) credentials.push({ email, tempPassword });
         console.log('');
     }
 
-    if (createdCredentials.length > 0) {
-        console.log('New account temporary passwords (change these via "Forgot password" on first login):');
-        for (const { email, tempPassword } of createdCredentials) {
+    if (credentials.length > 0) {
+        console.log(RESET_PASSWORDS
+            ? '\nTemporary passwords (use them once, then change them from the account settings):'
+            : '\nNew account temporary passwords (change these via "Forgot password" on first login):');
+        for (const { email, tempPassword } of credentials) {
             console.log(`  ${email} -> ${tempPassword}`);
         }
     } else {

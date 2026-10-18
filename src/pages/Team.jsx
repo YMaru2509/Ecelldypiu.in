@@ -524,6 +524,7 @@ const MemberCard = ({ member, index }) => {
                 alt={member.name}
                 onError={() => setImgError(true)}
                 loading="lazy"
+                style={{ objectPosition: `${member.avatarPosition?.x ?? 50}% ${member.avatarPosition?.y ?? 50}%` }}
                 className="w-full h-full object-cover object-top transition-all duration-700 group-hover:scale-105 filter group-hover:contrast-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-inverse)] via-[color-mix(in_srgb,var(--bg-inverse)_30%,transparent)] to-transparent opacity-70 group-hover:opacity-50 transition-opacity duration-300 z-10" />
@@ -626,6 +627,7 @@ const Team = () => {
         name: m.name,
         position: m.publicTitle,
         image: m.avatarUrl, // the member's own onboarding-uploaded profile photo
+        avatarPosition: m.avatarPosition || { x: 50, y: 50 },
         tabIds: [
           ...(m.verticals || []),
           ...((m.roles || []).includes('board_member') || (m.roles || []).includes('system_owner') ? ['board'] : []),
