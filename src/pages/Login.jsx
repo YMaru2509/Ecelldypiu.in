@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import { hasStaffAccess } from '../utils/panelModules';
 import { Mail, Lock, AlertCircle, Loader2, LogIn, CheckCircle2, X, Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
-    const { login, sendResetPassword, currentUser } = useAuth();
+    const { login, sendResetPassword, currentUser, userProfile, loading: authLoading } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -28,8 +29,12 @@ const Login = () => {
     const [resetSuccess, setResetSuccess] = useState('');
     const [resetError, setResetError] = useState('');
 
-    if (currentUser) {
-        return <Navigate to={from} replace />;
+    const postLoginPath = hasStaffAccess(userProfile) && (from === '/profile' || from === '/panel')
+        ? '/panel'
+        : (!hasStaffAccess(userProfile) && from.startsWith('/panel') ? '/profile' : from);
+
+    if (currentUser && !authLoading) {
+        return <Navigate to={postLoginPath} replace />;
     }
 
     const handleSubmit = async (e) => {
@@ -40,8 +45,12 @@ const Login = () => {
         setError('');
 
         try {
-            await login(email.trim(), password);
-            navigate(from, { replace: true });
+            const result = await login(email.trim(), password);
+            const staffAccess = hasStaffAccess(result?.profile);
+            const destination = staffAccess && (from === '/profile' || from === '/panel')
+                ? '/panel'
+                : (!staffAccess && from.startsWith('/panel') ? '/profile' : from);
+            navigate(destination, { replace: true });
         } catch (err) {
             console.error('Login error:', err);
             setError('Invalid email or password.');

@@ -97,8 +97,8 @@ export const AuthProvider = ({ children }) => {
     // Login user
     const login = async (email, password) => {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        await fetchUserProfile(userCredential.user.uid);
-        return userCredential.user;
+        const profile = await fetchUserProfile(userCredential.user.uid);
+        return { user: userCredential.user, profile };
     };
 
     // Logout user

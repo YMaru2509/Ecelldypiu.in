@@ -174,8 +174,9 @@ function App() {
                     <Route path="/collaborations/status/:id" element={<CollabStatus />} />
                     <Route path="/apply" element={<ApplyNow />} />
                     <Route path="/newsletter" element={<Newsletter />} />
-                    <Route path="/admin" element={<AdminPortal />} />
-                    {/* Staff panel: one gate validates either the admin password or the member's own login, then each module checks its own permission. */}
+                    {/* Legacy admin URL now enters the same Firebase/RBAC login flow. */}
+                    <Route path="/admin" element={<Navigate to="/login" replace />} />
+                    {/* Staff panel: every entry is resolved through Firebase identity and RBAC. */}
                     <Route path="/panel" element={<PanelGate />}>
                       <Route index element={<PanelHome />} />
                       <Route path="team" element={<RequirePanelModule module="team"><UsersRoles /></RequirePanelModule>} />

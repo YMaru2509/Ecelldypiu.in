@@ -366,11 +366,23 @@ async function handleList(req, res) {
     const links = [];
     snapshot.forEach(doc => {
         const data = doc.data();
+        const asText = (value, fallback = '') => {
+            if (typeof value === 'string' || typeof value === 'number') return String(value);
+            if (value && typeof value === 'object') {
+                if (typeof value.value === 'string') return value.value;
+                if (typeof value.in === 'string') return value.in;
+            }
+            return fallback;
+        };
+        const safeSlug = asText(data.slug, doc.id).trim().toLowerCase();
+        const safeAliases = Array.isArray(data.aliases)
+            ? data.aliases.map((alias) => asText(alias)).map((alias) => alias.trim().toLowerCase()).filter(Boolean)
+            : [];
         links.push({
             id: doc.id,
-            slug: data.slug || doc.id,
-            originalUrl: data.originalUrl || '',
-            destinationName: data.destinationName || 'your destination',
+            slug: safeSlug,
+            originalUrl: asText(data.originalUrl),
+            destinationName: asText(data.destinationName, 'your destination'),
             createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || null),
             createdBy: data.createdBy || 'admin',
             clicks: data.clicks || 0,
@@ -385,8 +397,8 @@ async function handleList(req, res) {
             lastClickedAt: data.lastClickedAt?.toDate ? data.lastClickedAt.toDate().toISOString() : (data.lastClickedAt || null),
             isActive: data.isActive !== undefined ? data.isActive : true,
             customSlug: data.customSlug || false,
-            aliasGroup: data.aliasGroup || data.slug || doc.id,
-            aliases: Array.isArray(data.aliases) && data.aliases.length > 0 ? data.aliases : [data.slug || doc.id]
+            aliasGroup: asText(data.aliasGroup, safeSlug),
+            aliases: safeAliases.length > 0 ? safeAliases : [safeSlug]
         });
     });
 

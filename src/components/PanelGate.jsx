@@ -9,11 +9,6 @@ import { setMemberPanelToken } from '../utils/adminAuth';
 import { PANEL_MODULES, hasStaffAccess } from '../utils/panelModules';
 import ProtectedRoute from './ProtectedRoute';
 
-// What the panel treats the shared admin password as: a system owner with no
-// personal identity (the server does the same — see ADMIN_PANEL_ACTOR in
-// api/_lib/rbac.js).
-const ADMIN_PROFILE = { roles: ['system_owner'], permissions: {} };
-
 // `credential` is the bearer string for the active session. Embedded legacy
 // tools (certificates, links, …) take it as a prop and put it in their own
 // request headers, so it has to follow the member's rotating ID token.
@@ -145,22 +140,9 @@ const MemberGate = () => {
     );
 };
 
-const AdminGate = () => {
-    const access = useMemo(() => buildAccess('admin', ADMIN_PROFILE, 'Admin', sessionStorage.getItem('adminKey')), []);
-    return (
-        <PanelAccessContext.Provider value={access}>
-            <Outlet />
-        </PanelAccessContext.Provider>
-    );
-};
-
-// Layout route for everything under /panel. The shared admin password (set by
-// logging in at /admin) opens everything as before; otherwise the visitor must
-// be signed in as a member — ProtectedRoute sends them to /login (and back here
-// afterwards) and enforces the temp-password and onboarding steps first.
+// Layout route for everything under /panel. Every user, including system
+// owners, enters through Firebase and receives only their server-verified RBAC.
 const PanelGate = () => {
-    const hasAdminKey = typeof window !== 'undefined' && !!sessionStorage.getItem('adminKey');
-    if (hasAdminKey) return <AdminGate />;
     return (
         <ProtectedRoute>
             <MemberGate />

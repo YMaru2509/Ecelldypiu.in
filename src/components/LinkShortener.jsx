@@ -9,6 +9,27 @@ import {
 } from 'lucide-react';
 
 const LinkShortener = ({ adminKey, onBack, onViewLink, initialSlug }) => {
+    const normalizeLink = (link = {}) => {
+        const displayText = (value, fallback = '') => {
+            if (typeof value === 'string' || typeof value === 'number') return String(value);
+            if (value && typeof value === 'object') {
+                if (typeof value.value === 'string') return value.value;
+                if (typeof value.in === 'string') return value.in;
+            }
+            return fallback;
+        };
+        const aliases = Array.isArray(link.aliases)
+            ? link.aliases.map((alias) => displayText(alias)).filter(Boolean)
+            : [];
+        const slug = displayText(link.slug, link.id || '');
+        return {
+            ...link,
+            slug,
+            originalUrl: displayText(link.originalUrl),
+            destinationName: displayText(link.destinationName, 'your destination'),
+            aliases: aliases.length > 0 ? aliases : [slug],
+        };
+    };
     // Links data state
     const [links, setLinks] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -82,7 +103,7 @@ const LinkShortener = ({ adminKey, onBack, onViewLink, initialSlug }) => {
                 throw new Error(data.error || 'Failed to fetch shortlinks');
             }
 
-            setLinks(data.links || []);
+            setLinks(Array.isArray(data.links) ? data.links.map(normalizeLink) : []);
         } catch (err) {
             console.error('Fetch shortlinks error:', err);
             setError(err.message);

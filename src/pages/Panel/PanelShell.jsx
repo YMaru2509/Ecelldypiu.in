@@ -13,7 +13,7 @@ const PanelShell = ({ children }) => {
 
     const handleLogout = () => {
         adminLogout();
-        navigate('/admin', { replace: true });
+        navigate('/login', { replace: true });
     };
 
     return (
