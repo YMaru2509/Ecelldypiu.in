@@ -65,6 +65,62 @@ function getCertificateConfigId(eventId, audience) {
         : eventId;
 }
 
+// Organiser eligibility is event-specific: a member must have checked in for
+// this event or be explicitly assigned to it.
+function normaliseIdList(value) {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => {
+        if (typeof item === 'string') return [item];
+        if (!item || typeof item !== 'object') return [];
+        return [item.uid, item.id, item.memberUid, item.memberId].filter(Boolean);
+    });
+}
+
+function getAssignedMemberIds(eventData = {}) {
+    const keys = [
+        'assignedMemberUids', 'assignedMembers', 'memberUids',
+        'teamMemberUids', 'assignedStaffUids', 'organiserUids', 'organizerUids',
+        'organisers', 'organizers', 'teamMembers',
+    ];
+    return new Set(keys.flatMap((key) => normaliseIdList(eventData[key])));
+}
+
+function memberHasEventAssignment(memberData = {}, eventId) {
+    const values = [memberData.assignedEventIds, memberData.eventIds, memberData.assignedEvents];
+    return values.some((value) => Array.isArray(value) && value.some((item) => (
+        typeof item === 'string' ? item === eventId : item?.eventId === eventId || item?.id === eventId
+    )));
+}
+
+async function getOrganiserEligibility(eventId) {
+    const [eventSnap, membersSnap, checkinsSnap] = await Promise.all([
+        db.collection('events').doc(eventId).get(),
+        db.collection('members').get(),
+        db.collection('event_checkins').where('eventId', '==', eventId).get(),
+    ]);
+
+    const eventData = eventSnap.exists ? eventSnap.data() : {};
+    const assignedIds = getAssignedMemberIds(eventData);
+    const presentIds = new Set(checkinsSnap.docs.map((doc) => doc.data().uid).filter(Boolean));
+    const members = membersSnap.docs.map((doc) => {
+        const data = doc.data();
+        const present = presentIds.has(doc.id);
+        const assigned = assignedIds.has(doc.id) || memberHasEventAssignment(data, eventId);
+        return {
+            id: doc.id,
+            name: data.name || data.displayName || '',
+            email: data.email || '',
+            college: data.college || '',
+            phone: data.phone || '',
+            role: Array.isArray(data.roles) ? data.roles.join(', ') : (data.role || ''),
+            source: present && assigned ? 'present + assigned' : present ? 'present' : 'assigned',
+            eligible: present || assigned,
+        };
+    }).filter((member) => member.eligible && (member.name || member.email));
+
+    return { members, eligibleIds: new Set(members.map((member) => member.id)) };
+}
+
 async function sendEmail(to, subject, html, provider = 'zeptomail', attachments = []) {
     if (provider === 'bridge1' || provider === 'bridge2') {
         const url = provider === 'bridge1' ? process.env.MAIL_BRIDGE_1 : process.env.MAIL_BRIDGE_2;
@@ -423,22 +479,13 @@ async function handleListTeamMembers(req, res) {
     if (!db) return res.status(503).json({ error: 'Database connection not available' });
 
     try {
-        const snapshot = await db.collection('members').get();
-        const members = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                name: data.name || data.displayName || '',
-                email: data.email || '',
-                college: data.college || '',
-                phone: data.phone || '',
-                role: Array.isArray(data.roles) ? data.roles.join(', ') : (data.role || ''),
-                source: 'members'
-            };
-        }).filter(member => member.name || member.email)
-          .sort((a, b) => a.name.localeCompare(b.name));
+        const eventId = req.query?.eventId || new URL(req.url, 'http://localhost').searchParams.get('eventId');
+        if (!eventId) return res.status(400).json({ error: 'eventId is required' });
 
-        return res.status(200).json({ success: true, count: members.length, members });
+        const { members } = await getOrganiserEligibility(eventId);
+        members.sort((a, b) => a.name.localeCompare(b.name));
+
+        return res.status(200).json({ success: true, count: members.length, members, eligibilityScope: 'present_or_assigned' });
     } catch (error) {
         console.error('Error listing team members:', error);
         return res.status(500).json({ error: 'Failed to load team members', details: error.message });
@@ -644,6 +691,12 @@ async function handleDispatchCertificates(req, res) {
         const attendeeCollection = config.attendeeCollection || (audience === 'organisers' ? 'members' : `events/${eventId}/attendees`);
         const eligibility = reqEligibility || config.eligibility || {};
 
+        let eligibleOrganiserIds = null;
+        if (audience === 'organisers') {
+            const eligible = await getOrganiserEligibility(eventId);
+            eligibleOrganiserIds = eligible.eligibleIds;
+        }
+
         const attendeesSnapshot = await db.collection(attendeeCollection).get();
         if (attendeesSnapshot.empty) {
             return res.status(404).json({ error: 'No attendees found for this event' });
@@ -653,7 +706,7 @@ async function handleDispatchCertificates(req, res) {
         let skippedCount = 0;
         const errors = [];
         const attendees = [];
-        attendeesSnapshot.forEach(doc => attendees.push(doc.data()));
+        attendeesSnapshot.forEach(doc => attendees.push({ id: doc.id, ...doc.data() }));
 
         let templateImageBytes = null;
         let templateImageType = 'png';
@@ -696,6 +749,10 @@ async function handleDispatchCertificates(req, res) {
         }
 
         for (const attendee of attendees) {
+            if (audience === 'organisers' && !eligibleOrganiserIds.has(attendee.id)) {
+                skippedCount++;
+                continue;
+            }
             if (!attendee.email) {
                 skippedCount++;
                 continue;

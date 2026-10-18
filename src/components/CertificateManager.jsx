@@ -565,7 +565,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
         setLoadingAttendees(true);
         try {
             const endpoint = certificateAudience === 'organisers'
-                ? '/api/certificate?action=team-members'
+                ? `/api/certificate?action=team-members&eventId=${encodeURIComponent(selectedEvent)}`
                 : `/api/event?action=list-attendees&eventId=${selectedEvent}`;
             const res = await fetch(endpoint, {
                 headers: { 'Authorization': `Bearer ${adminKey}` }
@@ -574,6 +574,15 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
             const recipients = certificateAudience === 'organisers' ? data.members : data.attendees;
             if (res.ok && recipients) {
                 setEventAttendees(recipients);
+                // The organiser endpoint already returns only event-eligible
+                // members, so make the safe candidate set ready for dispatch.
+                if (certificateAudience === 'organisers') {
+                    setEligibility(Object.fromEntries(
+                        recipients
+                            .filter((member) => member.email)
+                            .map((member) => [member.email.trim().toLowerCase(), { eligible: true, reason: '' }])
+                    ));
+                }
             }
         } catch (err) {
             console.warn('Could not fetch attendees:', err);
@@ -1558,7 +1567,7 @@ const CertificateManager = ({ adminKey, onBack, verifyPassword, passwordLabel = 
 
                             <p className="text-zinc-500 text-sm mb-4">
                                 {certificateAudience === 'organisers'
-                                    ? 'Fetch members from the E-Cell team. Select only the organisers who should receive this certificate.'
+                                    ? 'Only members who were present at this event or explicitly assigned to it are shown.'
                                     : 'Fetch attendees from all event subcollections. Uncheck anyone who should not receive a certificate and enter a reason.'}
                             </p>
 
