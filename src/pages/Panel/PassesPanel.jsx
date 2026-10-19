@@ -291,6 +291,36 @@ const PassesPanel = () => {
         }
     };
 
+    const runResend = async (ids) => {
+        setBusy('resend-bulk');
+        let sent = 0; const failed = [];
+        try {
+            for (let i = 0; i < ids.length; i += BATCH) {
+                const chunk = ids.slice(i, i + BATCH);
+                flash('progress', `Resending passes ${Math.min(i + BATCH, ids.length)} of ${ids.length}…`);
+                const data = await postJson('/api/event?action=resend-pass', { eventId, registrationIds: chunk });
+                (data.results || []).forEach((r) => { if (r.ok) sent += 1; else failed.push(r.id); });
+            }
+            flash(failed.length ? 'error' : 'success', `Passes resent to ${sent} recipient${sent === 1 ? '' : 's'}.${failed.length ? ` ${failed.length} could not be sent.` : ''}`);
+            setSelected(new Set());
+        } catch (err) {
+            flash('error', `${err.message}${sent ? ` (${sent} resent before the error)` : ''}`);
+        } finally {
+            setBusy('');
+            await load(true);
+        }
+    };
+
+    const askResend = (ids) => {
+        if (ids.length === 0) return;
+        setDialog({
+            title: `Resend passes to ${ids.length} recipient${ids.length === 1 ? '' : 's'}?`,
+            body: 'Each selected shortlisted person will receive their existing pass again. Their QR code will not change.',
+            confirmLabel: 'Resend passes',
+            onConfirm: () => runResend(ids),
+        });
+    };
+
     // Shortlist / reject / reset one or many. Shortlisting emails each person their
     // pass, so it goes in small batches with a running tally.
     const runReview = async (ids, status) => {
@@ -366,6 +396,7 @@ const PassesPanel = () => {
 
     const spin = (key, IconComponent) => (busy === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : createElement(IconComponent, { className: 'w-3.5 h-3.5' }));
     const anyBusy = !!busy;
+    const selectedAreShortlisted = selected.size > 0 && [...selected].every((id) => registrations.find((r) => r.id === id)?.status === 'shortlisted');
 
     return (
         <PanelShell>
@@ -441,6 +472,10 @@ const PassesPanel = () => {
                                 </label>
                                 {selected.size > 0 && (
                                     <div className="flex flex-wrap gap-2">
+                                        {statusFilter === 'shortlisted' && selectedAreShortlisted && (
+                                            <button type="button" disabled={anyBusy} onClick={() => askResend([...selected])}
+                                                className={`${actionBtn} bg-brand-yellow text-[var(--text-on-brand)]`}>{spin('resend-bulk', Send)} Resend pass emails</button>
+                                        )}
                                         <button type="button" disabled={anyBusy} onClick={() => askReview([...selected], 'shortlisted')}
                                             className={`${actionBtn} bg-[var(--success-color)] text-black`}>{spin('bulk', UserCheck)} Shortlist &amp; email passes</button>
                                         <button type="button" disabled={anyBusy} onClick={() => askReview([...selected], 'rejected')}

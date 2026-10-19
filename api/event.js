@@ -1770,25 +1770,43 @@ async function handleResendPass(req, res) {
         await requirePermission(req, 'passes', 'manage');
         if (!db) return res.status(503).json({ error: 'Database not available' });
 
-        const { eventId, registrationId } = req.body || {};
-        if (!eventId || !registrationId) return res.status(400).json({ error: 'eventId and registrationId are required' });
+        const { eventId, registrationId, registrationIds } = req.body || {};
+        const ids = Array.isArray(registrationIds) ? [...new Set(registrationIds)] : registrationId ? [registrationId] : [];
+        if (!eventId || ids.length === 0) return res.status(400).json({ error: 'eventId and registrationId(s) are required' });
+        if (ids.length > 10) return res.status(400).json({ error: 'Send at most 10 registrations per request' });
 
-        const [regSnap, eventSnap] = await Promise.all([
-            db.collection('event_registrations').doc(registrationId).get(),
-            db.collection('events').doc(eventId).get(),
-        ]);
-        if (!regSnap.exists || regSnap.data().eventId !== eventId) return res.status(404).json({ error: 'Registration not found' });
+        const eventSnap = await db.collection('events').doc(eventId).get();
         if (!eventSnap.exists) return res.status(404).json({ error: 'Event not found' });
 
-        const reg = regSnap.data();
         const eventData = eventSnap.data();
-        if (!isAdmitted(reg, eventData)) return res.status(400).json({ error: 'Shortlist this person before sending them a pass.' });
-        await sendPassEmail({
-            eventId, registrationId, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers,
-            origin: trustedRequestOrigin(req), variant: eventData.requiresShortlisting === true ? 'shortlisted' : 'confirmed',
-        }, eventData);
-        await regSnap.ref.update({ passSentAt: Timestamp.now() });
-        return res.status(200).json({ success: true, email: reg.email });
+        const origin = trustedRequestOrigin(req);
+        const banner = await loadEventBanner(eventData, origin);
+        const sendOne = async (id) => {
+            const regSnap = await db.collection('event_registrations').doc(String(id)).get();
+            if (!regSnap.exists || regSnap.data().eventId !== eventId) return { id, ok: false, error: 'Registration not found' };
+            const reg = regSnap.data();
+            if (!isAdmitted(reg, eventData)) return { id, ok: false, error: 'Shortlist this person before sending them a pass.' };
+            await sendPassEmail({
+                eventId, registrationId: id, passToken: reg.passToken, name: reg.name, email: reg.email, answers: reg.answers,
+                origin, variant: eventData.requiresShortlisting === true ? 'shortlisted' : 'confirmed', banner,
+            }, eventData);
+            await regSnap.ref.update({ passSentAt: Timestamp.now() });
+            return { id, ok: true, email: reg.email };
+        };
+
+        const results = await Promise.all(ids.map(async (id) => {
+            try { return await sendOne(id); }
+            catch (error) {
+                console.error(`Pass resend failed for ${id}: ${error.message}`);
+                return { id, ok: false, error: error.message };
+            }
+        }));
+        if (!Array.isArray(registrationIds)) {
+            const result = results[0];
+            if (!result.ok) return res.status(400).json({ error: result.error });
+            return res.status(200).json({ success: true, email: result.email });
+        }
+        return res.status(200).json({ success: true, results });
     } catch (error) {
         if (error.status) return sendRbacError(res, error);
         console.error('Error resending pass:', error);
