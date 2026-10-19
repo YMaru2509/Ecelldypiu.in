@@ -1283,6 +1283,14 @@ const winAnsi = (text) => String(text ?? '')
 const eventAssetUrl = (src, base) => (!src ? '' : /^https?:\/\//i.test(src) ? src : `${base}/${String(src).replace(/^\/+/, '')}`);
 const publicBase = (origin) => (origin && !/^https?:\/\/(localhost|127\.)/.test(origin) ? origin : siteBaseUrl());
 
+// Illuminate '26 pass details were changed after some applications had already
+// been shortlisted. Keep generated emails/PDFs consistent while older Firestore
+// event records are being updated through the panel.
+const passEventDetails = (event, eventId) => {
+    const isIlluminate26 = eventId === 'illuminate-26' || /illuminate['’]?26/i.test(event?.title || '');
+    return isIlluminate26 ? { ...event, time: '11:00 AM', location: 'Room No. 767' } : event;
+};
+
 // The emails an event sends around registration, one template, three variants:
 //   confirmed   — straight registration: "you're in", pass attached.
 //   received    — shortlisting events: application received, no pass yet.
@@ -1537,7 +1545,7 @@ async function buildPassPdf({ event, name, answers, passCode, qrPng, banner }) {
 // 'shortlisted'. Pass `banner` when sending many in a row so the poster is fetched
 // once. Always sent through ZeptoMail (Zoho).
 async function sendPassEmail({ eventId, registrationId, passToken, name, email, answers, origin, variant = 'confirmed', banner }, eventData) {
-    const event = { ...eventData, id: eventData.id || eventId };
+    const event = passEventDetails({ ...eventData, id: eventData.id || eventId }, eventId);
     const passCode = passToken.slice(0, 8).toUpperCase();
     const qrPng = await QRCode.toBuffer(JSON.stringify({ eventId, registrationId, token: passToken }), { errorCorrectionLevel: 'H', width: 600, margin: 1 });
     const poster = banner !== undefined ? banner : await loadEventBanner(eventData, origin);
