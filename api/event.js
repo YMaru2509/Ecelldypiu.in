@@ -1293,7 +1293,7 @@ function buildRegistrationEmailHTML({ name, event, passCode, base, variant = 'co
     const title = escapeHtml(event.title || 'the event');
     const subtitle = event.subtitle ? escapeHtml(event.subtitle).replace(/[.!?\s]+$/, '') : '';
     const firstName = escapeHtml(String(name || '').trim().split(/\s+/)[0] || 'there');
-    const bannerUrl = eventAssetUrl(event.banner || event.image || event.thumbnail, base);
+    const bannerUrl = eventAssetUrl(event.image || event.thumbnail || event.banner, base);
     const statValue = (re) => (Array.isArray(event.stats) ? event.stats : []).find((t) => re.test(t?.label || ''))?.value;
     const organizer = statValue(/organi[sz]ed/i);
     const collaborator = statValue(/collaborat/i);
