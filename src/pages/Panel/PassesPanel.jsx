@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { createElement } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Search, X, Download, Send, CheckCircle2, Ticket, Calendar, Trash2, UserCheck, UserX, RotateCcw, ChevronLeft, ChevronRight, Maximize2, AlertTriangle } from 'lucide-react';
 import PanelShell from './PanelShell';
@@ -18,28 +19,44 @@ const STATUS_STYLE = {
     rejected: 'text-red-400 border-red-400/40 bg-red-900/20',
 };
 const STATUS_LABEL = { pending: 'Pending review', shortlisted: 'Shortlisted', rejected: 'Rejected' };
-const BATCH = 8; // the server takes at most 10 per request (each shortlist sends an email)
+// Keep requests comfortably below the function timeout. The server also processes
+// the emails concurrently, but smaller batches make a lost mobile connection cheap
+// to retry and prevent one slow mail provider call from holding up the whole action.
+const BATCH = 4;
+const POST_RETRIES = 3;
 const actionBtn = 'flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-black uppercase disabled:opacity-50';
 
 // JSON POST that always explains itself: a non-JSON or non-2xx answer becomes a
 // readable error instead of a silent failure.
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function postJson(url, body) {
-    let res;
-    try {
-        res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() }, body: JSON.stringify(body) });
-    } catch {
-        throw new Error('Could not reach the server — check your connection and try again.');
-    }
-    const text = await res.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch { /* not JSON */ }
-    if (!res.ok) {
-        if (res.status === 405 || /invalid action/i.test(data.error || '')) {
-            throw new Error('The server doesn\'t have this action yet — the latest backend hasn\'t been deployed (or the dev server needs a restart).');
+    let lastError;
+    for (let attempt = 0; attempt < POST_RETRIES; attempt += 1) {
+        try {
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() }, body: JSON.stringify(body) });
+            const text = await res.text();
+            let data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch { /* not JSON */ }
+            if (!res.ok) {
+                if (res.status === 405 || /invalid action/i.test(data.error || '')) {
+                    throw new Error('The server doesn\'t have this action yet — the latest backend hasn\'t been deployed (or the dev server needs a restart).');
+                }
+                const error = new Error(data.error || `The server answered ${res.status}${text && !data.error ? ` (${text.slice(0, 120).replace(/\s+/g, ' ')})` : ''}.`);
+                if (![502, 503, 504].includes(res.status)) throw error;
+                lastError = error;
+            } else {
+                return data;
+            }
+        } catch (error) {
+            lastError = error instanceof TypeError
+                ? new Error('The connection was interrupted while contacting the server.')
+                : error;
+            if (!/interrupted|network|fetch|failed to fetch/i.test(lastError.message)) throw lastError;
         }
-        throw new Error(data.error || `The server answered ${res.status}${text && !data.error ? ` (${text.slice(0, 120).replace(/\s+/g, ' ')})` : ''}.`);
+        if (attempt < POST_RETRIES - 1) await wait(800 * (attempt + 1));
     }
-    return data;
+    throw lastError || new Error('The server did not respond.');
 }
 
 // Rendered into <body> so no ancestor (transforms, overflow) can clip a full-screen layer.
@@ -347,7 +364,7 @@ const PassesPanel = () => {
         }
     };
 
-    const spin = (key, Icon) => (busy === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />);
+    const spin = (key, IconComponent) => (busy === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : createElement(IconComponent, { className: 'w-3.5 h-3.5' }));
     const anyBusy = !!busy;
 
     return (

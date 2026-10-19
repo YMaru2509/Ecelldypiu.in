@@ -1239,7 +1239,10 @@ function trustedRequestOrigin(req) {
 // failure is logged and the pass is simply made without a poster.
 async function loadEventBanner(event, origin) {
     // `banner` is a wide crop made for emails and the pass; portrait posters are too tall for them.
-    const src = event.banner || event.image || event.thumbnail;
+    // Prefer the event's current image/thumbnail. Older event records may retain
+    // a stale `banner` value, which otherwise makes newly generated pass emails
+    // keep showing an outdated poster after the event image is updated.
+    const src = event.image || event.thumbnail || event.banner;
     if (!src || typeof src !== 'string') return null;
     const mimeFor = (name) => (/\.png$/i.test(name) ? 'image/png' : /\.webp$/i.test(name) ? 'image/webp' : 'image/jpeg');
     const attempt = async (url) => {
@@ -1817,11 +1820,10 @@ async function handleSetRegistrationStatus(req, res) {
 
         const origin = trustedRequestOrigin(req);
         const banner = status === 'shortlisted' ? await loadEventBanner(eventData, origin) : null;
-        const results = [];
-        for (const id of [...new Set(registrationIds)]) {
+        const processRegistration = async (id) => {
             const ref = db.collection('event_registrations').doc(String(id));
             const snap = await ref.get();
-            if (!snap.exists || snap.data().eventId !== eventId) { results.push({ id, ok: false, error: 'Not found' }); continue; }
+            if (!snap.exists || snap.data().eventId !== eventId) return { id, ok: false, error: 'Not found' };
             const reg = snap.data();
             const previous = reg.status || 'pending';
             await ref.update({ status, statusUpdatedAt: Timestamp.now(), statusUpdatedBy: caller.uid });
@@ -1839,8 +1841,20 @@ async function handleSetRegistrationStatus(req, res) {
                     result.emailError = emailErr.message;
                 }
             }
-            results.push(result);
-        }
+            return result;
+        };
+
+        // Do not hold the request open while sending eight emails one after another.
+        // Each item still updates independently, and email failures remain attached
+        // to that item's result instead of aborting the whole batch.
+        const results = await Promise.all([...new Set(registrationIds)].map(async (id) => {
+            try {
+                return await processRegistration(id);
+            } catch (itemError) {
+                console.error(`Registration ${id} review failed: ${itemError.message}`);
+                return { id, ok: false, error: 'This registration could not be updated' };
+            }
+        }));
 
         await writeAuditLog({
             actorUid: caller.uid,
